@@ -149,6 +149,14 @@ class Net {
 
   // Helpers for Init.
   /**
+   * @brief Find Modules, and recursively instantiate them to create a
+   *        flat DAG of layers. A  module is instantiated for each layer that,
+   *        instead of specifying a type, species a module_instance. The
+   *        module_instance names the module that is to be instantiated.
+   */
+  static NetParameter InstantiateModules( const NetParameter& param );
+
+  /**
    * @brief Remove layers that the user specified should be excluded given the current
    *        phase, level, and stage.
    */

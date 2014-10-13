@@ -1254,6 +1254,37 @@ class FilterNetTest : public ::testing::Test {
   }
 };
 
+class InstantiateModuleTest : public ::testing::Test {
+protected:
+  void RunModuleInstantiationTest( const string& input_param_string,
+                                  const string& instantiated_param_string) {
+    NetParameter input_param;
+    CHECK(google::protobuf::TextFormat::ParseFromString(
+           input_param_string, &input_param));
+    NetParameter expected_instantiated_param;
+    CHECK(google::protobuf::TextFormat::ParseFromString(
+            instantiated_param_string, &expected_instantiated_param));
+
+    NetParameter actual_instantiated_param =
+        Net<float>::InstantiateModules(input_param);
+
+    std::cout << std::endl << "expected_instantiated_param:" << std::endl;
+    std::cout << expected_instantiated_param.DebugString() << std::endl;
+    std::cout << std::endl << "actual_instantiated_param:" << std::endl;
+    std::cout << actual_instantiated_param.DebugString() << std::endl;
+
+    EXPECT_EQ(expected_instantiated_param.DebugString(),
+              actual_instantiated_param.DebugString());
+
+
+    // Also test idempotence
+    NetParameter double_instantiated_param =
+        Net<float>::InstantiateModules(actual_instantiated_param);
+    EXPECT_EQ(actual_instantiated_param.DebugString(),
+              double_instantiated_param.DebugString());
+  }
+};
+
 TEST_F(FilterNetTest, TestNoFilter) {
   const string& input_proto =
       "name: 'TestNetwork' "
@@ -2195,6 +2226,181 @@ TYPED_TEST(NetTest, TestReshape) {
   for (int i = 0; i < output2.count(); ++i) {
     CHECK_EQ(*(output2.cpu_data() + i), *(output_blob->cpu_data() + i));
   }
+}
+
+TEST_F(InstantiateModuleTest, TestNoModules) {
+  const string& input_proto =
+      "name: 'TestNetwork' "
+      "layers: { "
+      "  name: 'data' "
+      "  type: DATA "
+      "  top: 'data' "
+      "  top: 'label' "
+      "} "
+      "layers: { "
+      "  name: 'innerprod' "
+      "  type: INNER_PRODUCT "
+      "  bottom: 'data' "
+      "  top: 'innerprod' "
+      "} "
+      "layers: { "
+      "  name: 'loss' "
+      "  type: SOFTMAX_LOSS "
+      "  bottom: 'innerprod' "
+      "  bottom: 'label' "
+      "} ";
+  this->RunModuleInstantiationTest(input_proto, input_proto);
+}
+
+TEST_F(InstantiateModuleTest, TestSingleModuleSingleInstance) {
+  const string& input_proto =
+      "name: 'TestNetwork' "
+      "input: 'data1' "
+      "input_dim: 64"
+      "input_dim: 500"
+      "input_dim: 1"
+      "input_dim: 1"
+      "input: 'data2' "
+      "input_dim: 64"
+      "input_dim: 500"
+      "input_dim: 1"
+      "input_dim: 1"
+      "modules: { "
+      "  name: 'Frustration' "
+      "  layers: { "
+      "    name: 'innerprod1' "
+      "    type: INNER_PRODUCT"
+      "    bottom: 'a1' "
+      "    top: 'b1' "
+      "    inner_product_param {"
+      "      num_output: 0"
+      "      weight_filler {"
+      "        type: 'gaussian' "
+      "        std: 1"
+      "        sparse: 15"
+      "      }"
+      "      bias_filler { "
+      "        type: 'constant' "
+      "        value: 0"
+      "      }"
+      "    }"
+      "  }"
+      "  layers: { "
+      "    name: 'innerprod2' "
+      "    type: INNER_PRODUCT"
+      "    bottom: 'a2' "
+      "    top: 'b2' "
+      "    inner_product_param {"
+      "      num_output: 0"
+      "      weight_filler {"
+      "        type: 'gaussian' "
+      "        std: 1"
+      "        sparse: 15"
+      "      }"
+      "      bias_filler { "
+      "        type: 'constant' "
+      "        value: 0"
+      "      }"
+      "    }"
+      "  }"
+      "  layers: { "
+      "    name: 'multiplicative_interaction' "
+      "    type: ELTWISE"
+      "    bottom: 'b1' "
+      "    bottom: 'b2' "
+      "    top:    'c1' "
+      "    eltwise_param: {"
+      "      operation: PROD"
+      "      stable_prod_grad: false"
+      "    }"
+      "  }"
+      "  required_value: 'innerprod1/inner_product_param/num_output' "
+      "  required_value: 'innerprod2/inner_product_param/num_output' "
+      "  rename_blob: 'a1' "
+      "  rename_blob: 'a2' "
+      "} "
+      "layers {"
+      "  name: frustration1"
+      "  module_instance: {"
+      "    name:'Frustration' "
+      "    param_value: 'innerprod1/inner_product_param/num_output=200' "
+      "    param_value: 'innerprod2/inner_product_param/num_output=200' "
+      "    rename_blob: 'a1=data1' "
+      "    rename_blob: 'a2=data2' "
+      "  }"
+      "}"
+      "layers {"
+      "  name: relu1"
+      "  type: RELU"
+      "  bottom: 'frustration_layer1::c1' "
+      "  top: 'relu1' "
+      "}";
+  const string& output_proto =
+      "name: 'TestNetwork' "
+      "input: 'data1' "
+      "input_dim: 64"
+      "input_dim: 500"
+      "input_dim: 1"
+      "input_dim: 1"
+      "input: 'data2' "
+      "input_dim: 64"
+      "input_dim: 500"
+      "input_dim: 1"
+      "input_dim: 1"
+      "layers: { "
+      "  name: 'frustration1::inner_product1' "
+      "  type: INNER_PRODUCT"
+      "  bottom: 'data1' "
+      "  top: 'frustration1::b1' "
+      "  inner_product_param {"
+      "    num_output: 0"
+      "    weight_filler {"
+      "      type: 'gaussian' "
+      "      std: 1"
+      "      sparse: 15"
+      "    }"
+      "    bias_filler { "
+      "      type: 'constant' "
+      "      value: 0"
+      "    }"
+      "  }"
+      "}"
+      "layers: { "
+      "  name: 'frustration1::innerprod2' "
+      "  type: INNER_PRODUCT"
+      "  bottom: 'data2' "
+      "  top: 'frustration1::b2' "
+      "  inner_product_param {"
+      "    num_output: 0"
+      "    weight_filler {"
+      "      type: 'gaussian' "
+      "      std: 1"
+      "      sparse: 15"
+      "    }"
+      "    bias_filler { "
+      "      type: 'constant' "
+      "      value: 0"
+      "    }"
+      "  }"
+      "}"
+      "layers: { "
+      "  name: 'frustration1::multiplicative_interaction' "
+      "  type: ELTWISE"
+      "  bottom: 'frustration1::b1' "
+      "  bottom: 'frustration1::b2' "
+      "  top:    'frustration::c1' "
+      "  eltwise_param: {"
+      "    operation: PROD"
+      "    stable_prod_grad: false"
+      "  }"
+      "}"
+      "layers {"
+      "  name: relu1"
+      "  type: RELU"
+      "  bottom: 'frustration1::c1' "
+      "  top: 'relu1' "
+      "}";
+  this->RunModuleInstantiationTest(input_proto, input_proto);
 }
 
 }  // namespace caffe

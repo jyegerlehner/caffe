@@ -43,6 +43,10 @@ message FillerParameter {
 
 message NetParameter {
   optional string name = 1; // consider giving the network a name
+  // Modules can be defined, and then referred to by a layer (by specifying a
+  // module name instead of a layer type) in order to instantiate the whole
+  // module in the DAG where that layer is.
+  repeated ModuleParameter modules = 7;
   repeated LayerParameter layers = 2; // a bunch of layers.
   // The input blobs to the network.
   repeated string input = 3;
@@ -58,6 +62,27 @@ message NetParameter {
   // Some layers may be included/excluded depending on this state and the states
   // specified in the layers' include and exclude fields.
   optional NetState state = 6;
+}
+
+// A module has the same structure as a net. It gets instantiated in the net
+// everywhere a layer refers to it via the layer's module_instance property.
+message ModuleParameter {
+  // You could give your module a name so layers can refer to it.
+  optional string name = 1;
+  // As many layers as you need.
+  repeated LayerParameter layers = 2;
+  // Here you specify what parameters must be specified by a
+  // ModuleInstanceParameter when the module is instantiated in a network,
+  // and which module parameters they correspond to.
+  repeated string required_value = 3;
+  // Name of a blob for which the instantiating layer must provide a new name.
+  repeated string rename_blob = 4;
+}
+
+message ModuleInstanceParameter {
+  optional string module_name  = 1;
+  repeated string param_value = 2;
+  repeated string rename_blob = 3;
 }
 
 // NOTE
@@ -267,7 +292,11 @@ message LayerParameter {
     THRESHOLD = 31;
   }
   optional LayerType type = 5; // the layer type from the enum above
-
+  // The instance of a module that should be created where this layer is.
+  // This is mutually exclusive with LayerType: either specify a layer type,
+  // or a module_instance, but not both. Specifying a module_instance means
+  // that a module will be stitched in, in place of this layer.
+  optional ModuleInstanceParameter module_instance = 2001;
   // The blobs containing the numeric parameters of the layer
   repeated BlobProto blobs = 6;
   // The names of the parameter blobs -- useful for sharing parameters among
