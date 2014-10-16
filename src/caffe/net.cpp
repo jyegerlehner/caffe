@@ -243,11 +243,12 @@ void InstantiateModule(NetParameter& net,
   NameToModuleMap name_to_mod_map;
 
   const ModuleParameterIter start = net.modules().begin();
-  const ModuleParameterIter end = net.modules().begin();
+  const ModuleParameterIter end = net.modules().end();
 
 //  ModuleMapInserter mod_map_inserter(name_to_mod_map);
 //  std::for_each(start, end, mod_map_inserter);
 
+  std::cout << "module count==" << net.modules_size() << std::endl;
   for( ModuleParameterIter it = start; it != end; ++it)
   {
     name_to_mod_map.insert( NameToModuleMap::value_type( it->name(), *it) );
@@ -273,76 +274,55 @@ void InstantiateModule(NetParameter& net,
 //  return return_param;
 }
 
-// Visit each layer, and if the layer specifies a module instance,
-// instantiate that module.
-NetParameter SweepModules(const NetParameter& net_parameter)
-{
-  NetParameter return_param;
-  return_param.CopyFrom(net_parameter);
-  return_param.clear_layers();
-  for( int layer_index = 0; layer_index < net_parameter.layers_size();
-       ++layer_index )
-  {
-    const LayerParameter& layer_param = net_parameter.layers(layer_index);
-    if (layer_param.has_type())
-    {
-      // A layer with a type passes through unchanged.
-      LayerParameter *return_layer = return_param.add_layers();
-      return_layer->CopyFrom(layer_param);
-    }
-    else if (layer_param.has_module_instance())
-    {
-      InstantiateModule(return_param, layer_param.module_instance());
-    }
-    else
-    {
-      // This should have been caught by earlier checking.
-      LOG(FATAL) << "Layer has neither type nor module instance.";
-    }
-  }
-}
-
-// Returns true iff there are any layers in the NetParameter that are
-// module instance layers. Also checks that layers specify either layer type
-// or module, but not both.
-bool StillHasModuleLayers(const NetParameter& param)
-{
-  bool has_modules = false;
-  for(int i = 0; i < param.layers_size(); ++i) {
-    const LayerParameter& layer_param = param.layers(i);
-    if (layer_param.has_type() && layer_param.has_module_instance())
-    {
-      // Case where the layer specifies both type and module.
-      std::string layer_name = layer_param.has_name() ?
-                                layer_param.name() : "[missing name]";
-      LOG(FATAL) << "Layer " << layer_name
-                 <<  " specifies both type and module_instance.";
-    }
-    else if (layer_param.has_module_instance())
-    {
-      // Case where layer only specifies a module instance.
-      has_modules = true;
-    }
-    else if (!layer_param.has_type())
-    {
-      // Case where layer specifies neither a type nor a module instance.
-      LOG(FATAL) << "Layer must specify either type or module_instance.";
-    }
-  }
-  return has_modules;
-}
+//// Returns true iff there are any layers in the NetParameter that are
+//// module instance layers. Also checks that layers specify either layer type
+//// or module, but not both.
+//bool StillHasModuleLayers(const NetParameter& param)
+//{
+//  bool has_modules = false;
+//  for(int i = 0; i < param.layers_size(); ++i) {
+//    const LayerParameter& layer_param = param.layers(i);
+//    if (layer_param.has_type() && layer_param.has_module_instance())
+//    {
+//      // Case where the layer specifies both type and module.
+//      std::string layer_name = layer_param.has_name() ?
+//                                layer_param.name() : "[missing name]";
+//      LOG(FATAL) << "Layer " << layer_name
+//                 <<  " specifies both type and module_instance.";
+//    }
+//    else if (layer_param.has_module_instance())
+//    {
+//      // Case where layer only specifies a module instance.
+//      has_modules = true;
+//    }
+//    else if (!layer_param.has_type())
+//    {
+//    }
+//  }
+//  return has_modules;
+//}
 
 template<typename Dtype>
 NetParameter Net<Dtype>::InstantiateModules(const NetParameter& param)
 {
   NetParameter return_param;
   return_param.CopyFrom(param);
-  while(StillHasModuleLayers(return_param))
+  return_param.clear_layers();
+  for(uint layer_index = 0; layer_index < param.layers_size(); ++layer_index)
   {
-    // Modules can be nested within other modules, so keep iterating until
-    // we've instantiated them all.
-    return_param = SweepModules(return_param);
+    const LayerParameter& layer_param = param.layers(layer_index);
+    if (layer_param.has_type()) {
+      // Layers with a type just pass through.
+      return_param.add_layers()->CopyFrom(layer_param);
+    } else if (layer_param.has_module_instance()) {
+      InstantiateModule(return_param, layer_param.module_instance());
+    } else {
+      // Case where layer specifies neither a type nor a module instance.
+      LOG(FATAL) << "Layer must specify either type or module_instance.";
+    }
   }
+  // Now that we've instantiated all the modules, let's get rid of them.
+  return_param.clear_modules();
   return return_param;
 }
 
