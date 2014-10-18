@@ -1,4 +1,5 @@
 #include <algorithm>
+#include "boost/algorithm/string.hpp"
 #include <map>
 #include <set>
 #include <string>
@@ -229,49 +230,95 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
   debug_info_ = false;
 }
 
+typedef std::map<std::string,const ModuleParameter&> NameToModuleMap;
+
+const ModuleParameter& FindModuleOrDie(const NameToModuleMap& module_map,
+                                  const std::string module_name )
+{
+  NameToModuleMap::const_iterator mit =
+      module_map.find(module_name);
+  if (mit == module_map.end())
+  {
+    LOG(FATAL) << "Module " << module_name << " not found.";
+  }
+  return mit->second;
+}
+
+void SetProperties(LayerParameter& layer_param,
+                   const ModuleInstanceParameter& instance_param) {
+  // Assign each property specified by the instance param.
+  for( uint val_index = 0;
+       val_index < instance_param.param_value_size();
+       ++val_index )
+  {
+    std::string name_val_pair = instance_param.param_value(val_index);
+    std::vector<std::string> tokens;
+    boost::split( tokens, name_val_pair, boost::is_any_of("="));
+
+    if (tokens.size() != 2) {
+      LOG(FATAL) << "Module instance param value '"<< name_val_pair
+                 << "' is malformed.";
+    }
+
+    std::string names = tokens[0];
+    std::string val = tokens[1];
+
+    std::vector<std::string> name_tokens;
+    boost::split(name_tokens, names, boost::is_any_of("/"));
+
+
+  }
+}
+
+
 void InstantiateModule(NetParameter& net,
                        const ModuleInstanceParameter& instance_param)
 {
   typedef ::google::protobuf::RepeatedPtrField< ::caffe::ModuleParameter >&
             ModuleParamPtrs;
-
   typedef ::google::protobuf::internal::RepeatedPtrIterator<
-      const ::caffe::ModuleParameter> ModuleParameterIter;
+      const ::caffe::ModuleParameter> ModuleParamIter;
+  typedef ::google::protobuf::internal::RepeatedPtrIterator<
+      const ::caffe::LayerParameter> LayerParamIter;
 
-  typedef std::map<std::string,const ModuleParameter&> NameToModuleMap;
-
-  NameToModuleMap name_to_mod_map;
-
-  const ModuleParameterIter start = net.modules().begin();
-  const ModuleParameterIter end = net.modules().end();
-
-//  ModuleMapInserter mod_map_inserter(name_to_mod_map);
-//  std::for_each(start, end, mod_map_inserter);
-
-  std::cout << "module count==" << net.modules_size() << std::endl;
-  for( ModuleParameterIter it = start; it != end; ++it)
+  NameToModuleMap module_map;
+  // Fill the name-to-module-map.
   {
-    name_to_mod_map.insert( NameToModuleMap::value_type( it->name(), *it) );
-    std::cout << "Module name==" << it->name() << std::endl;
+    const ModuleParamIter start = net.modules().begin();
+    const ModuleParamIter end = net.modules().end();
+
+    std::cout << "module count==" << net.modules_size() << std::endl;
+    for( ModuleParamIter it = start; it != end; ++it)
+    {
+      if( module_map.find( it->name() ) != module_map.end() )
+      {
+        LOG(FATAL) << "More than one module named " << it->name() << ".";
+      }
+      module_map.insert( NameToModuleMap::value_type( it->name(), *it ) );
+    }
   }
 
-
-//  NetParameter return_param;
-//  ModuleParameter* module_param =
-//      FindModule(instance_param.module_name(), net_parameter);
-
-//  //   Check that all required overrides specified by ModuleParameter are
-//  //   provided by the ModuleInstanceParameter.
-
-//    for( int layer_index = 0; layer_index < net_parameter.layers_size();
-//         ++layerindex )
-//    {
-//      const LayerParameter& layer_param = net_parameter.layers(layer_index);
-//      LayerParameter *return_layer = return_param.add_layers();
-//      //return_layer->CopyFrom(layer_param);
-//    }
-
-//  return return_param;
+  const ModuleParameter& module = FindModuleOrDie(module_map,
+                                             instance_param.module_name());
+  for( int layer_index = 0;
+       layer_index < module.layers_size();
+       ++layer_index ) {
+    const LayerParameter& layer_param = module.layers(layer_index);
+    if (layer_param.has_type())
+    {
+      // Add this layer from the module.
+      LayerParameter *new_layer = net.add_layers();
+      new_layer->CopyFrom(layer_param);
+      SetProperties(*new_layer, instance_param);
+    } else if (layer_param.has_module_instance()) {
+      // Recursively instantiate any modules.
+      InstantiateModule(net, layer_param.module_instance());
+    } else {
+      LOG(FATAL) << "Layer " << layer_param.name() << " in module "
+                 << instance_param.module_name() << " has neither a type "
+                 << "nor a module_instance.";
+    }
+  }
 }
 
 //// Returns true iff there are any layers in the NetParameter that are

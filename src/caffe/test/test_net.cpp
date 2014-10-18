@@ -2400,7 +2400,7 @@ TEST_F(InstantiateModuleTest, TestSingleModuleSingleInstance) {
       "  bottom: 'frustration1::c1' "
       "  top: 'relu1' "
       "} ";
-  this->RunModuleInstantiationTest(input_proto, input_proto);
+  this->RunModuleInstantiationTest(input_proto, output_proto);
 }
 
 }  // namespace caffe
