@@ -42,8 +42,14 @@ int main(int argc, char** argv)
   int url_count = urls.size();
   std::cout << "Number of urls:" << url_count << std::endl;
 
+  int num = 1000;
+  if ( argc == 2 )
+  {
+    num = atoi( argv[1] );
+  }
+
   int ctr = 0;
-  while( ctr < 1000 )
+  while( ctr < num )
   {
     // randomly select an image from the list to retrieve.
     int index = rand() % url_count;

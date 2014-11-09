@@ -382,8 +382,8 @@ void convert_dataset(const string& input_file,
               {
                 std::stringstream key;
                 key << rand();
-                key << " " << src_filename << rect.Size.width
-                    << "x" << rect.Size.height;
+                key << "_" << rect.Size.width << "x" << rect.Size.height
+                       << "_" << src_filename;
 
                 // Saving to lmdb database.
                 Datum datum;
