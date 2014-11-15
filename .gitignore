@@ -51,6 +51,7 @@
 
 # User's build configuration
 Makefile.config
+CMakeLists.txt.user
 
 # Data and models are either
 # 1. reference, and not casually committed

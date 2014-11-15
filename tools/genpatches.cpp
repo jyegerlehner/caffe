@@ -156,14 +156,12 @@ private:
         }
         else
         {
-          area_ratio *= 4.0;
+          area_ratio *= 2.0;
         }
 
-        m_count = std::pow( area_ratio, 0.667 );
+        m_count = std::pow( area_ratio, 0.8 );
     }
 
-//    uint m_lower_cutoff;
-//    uint m_upper_cutoff;
     // Number patches we should create at this scale.
     uint m_count;
     // Size of this patch scale.
@@ -173,61 +171,6 @@ private:
 };
 
 typedef std::vector<PatchScale> PatchScales;
-
-//cv::Size CreateRandomSize( int orig_width, int orig_height,
-//                           std::map<int,int>& counts )
-//{
-//  // Number of scales from which we can select.
-//  const int NUM_SCALES = 20;
-//  // Minimum 32x32 source patch size.
-//  const int MIN_DIM = PATCH_SIZE;
-//  int lesser_dim = orig_width < orig_height ? orig_width : orig_height;
-
-//  std::vector<int> scales;
-//  int scale_mod = 0;
-//  for( int scale = NUM_SCALES; scale > 0; --scale )
-//  {
-//    // Make smaller scales more likely.
-//    scale_mod += scale* sqrt(scale);
-//    scales.push_back(scale_mod);
-//  }
-
-//  // scale_mod is the largest value that occurs in scales. So we are finding
-//  // the index of the entry in scales that we wish to use.
-//  int scale = FindScale( scale_mod, scales );
-
-//  if( counts.find(scale) == counts.end() )
-//  {
-//    counts[scale] = 1;
-//  }
-//  else
-//  {
-//    counts[scale]++;
-//  }
-//  // Size of the patch.
-//  int dim = (lesser_dim - MIN_DIM) * scale / NUM_SCALES + MIN_DIM;
-
-//  // Square patch of size dim x dim.
-//  return cv::Size( dim, dim );
-//}
-
-//cv::Point2i SelectCenter( const cv::Size& size,
-//                          uint orig_width,
-//                          uint orig_height )
-//{
-//  uint min_x = size.width / 2;
-//  uint min_y = size.height / 2;
-//  uint max_x = orig_width - size.width / 2;
-//  uint max_y = orig_height - size.height / 2;
-
-//  uint NUM_SELECTS = 1000U;
-//  uint x_select = rand() % (NUM_SELECTS + 1);
-//  uint y_select = rand() % (NUM_SELECTS + 1);
-
-//  uint x_center = ( max_x - min_x ) * x_select / NUM_SELECTS + min_x;
-//  uint y_center = ( max_y - min_y ) * y_select / NUM_SELECTS + min_y;
-//  return cv::Point2i( x_center, y_center );
-//}
 
 PatchScales CreateScales( const cv::Mat& cv_image )
 {
@@ -242,25 +185,6 @@ PatchScales CreateScales( const cv::Mat& cv_image )
   }
   return scales;
 }
-
-//cv::Mat ExtractSubRect( const cv::Mat& cv_image_original,
-//                        std::map<int,int>& counts,
-//                        std::string& src_size )
-//{
-//  // Now use void getRectSubPix(InputArray image, Size patchSize,
-//  // Point2f center, OutputArray patch, int patchType=-1 )
-//  cv::Mat output;
-//  cv::Size size = CreateRandomSize( cv_image_original.cols,
-//                                    cv_image_original.rows,
-//                                    counts );
-//  std::stringstream ss;
-//  ss << size.height << "_" << size.width;
-//  src_size = ss.str();
-//  cv::Point2i center = SelectCenter( size, cv_image_original.cols,
-//                                     cv_image_original.rows );
-//  getRectSubPix( cv_image_original, size, center, output );
-//  return output;
-//}
 
 cv::Mat DownSize( const cv::Mat& rect )
 {
@@ -321,9 +245,6 @@ void convert_dataset(const string& input_file,
       {
         string current_file = itr->path().string();
         LOG(INFO) << "Reading " << current_file;
-
-  //      CHECK( cv_read_flag == CV_LOAD_IMAGE_COLOR ) << "Image must be color.";
-
         cv::Mat cv_img_original = cv::imread( current_file, CV_LOAD_IMAGE_COLOR );
         if (!cv_img_original.data)
         {
