@@ -130,15 +130,33 @@ int main( int argc, char** argv )
       std::vector<Blob<float>*> output = net->Forward( input );
       CHECK(output.size() == 1 ) << "Wrong size output of net.";
       Blob<float>* raw_blob_ptr = output[0];
-      CHECK( raw_blob_ptr->channels() == 3 ) <<
-                                          "Should have three output channels.";
       CHECK( raw_blob_ptr->num() == 1 ) << "Should have one output blob.";
 
-      // Scale the output blob back to the original image scaling
       Blob<float> output_blob;
+      if ( raw_blob_ptr->channels() != 3 )
+      {
+        int output_size = raw_blob_ptr->channels() *
+                                raw_blob_ptr->height() *
+                                raw_blob_ptr->width();
+        int input_size = input_blob.channels() *
+                         input_blob.height() * input_blob.width();
+        CHECK( output_size == input_size ) << "Output size " << output_size <<
+                                              " should equal input size " <<
+                                              input_size;
+      }
+//      CHECK( raw_blob_ptr->channels() == 3 ) <<
+//                                          "Should have three output channels.";
+
+      // Scale the output blob back to the original image scaling
       output_blob.Reshape( raw_blob_ptr->num(), raw_blob_ptr->channels(),
                            raw_blob_ptr->height(),raw_blob_ptr->width() );
+
       output_xformer.Transform( raw_blob_ptr, &output_blob );
+
+      // Shape the blob to match the
+      output_blob.Reshape( raw_blob_ptr->num(), input_blob.channels(),
+                           input_blob.height(),input_blob.width() );
+
       // Convert the output blob back to an image.
       Datum datum;
       datum.set_height( output_blob.height() );
