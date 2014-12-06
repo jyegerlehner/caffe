@@ -27,8 +27,9 @@ class InverseMVNLayerTest : public MultiDeviceTest<TypeParam> {
   InverseMVNLayerTest()
       : mvn_blob_bottom_(new Blob<Dtype>(INPUT_NUM, INPUT_CHANNELS,
                                          INPUT_HEIGHT, INPUT_WIDTH)),
-        mvn_blob_top0_(new Blob<Dtype>()),
-        mvn_blob_top1_(new Blob<Dtype>()),
+        mvn_mean_blob_(new Blob<Dtype>()),
+        mvn_scale_blob_(new Blob<Dtype>()),
+        mvn_result_blob_(new Blob<Dtype>()),
         inverse_mvn_blob_top_(new Blob<Dtype>()) {
     // fill the values
     FillerParameter filler_param;
@@ -36,23 +37,28 @@ class InverseMVNLayerTest : public MultiDeviceTest<TypeParam> {
     filler.Fill(this->blob_bottom_);
 
     mvn_blob_bottom_vec_.push_back(mvn_blob_bottom_);
-    mvn_blob_top_vec_.push_back(mvn_blob0_top_);
-    mvn_blob_top_vec_.push_back(mvn_blob1_top_);
+    mvn_blob_top_vec_.push_back(mvn_mean_blob_);
+    mvn_blob_top_vec_.push_back(mvn_scale_blob_);
+    mvn_blob_top_vec_.push_back(mvn_result_blob_);
 
-    // The blob that contains the means and variance scalings.
-    inverse_mvn_blob_bottom_vec_.push_back(mvn_blob0_top_);
-    // The blob that is to be operated on.
-    inverse_mvn_blob_bottom_vec_.push_back(mvn_blob1_top_);
-    // The output blob.
+    // The blob that contains the means computed by the mvn layer.
+    inverse_mvn_blob_bottom_vec_.push_back(mvn_mean_blob_);
+    // The blob that contains the scales computed by the mvn layer.
+    inverse_mvn_blob_bottom_vec_.push_back(mvn_scale_blob_);
+    // The blob that has the scaled, mean-subtracted output of the mvn layer.
+    inverse_mvn_blob_bottom_vec_.push_back(mvn_result_blob_);
+    // The inverse mvn layer's output blob.
     inverse_mvn_blob_top_vec_.push_back(inverse_mvn_blob_top_);
   }
   virtual ~InverseMVNLayerTest() {
-    delete mvn_blob_bottom_;
+    delete mvn_mean_blob_;
+    delete mvn_scale_blob_;
+    delete mvn_result_blob_;
     delete inverse_mvn_blob_top_;
   }
-  Blob<Dtype>* const mvn_blob_bottom_;
-  Blob<Dtype>* const mvn_blob0_top_;
-  Blob<Dtype>* const mvn_blob1_top_;
+  Blob<Dtype>* const mvn_mean_blob_;
+  Blob<Dtype>* const mvn_scale_blob_;
+  Blob<Dtype>* const mvn_result_blob_;
   Blob<Dtype>* const inverse_mvn_blob_top_;
 
   vector<Blob<Dtype>*> mvn_blob_bottom_vec_;
@@ -66,8 +72,12 @@ TYPED_TEST_CASE(InverseMVNLayerTest, TestDtypesAndDevices);
 TYPED_TEST(InverseMVNLayerTest, TestSetUp) {
   typedef typename TypeParam::Dtype Dtype;
   // Default mvn layer does both mean and variance normalization.
-  LayerParameter layer_param;
-  shared_ptr<MVNLayer<Dtype> > mvn_layer(new MVNLayer<Dtype>(layer_param));
+  LayerParameter mvn_layer_param;
+  CHECK(google::protobuf::TextFormat::ParseFromString(
+      "mvn_param { blob_name_mean: \"a_mean\" blob_name_scale: \"a_scale\"}",
+          &mvn_layer_param));
+
+  shared_ptr<MVNLayer<Dtype> > mvn_layer(new MVNLayer<Dtype>(mvn_layer_param));
   mvn_layer->SetUp(this->mvn_blob_bottom_vec_, this->mvn_blob_top_vec_);
 
   LayerParameter inverse_mvn_layer_param;
