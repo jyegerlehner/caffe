@@ -582,12 +582,12 @@ message MVNParameter {
   // Specify the name of the mean blob, if it is to be added to the
   // layer's vector of top blobs. The name must also appear amongst
   // the layer's top blobs.
-  optional string blob_name_mean = 3 [default = ""];
+  optional string mean_blob = 3 [default = ""];
 
   // Specify the name of the scaling blob, if it is to be added to
   // the layer's  vector of top blobs. The name must also appear amongst the
   // layer's top blobs.
-  optional string blob_name_scale = 4 [default = ""];
+  optional string scale_blob = 4 [default = ""];
 }
 
 // Message that stores parameters used by PoolingLayer

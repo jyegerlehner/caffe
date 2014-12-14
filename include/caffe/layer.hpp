@@ -59,11 +59,42 @@ class Layer {
    * This method may not be overridden.
    */
   void SetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top) {
+      const vector<Blob<Dtype>*>& top, const BlobInfo* blob_info = NULL):
+        blob_info_(blob_info) {
     CheckBlobCounts(bottom, top);
-    LayerSetUp(bottom, top);
+    LayerSetUp(bottom, top, blob_info);
     Reshape(bottom, top);
     SetLossWeights(top);
+  }
+
+  /**
+   * @brief Does layer-specific setup: your layer should implement this function
+   *        as well as Reshape. This method just delegates to the LayerSetUp()
+   *        that does not take BlobInfo pointer as an argument. Any layer type
+   *        that needs access to the BlobInfo object should override this
+   *        method.
+   *
+   * @param bottom
+   *     the preshaped input blobs, whose data fields store the input data for
+   *     this layer
+   * @param top
+   *     the allocated but unshaped output blobs
+   * @param blob_info
+   *     Object allows recovering a blob by its name and vice versa.
+   *
+   * This method should do one-time layer specific setup. This includes reading
+   * and processing relevent parameters from the <code>layer_param_</code>.
+   * Setting up the shapes of top blobs and internal buffers should be done in
+   * <code>Reshape</code>, which will be called before the forward pass to
+   * adjust the top blob sizes.
+   */
+  virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top, const BlobInfo* blob_info)
+  {
+    // Ignore the blob info because most layer types don't use it. Any
+    // layer type that does need it should override this method.
+    (void) blob_info;
+    this->LayerSetUp(bottom, top);
   }
 
   /**
@@ -83,7 +114,7 @@ class Layer {
    * adjust the top blob sizes.
    */
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top) {}
+      const vector<Blob<Dtype>*>& top, const BlobInfo* blob_info) {}
 
   /**
    * @brief Adjust the shapes of top blobs and internal buffers to accomodate
@@ -295,6 +326,8 @@ class Layer {
   vector<shared_ptr<Blob<Dtype> > > blobs_;
   /** Vector indicating whether to compute the diff of each param blob. */
   vector<bool> param_propagate_down_;
+  /** Helper that gets blob pointer by its name, or NULL */
+  const BlobInfo* blob_info_;
 
   /** The vector that indicates whether each top blob has a non-zero weight in
    *  the objective function. */
