@@ -209,6 +209,7 @@ TYPED_TEST(InverseMVNLayerTest, TestForward) {
 TYPED_TEST(InverseMVNLayerTest, TestGradient) {
   typedef typename TypeParam::Dtype Dtype;
 
+  // Default mvn layer does both mean and variance normalization.
   LayerParameter mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
       "mvn_param { mean_blob: \"mean_a\" variance_blob: \"variance_a\" "

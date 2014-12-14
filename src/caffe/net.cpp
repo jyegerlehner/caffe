@@ -66,6 +66,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
   param_id_vecs_.resize(param.layer_size());
   top_id_vecs_.resize(param.layer_size());
   bottom_need_backward_.resize(param.layer_size());
+  BlobInfo blob_info;
   for (int layer_id = 0; layer_id < param.layer_size(); ++layer_id) {
     // Inherit phase from net if unset.
     if (!param.layer(layer_id).has_phase()) {
