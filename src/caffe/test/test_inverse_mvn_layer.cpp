@@ -74,19 +74,20 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp) {
   // Default mvn layer does both mean and variance normalization.
   LayerParameter mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
-      "mvn_param { blob_name_mean: \"a_mean\" blob_name_scale: \"a_scale\"}",
+      "mvn_param { mean_blob: \"mean_a\" scale_blob: \"scale_a\"}",
           &mvn_layer_param));
-
   shared_ptr<MVNLayer<Dtype> > mvn_layer(new MVNLayer<Dtype>(mvn_layer_param));
   mvn_layer->SetUp(this->mvn_blob_bottom_vec_, this->mvn_blob_top_vec_);
 
   LayerParameter inverse_mvn_layer_param;
+  CHECK(google::protobuf::TextFormat::ParseFromString(
+      "mvn_param { mean_blob: \"mean_a\" scale_blob: \"scale_a\" }"));
   shared_ptr<InverseMVNLayer<Dtype> >
       inverse_mvn_layer(new InverseMVNLayer<Dtype>( inverse_mvn_layer_param ));
   inverse_mvn_layer->SetUp(this->inverse_mvn_blob_bottom_vec_,
                            this->inverse_mvn_blob_top_vec_);
 
-  EXPECT_EQ(this->mvn_blob_top_vec_.size(), 2);
+  EXPECT_EQ(this->mvn_blob_top_vec_.size(), 3);
   EXPECT_EQ(this->inverse_mvn_blob_top_vec_.size(), 1);
 
   const int num_channels = 5;
@@ -100,8 +101,7 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp) {
   EXPECT_EQ(blob1->num(), INPUT_NUM);
   EXPECT_EQ(blob1->height(), 1);
   EXPECT_EQ(blob1->width(), 1);
-  // There should be a mean and a scale for each channel of the bottom blob.
-  EXPECT_EQ(blob1->channels(), 2*INPUT_CHANNELS);
+  EXPECT_EQ(blob1->channels(), INPUT_CHANNELS);
 
   Blob<Dtype>* blob2 = this->inverse_mvn_blob_top_vec_[0];
   EXPECT_EQ(blob2->num(), INPUT_NUM);
@@ -112,30 +112,45 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp) {
 
 // We rely on MVNLayer working correctly (as it is independently tested).
 // Then we test that the mvn layer composed with the inverse mvn layer
-// yields the identity function (i.e returns the original data).
+// yields the identity function (i.e. returns the original data).
 TYPED_TEST(InverseMVNLayerTest, TestForward) {
   typedef typename TypeParam::Dtype Dtype;
+
   LayerParameter mvn_layer_param;
-  LayerParameter inverse_mvn_layer_param;
-
+  CHECK(google::protobuf::TextFormat::ParseFromString(
+      "mvn_param { mean_blob: \"mean_a\" scale_blob: \"scale_a\"}",
+          &mvn_layer_param));
   MVNLayer<Dtype> mvn_layer(mvn_layer_param);
-  InverseMVNLayer<Dtype>  inverse_mvn_layer(inverse_mvn_layer_param);
-
+  // Create an MVN layer.
   mvn_layer.SetUp(this->mvn_blob_bottom_vec_,
                   this->mvn_blob_top_vec_);
+
+
+  // Create an InverseMVN layer to "undo" or invert the effect of the MVN
+  // layer.
+  LayerParameter inverse_mvn_layer_param;
+  CHECK(google::protobuf::TextFormat::ParseFromString(
+      "mvn_param { mean_blob: \"mean_a\" scale_blob: \"scale_a\"}",
+          &inverse_mvn_layer_param));
+  InverseMVNLayer<Dtype>  inverse_mvn_layer(inverse_mvn_layer_param);
   inverse_mvn_layer.SetUp(this->inverse_mvn_blob_bottom_vec_,
                           this->inverse_mvn_blob_top_vec_);
 
+  // Run the blob forward through the MVN layer.
   mvn_layer.Forward(this->mvn_blob_bottom_vec_,
                 this->mvn_blob_top_vec_);
+  // Run the output of the MVN layer forward through the Inverse MVN layer.
   inverse_mvn_layer.Forward(this->inverse_mvn_blob_bottom_vec_,
                 this->inverse_mvn_blob_top_vec_);
+
 
   int num = this->mvn_blob_bottom_->num();
   int channels = this->mvn_blob_bottom_->channels();
   int height = this->mvn_blob_bottom_->height();
   int width = this->mvn_blob_bottom_->width();
 
+  // Expect that the dimensions of the blob coming out of the InverseMVN layer
+  // are the same as what went in to the MVN layer.
   EXPECT_EQ(num, this->inverse_mvn_blob_top_->num());
   EXPECT_EQ(channels, this->inverse_mvn_blob_top_->channels());
   EXPECT_EQ(height, this->inverse_mvn_blob_top_->height());
@@ -166,21 +181,33 @@ TYPED_TEST(InverseMVNLayerTest, TestForward) {
 TYPED_TEST(InverseMVNLayerTest, TestGradient) {
   typedef typename TypeParam::Dtype Dtype;
 
+  // Default mvn layer does both mean and variance normalization.
   LayerParameter mvn_layer_param;
+  CHECK(google::protobuf::TextFormat::ParseFromString(
+      "mvn_param { mean_blob: \"mean_a\" scale_blob: \"scale_a\"}",
+          &mvn_layer_param));
+  shared_ptr<MVNLayer<Dtype> > mvn_layer(new MVNLayer<Dtype>(mvn_layer_param));
+  mvn_layer->SetUp(this->mvn_blob_bottom_vec_, this->mvn_blob_top_vec_);
+
   LayerParameter inverse_mvn_layer_param;
+  CHECK(google::protobuf::TextFormat::ParseFromString(
+      "mvn_param { mean_blob: \"mean_a\" scale_blob: \"scale_a\" }"));
+  shared_ptr<InverseMVNLayer<Dtype> >
+      inverse_mvn_layer(new InverseMVNLayer<Dtype>( inverse_mvn_layer_param ));
+  inverse_mvn_layer->SetUp(this->inverse_mvn_blob_bottom_vec_,
+                           this->inverse_mvn_blob_top_vec_);
 
-  MVNLayer<Dtype> mvn_layer(mvn_layer_param);
-  InverseMVNLayer<Dtype>  inverse_mvn_layer(inverse_mvn_layer_param);
-
-  mvn_layer.SetUp(this->mvn_blob_bottom_vec_,
-                  this->mvn_blob_top_vec_);
-  inverse_mvn_layer.SetUp(this->inverse_mvn_blob_bottom_vec_,
-                          this->inverse_mvn_blob_top_vec_);
+  EXPECT_EQ(this->mvn_blob_top_vec_.size(), 3);
+  EXPECT_EQ(this->inverse_mvn_blob_top_vec_.size(), 1);
 
   mvn_layer.Forward(this->mvn_blob_bottom_vec_,
                 this->mvn_blob_top_vec_);
+
+  inverse_mvn_layer.Forward(this->inverse_mvn_blob_bottom_vec_,
+                            this->inverse_mvn_blob_top_vec_);
+
   GradientChecker<Dtype> checker(1e-2, 1e-3);
-  checker.CheckGradientExhaustive(&mvn_layer,
+  checker.CheckGradientExhaustive(&inverse_mvn_layer,
       this->inverse_mvn_blob_bottom_vec_,
       this->inverse_mvn_blob_top_vec_);
 }

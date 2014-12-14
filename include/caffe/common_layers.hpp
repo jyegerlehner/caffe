@@ -10,6 +10,7 @@
 #include "caffe/data_layers.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/loss_layers.hpp"
+#include "caffe/mvn_blob_order.hpp"
 #include "caffe/neuron_layers.hpp"
 #include "caffe/proto/caffe.pb.h"
 
@@ -292,12 +293,54 @@ template <typename Dtype>
 class MVNLayer : public Layer<Dtype> {
  public:
   explicit MVNLayer(const LayerParameter& param)
-      : Layer<Dtype>(param) {}
+      : Layer<Dtype>(param),
+       blob_helper_(param) {}
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
 
   virtual inline LayerParameter_LayerType type() const {
     return LayerParameter_LayerType_MVN;
+  }
+  virtual inline int ExactNumBottomBlobs() const { return 1; }
+  virtual inline int ExactNumTopBlobs() const
+                { return blob_helper_.NumBlobs(); }
+
+ protected:
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  virtual void LayerSetUp(const vector<Blob<caffe::Dtype> *> &bottom,
+                     const vector<Blob<caffe::Dtype> *> &top,
+                     const BlobInfo *blob_info);
+
+  Blob<Dtype> mean_, variance_, temp_;
+
+  /// sum_multiplier is used to carry out sum using BLAS
+  Blob<Dtype> sum_multiplier_;
+
+  MvnBlobOrdering<Dtype> blob_helper_;
+};
+
+/**
+ * @brief Performs the inverse of the MVNLayer's operation.
+ *
+ * TODO(dox): thorough documentation for Forward, Backward, and proto params.
+ */
+template <typename Dtype>
+class InverseMVNLayer : public Layer<Dtype> {
+ public:
+  explicit InverseMVNLayer(const LayerParameter& param)
+      : Layer<Dtype>(param) {}
+  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline LayerParameter_LayerType type() const {
+    return LayerParameter_LayerType_INVERSE_MVN;
   }
   virtual inline int ExactNumBottomBlobs() const { return 1; }
   virtual inline int ExactNumTopBlobs() const { return 1; }

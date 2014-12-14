@@ -8,18 +8,40 @@
 namespace caffe {
 
 template <typename Dtype>
+void MVNLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype> *> &bottom,
+                            const vector<Blob<Dtype> *> &top,
+                            const BlobInfo<Dtype> *blob_info) {
+  CHECK(layer_param_.has_mvn_param()) << "MVN parameter not specified in "
+                                         "layer " << layer_param_.name();
+  const MVNParameter& param = layer_param_.mvn_param();
+  blob_helper_ = MvnBlobOrdering( layer_param_, blob_info, top);
+  // If the mean_ and variance_ blobs are expoerted as top blobs, replace the
+  // members with the blobs in the top.
+  if (blob_helper_.HasMean())
+  {
+    mean_.ShareData(*blob_helper_.MeanBlob(top));
+    mean_.ShareDiff(*blob_helper_.MeanBlob(top));
+  }
+  if (blob_helper_.HasScale())
+  {
+    variance_.ShareData(*blob_helper_.ScaleBlob());
+    variance_.ShareDiff(*blob_helper_.ScaleBlob());
+  }
+
+}
+
+template <typename Dtype>
 void MVNLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
-  top[0]->Reshape(bottom[0]->num(), bottom[0]->channels(),
-      bottom[0]->height(), bottom[0]->width());
-  mean_.Reshape(bottom[0]->num(), bottom[0]->channels(),
-      1, 1);
-  variance_.Reshape(bottom[0]->num(), bottom[0]->channels(),
-      1, 1);
-  temp_.Reshape(bottom[0]->num(), bottom[0]->channels(),
-      bottom[0]->height(), bottom[0]->width());
-  sum_multiplier_.Reshape(1, 1,
-      bottom[0]->height(), bottom[0]->width());
+
+  Blob<Dtype>* input_blob = blob_helper_.
+  top[0]->Reshape(input_blob->num(), input_blob->channels(),
+      input_blob->height(), input_blob->width());
+  mean_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
+  variance_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
+  temp_.Reshape(input_blob->num(), input_blob->channels(),
+      input_blob->height(), input_blob->width());
+  sum_multiplier_.Reshape(1, 1, input_blob->height(), input_blob->width());
   Dtype* multiplier_data = sum_multiplier_.mutable_cpu_data();
   caffe_set(sum_multiplier_.count(), Dtype(1), multiplier_data);
 }
