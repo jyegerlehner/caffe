@@ -32,6 +32,7 @@ void MVNLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype> *> &bottom,
   }
 }
 
+
 template <typename Dtype>
 void MVNLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
