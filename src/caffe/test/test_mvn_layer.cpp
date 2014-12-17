@@ -26,12 +26,21 @@ class MVNLayerTest : public MultiDeviceTest<TypeParam> {
     filler.Fill(this->blob_bottom_);
     blob_bottom_vec_.push_back(blob_bottom_);
     blob_top_vec_.push_back(blob_top_);
+    AddTopBlob("top0",&blob_top_);
   }
   virtual ~MVNLayerTest() { delete blob_bottom_; delete blob_top_; }
+
+  void AddTopBlob(Blob<Dtype>* blob, const std::string& name)
+  {
+    blob_top_vec_.push_back(blob);
+    blob_helper_.AddBlob(name, blob);
+  }
+
   Blob<Dtype>* const blob_bottom_;
   Blob<Dtype>* const blob_top_;
   vector<Blob<Dtype>*> blob_bottom_vec_;
   vector<Blob<Dtype>*> blob_top_vec_;
+  BlobInfo blob_info_;
 };
 
 TYPED_TEST_CASE(MVNLayerTest, TestDtypesAndDevices);
@@ -40,7 +49,7 @@ TYPED_TEST(MVNLayerTest, TestForward) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;
   MVNLayer<Dtype> layer(layer_param);
-  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, blob_info_);
   layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
   // Test mean
   int num = this->blob_bottom_->num();
@@ -53,6 +62,7 @@ TYPED_TEST(MVNLayerTest, TestForward) {
       Dtype sum = 0, var = 0;
       for (int k = 0; k < height; ++k) {
         for (int l = 0; l < width; ++l) {
+
           Dtype data = this->blob_top_->data_at(i, j, k, l);
           sum += data;
           var += data * data;
@@ -68,14 +78,95 @@ TYPED_TEST(MVNLayerTest, TestForward) {
       EXPECT_NEAR(1, var, kErrorBound);
     }
   }
+
+  EXPECT_EQ( &(this->blob_top_), blob_info_.PointerFromName("top0"));
 }
+
+// Test the case where the MVNParameter specifies that the mean and variance
+// blobs are to appear in the layer's top blobs.
+TYPED_TEST(MVNLayerTest, TestForward_MeanAndVarianceInTopBlobs) {
+  typedef typename TypeParam::Dtype Dtype;
+
+  blob_top_vec_.clear();
+  vector<Blob<Dtype>*> top_blobs;
+  {
+    AddTopBlob(new Blob<Dtype>(), "normalized");
+    AddTopBlob(new Blob<Dtype>(), "mean");
+    AddTopBlob(new Blob<Dtype>(), "variance");
+  }
+
+  LayerParameter layer_param;
+  CHECK(google::protobuf::TextFormat::ParseFromString(
+      "mvn_param { mean_blob: \"mean\" variance_blob: \"variance\" } "
+      " top: \"normalized\" top: \"variance\" top: \"mean\"" ));
+  MVNLayer<Dtype> layer(layer_param);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, blob_info_);
+  layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
+  // Test mean
+  int num = this->blob_bottom_->num();
+  int channels = this->blob_bottom_->channels();
+  int height = this->blob_bottom_->height();
+  int width = this->blob_bottom_->width();
+
+  Blob<Dtype> expected_input_means(num, channels, 1, 1);
+  Blob<Dtype> expected_input_variances(num, channels, 1,1);
+  for (int i = 0; i < num; ++i) {
+    Dtype input_mean = 0.0;
+    Dtype input_variance = 0.0;
+    for (int j = 0; j < channels; ++j) {
+      Dtype sum = 0, var = 0;
+      for (int k = 0; k < height; ++k) {
+        for (int l = 0; l < width; ++l) {
+          Dtype data = this->blob_top_->data_at(i, j, k, l);
+          sum += data;
+          var += data * data;
+
+          Dtype input_data = this->blob_bottom_->data_at(i,j,k,l);
+          input_mean += input_data;
+          input_variance += input_data*input_data;
+        }
+      }
+      sum /= height * width;
+      var /= height * width;
+
+      input_mean /= height*width;
+      input_variance /= height*width;
+
+      const Dtype kErrorBound = 0.001;
+      // expect zero mean
+      EXPECT_NEAR(0, sum, kErrorBound);
+      // expect unit variance
+      EXPECT_NEAR(1, var, kErrorBound);
+      *(expected_input_means.mutable_cpu_data() +
+          expected_input_means.offset(i,j,1,1)) = input_mean;
+      *(expected_input_variances.mutable_cpu_data() +
+          expected_input_variances.offset(i,j,1,1)) = input_variance;
+    }
+  }
+
+  Blob<Dtype>* means = blob_info_.PointerFromName("mean");
+  Blob<Dtype>* variances = blob_info_.PointerFromName("variance");
+  for (int i = 0; i < num; ++i) {
+    for (int j = 0; j < channels; ++j) {
+      for (int k = 0; k < height; ++k) {
+        for (int l = 0; l < width; ++l) {
+          EXPECT_NEAR(means->data_at(i,j,1,1),
+                      expected_input_means->data_at(i,j,1,1), kErrorBound);
+          EXPECT_NEAR(variances->data_at(i,j,1,1),
+                      expected_input_variances->data_at(i,j,1,1), kErrorBound);
+        }
+      }
+   }
+ }
+}
+
 
 TYPED_TEST(MVNLayerTest, TestForwardMeanOnly) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;
   layer_param.ParseFromString("mvn_param{normalize_variance: false}");
   MVNLayer<Dtype> layer(layer_param);
-  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, blob_info_);
   layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
   // Test mean
   int num = this->blob_bottom_->num();
@@ -108,7 +199,7 @@ TYPED_TEST(MVNLayerTest, TestForwardAcrossChannels) {
   layer_param.ParseFromString("mvn_param{across_channels: true}");
   MVNLayer<Dtype> layer(layer_param);
   layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
-  layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
+  layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_, blob_info_);
   // Test mean
   int num = this->blob_bottom_->num();
   int channels = this->blob_bottom_->channels();
