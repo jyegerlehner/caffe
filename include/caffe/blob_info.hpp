@@ -11,7 +11,7 @@ struct BlobInfo
 {
   typedef std::map<Blob<Dtype>*, std::string> BlobToNameMap;
   typedef std::map<std::string, Blob<Dtype>*> NameToBlobMap;
-  typedef shared_ptr<BlobInfo<Dtype>> Ptr;
+  typedef boost::shared_ptr<BlobInfo<Dtype> > Ptr;
 
   void AddBlob( const std::string& name, Blob<Dtype>* blob_ptr );
   Blob<Dtype>* PointerFromName( const std::string& name );
