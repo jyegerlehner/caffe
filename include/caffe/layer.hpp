@@ -106,7 +106,7 @@ class Layer {
    * adjust the top blob sizes.
    */
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top, const BlobInfo* blob_info)
+      const vector<Blob<Dtype>*>& top, const BlobInfo<Dtype>* blob_info)
   {
     // Ignore the blob info because most layer types don't use it. Any
     // layer type that does need it should override this method.
@@ -131,7 +131,7 @@ class Layer {
    * adjust the top blob sizes.
    */
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top, const BlobInfo* blob_info) {}
+      const vector<Blob<Dtype>*>& top, const BlobInfo<Dtype>* blob_info) {}
 
   /**
    * @brief Adjust the shapes of top blobs and internal buffers to accomodate
