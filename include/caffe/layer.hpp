@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "caffe/blob.hpp"
+#include "caffe/blob_info.hpp"
 #include "caffe/common.hpp"
 #include "caffe/layer_factory.hpp"
 #include "caffe/proto/caffe.pb.h"
@@ -58,8 +59,7 @@ class Layer {
    * This method may not be overridden.
    */
   void SetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top, const BlobInfo* blob_info = NULL):
-        blob_info_(blob_info) {
+     const vector<Blob<Dtype>*>& top, const BlobInfo<Dtype>* blob_info = NULL) {
     CheckBlobCounts(bottom, top);
     LayerSetUp(bottom, top, blob_info);
     Reshape(bottom, top);
@@ -88,7 +88,7 @@ class Layer {
    * adjust the top blob sizes.
    */
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top, const BlobInfo* blob_info)
+      const vector<Blob<Dtype>*>& top, const BlobInfo<Dtype>* blob_info)
   {
     // Ignore the blob info because most layer types don't use it. Any
     // layer type that does need it should override this method.
@@ -113,7 +113,7 @@ class Layer {
    * adjust the top blob sizes.
    */
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top, const BlobInfo* blob_info) {}
+      const vector<Blob<Dtype>*>& top, const BlobInfo<Dtype>* blob_info) {}
 
   /**
    * @brief Adjust the shapes of top blobs and internal buffers to accomodate
@@ -324,7 +324,6 @@ class Layer {
     param_propagate_down_[param_id] = value;
   }
 
-
  protected:
   /** The protobuf that stores the layer parameters */
   LayerParameter layer_param_;
@@ -333,7 +332,7 @@ class Layer {
   /** Vector indicating whether to compute the diff of each param blob. */
   vector<bool> param_propagate_down_;
   /** Helper that gets blob pointer by its name, or NULL */
-  const BlobInfo* blob_info_;
+  const BlobInfo<Dtype>* blob_info_;
 
   /** The vector that indicates whether each top blob has a non-zero weight in
    *  the objective function. */
