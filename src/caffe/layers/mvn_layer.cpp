@@ -8,37 +8,43 @@
 namespace caffe {
 
 template <typename Dtype>
+void MVNLayer<Dtype>::SetBlobFinder(const BlobFinder<Dtype> &blob_finder)
+{
+  this->blob_helper_ = MvnBlobOrdering<Dtype>( this->layer_param_,
+                                               blob_finder );
+}
+
+template <typename Dtype>
 void MVNLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype> *> &bottom,
-                            const vector<Blob<Dtype> *> &top,
-                            const BlobInfo<Dtype> *blob_info) {
-  CHECK(layer_param_.has_mvn_param()) << "MVN parameter not specified in "
-                                         "layer " << layer_param_.name();
-  const MVNParameter& param = layer_param_.mvn_param();
+                            const vector<Blob<Dtype> *> &top) {
+  CHECK(this->layer_param_.has_mvn_param()) << "MVN parameter not specified in "
+                                         "layer " << this->layer_param_.name();
+  const MVNParameter& param = this->layer_param_.mvn_param();
   // If the parameter specifies that the variance blob should be added to the
   // vector of top blobs, then the parameter must also specificy that
   // variance is to be normalized.
-  CHECK(param.has_variance() && !param.normalize_variance())
-    << "MVNLayer " << layer_param_.name() << " specifies a top blob name for "
-       << " the variance blob, but does not normalize for variance.";
-  blob_helper_ = MvnBlobOrdering( layer_param_, blob_info, top);
+  CHECK(param.has_variance_blob() && !param.normalize_variance())
+    << "MVNLayer " << this->layer_param_.name()
+       << " specifies a top blob name for the variance blob, but does not "
+       << "normalize for variance.";
 }
 
 // This function causes the member mean_ or variance_ blob to share data
 // with the top or bottom blob containing the mean or variance.
 // internal blob is the member variable blob mean_. External blob is the blob
 // in the top or bottom vector of blobs (now owned by the layer).
+template<typename Dtype>
 void UseExternal(Blob<Dtype>* internal_blob,
                  Blob<Dtype>* external_blob,
                  int num,
                  int channels)
 {
-  // Before ShareData, the two blobs have to have the same shape.
+  // Before we can ShareData, the two blobs have to have the same shape.
   external_blob->Reshape(num,channels,1,1);
-  blob->ReshapeLike(*external_blob);
-  blob->ShareData(*external_blob);
-  blob->ShareDiff(*external_blob);
+  internal_blob->ReshapeLike(*external_blob);
+  internal_blob->ShareData(*external_blob);
+  internal_blob->ShareDiff(*external_blob);
 }
-
 
 template <typename Dtype>
 void MVNLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
@@ -50,13 +56,12 @@ void MVNLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   blob_helper_.DataBlob(top)->Reshape(input_blob->num(), input_blob->channels(),
       input_blob->height(), input_blob->width());
 
-
   if (blob_helper_.HasMean())
   {
     // If the mean_ is exported as a top blob, have the mean_ member share the
     // data of the mean blob in the top vector.
-    Blob<Dtype>* mean_blob = blob_helper_.MeanBlob(top);
-    UseExternal( &mean_, blob_helper_.MeanBlob(top), input_blob, mean_blob );
+    UseExternal( &mean_, blob_helper_.MeanBlob(top), input_blob->num(),
+                 input_blob->channels() );
   }
   else
   {
@@ -67,9 +72,8 @@ void MVNLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   {
     // If variance_ is exported as a top blob, have it share the
     // data of the variance blob in the top vector.
-    Blob<Dtype>* mean_blob = blob_helper_.VarianceBlob(top);
-    UseExternal( &variance_, blob_helper_.VarianceBlob(top),
-                 input_blob, mean_blob );
+    UseExternal( &variance_, blob_helper_.VarianceBlob(top), input_blob->num(),
+                 input_blob->channels() );
   } else {
     variance_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
   }

@@ -283,8 +283,7 @@ template <typename Dtype>
 class MVNLayer : public Layer<Dtype> {
  public:
   explicit MVNLayer(const LayerParameter& param)
-      : Layer<Dtype>(param),
-       blob_helper_(param) {}
+      : Layer<Dtype>(param) {}
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
 
@@ -302,9 +301,9 @@ class MVNLayer : public Layer<Dtype> {
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
-  virtual void LayerSetUp(const vector<Blob<caffe::Dtype> *> &bottom,
-                     const vector<Blob<caffe::Dtype> *> &top,
-                     const BlobInfo *blob_info);
+  virtual void LayerSetUp(const vector<Blob<Dtype> *> &bottom,
+                     const vector<Blob<Dtype> *> &top);
+  virtual void SetBlobFinder(const BlobFinder<Dtype>& blob_finder );
 
   Blob<Dtype> mean_, variance_, temp_;
 
@@ -348,77 +347,6 @@ class InverseMVNLayer : public Layer<Dtype> {
   /// sum_multiplier is used to carry out sum using BLAS
   Blob<Dtype> sum_multiplier_;
 };
-
-/**
- * @brief Normalizes the input to have 0-mean and/or unit (1) variance.
- *
- * TODO(dox): thorough documentation for Forward, Backward, and proto params.
- */
-template <typename Dtype>
-class MVNLayer : public Layer<Dtype> {
- public:
-  explicit MVNLayer(const LayerParameter& param)
-      : Layer<Dtype>(param) {}
-  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
-
-  virtual inline LayerParameter_LayerType type() const {
-    return LayerParameter_LayerType_MVN;
-  }
-  virtual inline int ExactNumBottomBlobs() const { return 1; }
-  virtual inline int ExactNumTopBlobs() const { return 1; }
-
- protected:
-  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
-  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
-  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
-      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
-  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
-     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
-
-  Blob<Dtype> mean_, variance_, temp_;
-
-  /// sum_multiplier is used to carry out sum using BLAS
-  Blob<Dtype> sum_multiplier_;
-};
-
-/**
- * @brief Performs the inverse operation of the MVNLayer.
- *
- * TODO(dox): thorough documentation for Forward, Backward, and proto params.
- */
-template <typename Dtype>
-class InverseMVNLayer : public Layer<Dtype> {
- public:
-  explicit InverseMVNLayer(const LayerParameter& param)
-      : Layer<Dtype>(param) {}
-  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
-
-  virtual inline LayerParameter_LayerType type() const {
-    return LayerParameter_LayerType_MVN;
-  }
-  virtual inline int ExactNumBottomBlobs() const { return 2; }
-  virtual inline int ExactNumTopBlobs() const { return 1; }
-
- protected:
-  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
-  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
-  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
-      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
-  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
-     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
-
-  Blob<Dtype> mean_, variance_, temp_;
-
-  /// sum_multiplier is used to carry out sum using BLAS
-  Blob<Dtype> sum_multiplier_;
-};
-
 
 /**
  * @brief Ignores bottom blobs while producing no top blobs. (This is useful

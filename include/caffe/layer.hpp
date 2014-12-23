@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "caffe/blob.hpp"
-#include "caffe/blob_info.hpp"
+#include "caffe/blob_finder.hpp"
 #include "caffe/common.hpp"
 #include "caffe/layer_factory.hpp"
 #include "caffe/proto/caffe.pb.h"
@@ -60,41 +60,28 @@ class Layer {
    * This method may not be overridden.
    */
   void SetUp(const vector<Blob<Dtype>*>& bottom,
-     const vector<Blob<Dtype>*>& top, const BlobInfo<Dtype>* blob_info = NULL) {
+     const vector<Blob<Dtype>*>& top,
+     const BlobFinder<Dtype>& blob_finder = BlobFinder<Dtype>()) {
+    SetBlobFinder(blob_finder);
     CheckBlobCounts(bottom, top);
-    LayerSetUp(bottom, top, blob_info);
+    LayerSetUp(bottom, top);
     Reshape(bottom, top);
     SetLossWeights(top);
   }
 
   /**
-   * @brief Does layer-specific setup: your layer should implement this function
-   *        as well as Reshape. This method just delegates to the LayerSetUp()
-   *        that does not take BlobInfo pointer as an argument. Any layer type
-   *        that needs access to the BlobInfo object should override this
-   *        method.
+   * @brief Sets the blob finder object. Can be overridden by layer classes that
+   *        need to lookup blobs by name.
    *
-   * @param bottom
-   *     the preshaped input blobs, whose data fields store the input data for
-   *     this layer
-   * @param top
-   *     the allocated but unshaped output blobs
-   * @param blob_info
-   *     Object allows recovering a blob by its name and vice versa.
+   * @param blob_finder
+   *     Object that can look up blobs by name, or name by pointer to the blob.
    *
-   * This method should do one-time layer specific setup. This includes reading
-   * and processing relevent parameters from the <code>layer_param_</code>.
-   * Setting up the shapes of top blobs and internal buffers should be done in
-   * <code>Reshape</code>, which will be called before the forward pass to
-   * adjust the top blob sizes.
    */
-  virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top, const BlobInfo<Dtype>* blob_info)
+  virtual void SetBlobFinder(const BlobFinder<Dtype>& blob_finder)
   {
-    // Ignore the blob info because most layer types don't use it. Any
-    // layer type that does need it should override this method.
-    (void) blob_info;
-    this->LayerSetUp(bottom, top);
+    // Default behavior is do nothing. Override this method in layers
+    // that need to be able to look up blobs by name.
+    (void) blob_finder;
   }
 
   /**
@@ -114,7 +101,7 @@ class Layer {
    * adjust the top blob sizes.
    */
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top, const BlobInfo<Dtype>* blob_info) {}
+      const vector<Blob<Dtype>*>& top) {}
 
   /**
    * @brief Adjust the shapes of top blobs and internal buffers to accomodate
@@ -326,7 +313,7 @@ class Layer {
   /** Vector indicating whether to compute the diff of each param blob. */
   vector<bool> param_propagate_down_;
   /** Helper that gets blob pointer by its name, or NULL */
-  const BlobInfo<Dtype>* blob_info_;
+  const BlobFinder<Dtype>* blob_info_;
 
   /** The vector that indicates whether each top blob has a non-zero weight in
    *  the objective function. */
