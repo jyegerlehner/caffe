@@ -95,7 +95,13 @@ int main( int argc, char** argv )
 
 
   shared_ptr<Net<float> > net( new Net<float>( net_proto ) );
-  net->CopyTrainedLayersFrom( model_weights );
+  {
+    std::vector<std::string> model_names;
+    boost::split(model_names, model_weights, boost::is_any_of(",") );
+    for(int i = 0; i < model_names.size(); ++i) {
+      net->CopyTrainedLayersFrom( model_names[i] );
+    }
+  }
   Caffe::set_phase( Caffe::TEST );
 
   const float img_to_net_scale = 0.0039215684;
