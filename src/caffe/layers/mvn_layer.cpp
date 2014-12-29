@@ -17,33 +17,21 @@ void MVNLayer<Dtype>::SetBlobFinder(const BlobFinder<Dtype> &blob_finder)
 template <typename Dtype>
 void MVNLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype> *> &bottom,
                             const vector<Blob<Dtype> *> &top) {
-  CHECK(this->layer_param_.has_mvn_param()) << "MVN parameter not specified in "
-                                         "layer " << this->layer_param_.name();
+//  CHECK(this->layer_param_.has_mvn_param()) << "MVN parameter not specified in "
+//                                         "layer " << this->layer_param_.name();
   const MVNParameter& param = this->layer_param_.mvn_param();
   // If the parameter specifies that the variance blob should be added to the
   // vector of top blobs, then the parameter must also specificy that
   // variance is to be normalized.
-  CHECK(param.has_variance_blob() && !param.normalize_variance())
-    << "MVNLayer " << this->layer_param_.name()
-       << " specifies a top blob name for the variance blob, but does not "
-       << "normalize for variance.";
-}
-
-// This function causes the member mean_ or variance_ blob to share data
-// with the top or bottom blob containing the mean or variance.
-// internal blob is the member variable blob mean_. External blob is the blob
-// in the top or bottom vector of blobs (now owned by the layer).
-template<typename Dtype>
-void UseExternal(Blob<Dtype>* internal_blob,
-                 Blob<Dtype>* external_blob,
-                 int num,
-                 int channels)
-{
-  // Before we can ShareData, the two blobs have to have the same shape.
-  external_blob->Reshape(num,channels,1,1);
-  internal_blob->ReshapeLike(*external_blob);
-  internal_blob->ShareData(*external_blob);
-  internal_blob->ShareDiff(*external_blob);
+  bool it_has_var_blob = param.has_variance_blob();
+  bool it_says_norm_var = param.normalize_variance();
+  if (it_has_var_blob)
+  {
+    CHECK(it_has_var_blob && it_says_norm_var)
+      << "MVNLayer " << this->layer_param_.name()
+         << " specifies a top blob name for the variance blob, but does not "
+         << "compute variance.";
+  }
 }
 
 template <typename Dtype>
@@ -56,26 +44,18 @@ void MVNLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   blob_helper_.DataBlob(top)->Reshape(input_blob->num(), input_blob->channels(),
       input_blob->height(), input_blob->width());
 
+  mean_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
   if (blob_helper_.HasMean())
   {
-    // If the mean_ is exported as a top blob, have the mean_ member share the
-    // data of the mean blob in the top vector.
-    UseExternal( &mean_, blob_helper_.MeanBlob(top), input_blob->num(),
-                 input_blob->channels() );
-  }
-  else
-  {
-    mean_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
+    // If the mean_ is exported as a top blob, have to shape it too.
+    blob_helper_.MeanBlob(top)->ReshapeLike(mean_);
   }
 
+  variance_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
   if (blob_helper_.HasVariance())
   {
-    // If variance_ is exported as a top blob, have it share the
-    // data of the variance blob in the top vector.
-    UseExternal( &variance_, blob_helper_.VarianceBlob(top), input_blob->num(),
-                 input_blob->channels() );
-  } else {
-    variance_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
+    // If variance_ is exported as a top blob, have to shape it too.
+    blob_helper_.VarianceBlob(top)->ReshapeLike(variance_);
   }
 
   temp_.Reshape(input_blob->num(), input_blob->channels(),
@@ -134,6 +114,12 @@ void MVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
           temp_.mutable_cpu_data());
 
     caffe_div(temp_.count(), top_data, temp_.cpu_data(), top_data);
+
+    if (blob_helper_.HasVariance()) {
+      // If the variance is exported as a top blob, it should just mirror the
+      // data in the member mean_ blob.
+      blob_helper_.VarianceBlob(top)->ShareData(variance_);
+    }
   } else {
     caffe_cpu_gemv<Dtype>(CblasNoTrans, num, dim, 1. / dim, bottom_data,
             sum_multiplier_.cpu_data(), 0., mean_.mutable_cpu_data());  // EX
@@ -144,6 +130,11 @@ void MVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
             temp_.mutable_cpu_data());
 
     caffe_add(temp_.count(), bottom_data, temp_.cpu_data(), top_data);
+  }
+  if (blob_helper_.HasMean()) {
+    // If the mean is exported as a top blob, it should just mirror the
+    // data in the member mean_ blob.
+    blob_helper_.MeanBlob(top)->ShareData(mean_);
   }
 }
 
