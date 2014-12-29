@@ -11,27 +11,18 @@ namespace caffe {
 template <typename Dtype>
 void MVNLayer<Dtype>::SetBlobFinder(const BlobFinder<Dtype> &blob_finder)
 {
-<<<<<<< HEAD
   this->blob_helper_ = MvnBlobHelper<Dtype>( this->layer_param_, blob_finder );
-=======
-  this->blob_helper_ = MvnBlobOrdering<Dtype>( this->layer_param_,
-                                               blob_finder );
->>>>>>> inverse MVN layer development.
 }
 
 template <typename Dtype>
 void MVNLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype> *> &bottom,
                             const vector<Blob<Dtype> *> &top) {
-<<<<<<< HEAD
-=======
   CHECK(this->layer_param_.has_mvn_param()) << "MVN parameter not specified in "
                                          "layer " << this->layer_param_.name();
->>>>>>> inverse MVN layer development.
   const MVNParameter& param = this->layer_param_.mvn_param();
   // If the parameter specifies that the variance blob should be added to the
   // vector of top blobs, then the parameter must also specificy that
   // variance is to be normalized.
-<<<<<<< HEAD
   bool it_has_var_blob = param.has_variance_blob();
   bool it_says_norm_var = param.normalize_variance();
   if (it_has_var_blob)
@@ -41,7 +32,6 @@ void MVNLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype> *> &bottom,
          << " specifies a top blob name for the variance blob, but does not "
          << "compute variance.";
   }
-=======
   CHECK(param.has_variance_blob() && !param.normalize_variance())
     << "MVNLayer " << this->layer_param_.name()
        << " specifies a top blob name for the variance blob, but does not "
@@ -63,7 +53,6 @@ void UseExternal(Blob<Dtype>* internal_blob,
   internal_blob->ReshapeLike(*external_blob);
   internal_blob->ShareData(*external_blob);
   internal_blob->ShareDiff(*external_blob);
->>>>>>> inverse MVN layer development.
 }
 
 template <typename Dtype>
@@ -76,40 +65,18 @@ void MVNLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   blob_helper_.DataBlob(top)->Reshape(input_blob->num(), input_blob->channels(),
       input_blob->height(), input_blob->width());
 
-<<<<<<< HEAD
   mean_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
   if (blob_helper_.HasMeanTop())
   {
     // If the mean_ is exported as a top blob, have to shape it too.
     blob_helper_.MeanBlob(top)->ReshapeLike(mean_);
-=======
-  if (blob_helper_.HasMean())
-  {
-    // If the mean_ is exported as a top blob, have the mean_ member share the
-    // data of the mean blob in the top vector.
-    UseExternal( &mean_, blob_helper_.MeanBlob(top), input_blob->num(),
-                 input_blob->channels() );
-  }
-  else
-  {
-    mean_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
->>>>>>> inverse MVN layer development.
   }
 
   variance_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
   if (blob_helper_.HasVarianceTop())
   {
-<<<<<<< HEAD
     // If variance_ is exported as a top blob, have to shape it too.
     blob_helper_.VarianceBlob(top)->ReshapeLike(variance_);
-=======
-    // If variance_ is exported as a top blob, have it share the
-    // data of the variance blob in the top vector.
-    UseExternal( &variance_, blob_helper_.VarianceBlob(top), input_blob->num(),
-                 input_blob->channels() );
-  } else {
-    variance_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
->>>>>>> inverse MVN layer development.
   }
 
   temp_.Reshape(input_blob->num(), input_blob->channels(),

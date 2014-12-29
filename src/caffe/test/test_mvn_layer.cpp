@@ -201,7 +201,7 @@ TYPED_TEST(MVNLayerTest, TestForward_MeanInTopBlobs) {
     }
   }
 
-  EXPECT_EQ( &(this->blob_top_), blob_info_.PointerFromName("top0"));
+  EXPECT_EQ( this->blob_top_, this->blob_finder_.PointerFromName("top0"));
 }
 
 // Test the case where the MVNParameter specifies that the mean and variance
@@ -209,20 +209,21 @@ TYPED_TEST(MVNLayerTest, TestForward_MeanInTopBlobs) {
 TYPED_TEST(MVNLayerTest, TestForward_MeanAndVarianceInTopBlobs) {
   typedef typename TypeParam::Dtype Dtype;
 
-  blob_top_vec_.clear();
+  this->blob_top_vec_.clear();
   vector<Blob<Dtype>*> top_blobs;
   {
-    AddTopBlob(new Blob<Dtype>(), "normalized");
-    AddTopBlob(new Blob<Dtype>(), "mean");
-    AddTopBlob(new Blob<Dtype>(), "variance");
+    this->AddTopBlob(new Blob<Dtype>(), "normalized");
+    this->AddTopBlob(new Blob<Dtype>(), "mean");
+    this->AddTopBlob(new Blob<Dtype>(), "variance");
   }
 
   LayerParameter layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
-      "mvn_param { mean_blob: \"mean\" variance_blob: \"variance\" } "
-      " top: \"normalized\" top: \"variance\" top: \"mean\"" ));
+      "mvn_param { mean_blob: \"mean\" variance_blob: \"variance\""
+      " normalize_variance: true   } "
+      " top: \"normalized\" top: \"variance\" top: \"mean\" ", &layer_param ));
   MVNLayer<Dtype> layer(layer_param);
-  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, blob_info_);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, this->blob_finder_);
   layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
   // Test mean
   int num = this->blob_bottom_->num();
@@ -266,16 +267,17 @@ TYPED_TEST(MVNLayerTest, TestForward_MeanAndVarianceInTopBlobs) {
     }
   }
 
-  Blob<Dtype>* means = blob_info_.PointerFromName("mean");
-  Blob<Dtype>* variances = blob_info_.PointerFromName("variance");
+  const Dtype kErrorBound = 0.001;
+  Blob<Dtype>* means = this->blob_finder_.PointerFromName("mean");
+  Blob<Dtype>* variances = this->blob_finder_.PointerFromName("variance");
   for (int i = 0; i < num; ++i) {
     for (int j = 0; j < channels; ++j) {
       for (int k = 0; k < height; ++k) {
         for (int l = 0; l < width; ++l) {
           EXPECT_NEAR(means->data_at(i,j,1,1),
-                      expected_input_means->data_at(i,j,1,1), kErrorBound);
+                      expected_input_means.data_at(i,j,1,1), kErrorBound);
           EXPECT_NEAR(variances->data_at(i,j,1,1),
-                      expected_input_variances->data_at(i,j,1,1), kErrorBound);
+                      expected_input_variances.data_at(i,j,1,1), kErrorBound);
         }
       }
    }
