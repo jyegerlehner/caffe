@@ -18,7 +18,8 @@ struct MvnBlobOrdering
     mean_index_(-1),
     variance_index_(-1),
     data_index_(-1),
-    blob_finder_()
+    blob_finder_(),
+    initialized_(false)
   {
   }
 
@@ -28,8 +29,17 @@ struct MvnBlobOrdering
     mean_index_(-1),
     variance_index_(-1),
     data_index_(-1),
-    blob_finder_(blob_finder)
+    blob_finder_(blob_finder),
+    initialized_(false)
   {
+  }
+
+  void LazyInit(const vector<Blob<Dtype>*>& blobs)
+  {
+    if (!initialized_) {
+      SetUp(blobs);
+      initialized_ = true;
+    }
   }
 
   void SetUp( const vector<Blob<Dtype>*>& blobs )
@@ -77,7 +87,7 @@ struct MvnBlobOrdering
   // it is an InverseMVNLayer.
   int NumBlobs() const
   {
-    CHECK(layer_param_.has_mvn_param()) << "MVNLayer has no parameter.";
+//    CHECK(layer_param_.has_mvn_param()) << "MVNLayer has no parameter.";
     int num = 1;
     if ( HasMean() )
       num++;
@@ -89,6 +99,7 @@ struct MvnBlobOrdering
   // Get the blob that has the mean of each of the inputs to the MVNLayer.
   Blob<Dtype>* MeanBlob( const BlobVec& blobs )
   {
+    LazyInit(blobs);
     CHECK(HasMean()) << "Layer " << layer_param_.name() << " has no "
                         << "mean blob.";
     return blobs[mean_index_];
@@ -98,6 +109,7 @@ struct MvnBlobOrdering
   // scaled by.
   Blob<Dtype>* VarianceBlob( const BlobVec& blobs )
   {
+    LazyInit(blobs);
     CHECK(HasVariance()) << "Layer " << layer_param_.name() << " has no "
                       << "scale blob.";
     return blobs[variance_index_];
@@ -106,7 +118,8 @@ struct MvnBlobOrdering
   //
   Blob<Dtype>* DataBlob( const BlobVec& blobs )
   {
-    CHECK(data_index_ < blobs.size()) << "Invalid data blob index in MVNLayer "
+    LazyInit(blobs);
+    CHECK(data_index_ < (int) blobs.size()) << "Invalid data blob index in MVNLayer "
                                     << this->layer_param_.name();
     return blobs[data_index_];
   }
@@ -145,6 +158,7 @@ struct MvnBlobOrdering
   int variance_index_;
   int data_index_;
   BlobFinder<Dtype> blob_finder_;
+  bool initialized_;
 };
 
 }
