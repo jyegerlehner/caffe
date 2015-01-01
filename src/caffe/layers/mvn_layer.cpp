@@ -17,8 +17,6 @@ void MVNLayer<Dtype>::SetBlobFinder(const BlobFinder<Dtype> &blob_finder)
 template <typename Dtype>
 void MVNLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype> *> &bottom,
                             const vector<Blob<Dtype> *> &top) {
-//  CHECK(this->layer_param_.has_mvn_param()) << "MVN parameter not specified in "
-//                                         "layer " << this->layer_param_.name();
   const MVNParameter& param = this->layer_param_.mvn_param();
   // If the parameter specifies that the variance blob should be added to the
   // vector of top blobs, then the parameter must also specificy that
