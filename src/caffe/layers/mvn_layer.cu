@@ -57,6 +57,11 @@ void MVNLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
           temp_.mutable_gpu_data());
 
     caffe_gpu_div(temp_.count(), top_data, temp_.gpu_data(), top_data);
+    if(blob_helper_.HasVariance()) {
+      // If the variance is exported as a top blob, it should just mirror the
+      // data in the member mean_ blob.
+      blob_helper_.VarianceBlob(top)->ShareData(variance_);
+    }
   } else {
     caffe_gpu_gemv<Dtype>(CblasNoTrans, num, dim, 1. / dim, bottom_data,
             sum_multiplier_.gpu_data(), 0., mean_.mutable_gpu_data());  // EX
@@ -67,6 +72,11 @@ void MVNLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
             temp_.mutable_gpu_data());
 
     caffe_gpu_add(temp_.count(), bottom_data, temp_.gpu_data(), top_data);
+  }
+  if (blob_helper_.HasMean()) {
+    // If the mean is exported as a top blob, it should just mirror the
+    // data in the member mean_ blob.
+    blob_helper_.MeanBlob(top)->ShareData(mean_);
   }
 }
 
