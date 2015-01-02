@@ -9,11 +9,11 @@
 namespace caffe {
 
 template<typename Dtype>
-struct MvnBlobOrdering
+struct MvnBlobHelper
 {
   typedef std::vector<Blob<Dtype>* > BlobVec;
 
-  MvnBlobOrdering():
+  MvnBlobHelper():
     layer_param_(),
     mean_index_(-1),
     variance_index_(-1),
@@ -23,7 +23,7 @@ struct MvnBlobOrdering
   {
   }
 
-  MvnBlobOrdering(const LayerParameter& layer_param,
+  MvnBlobHelper(const LayerParameter& layer_param,
                   const BlobFinder<Dtype>& blob_finder):
     layer_param_( layer_param ),
     mean_index_(-1),
@@ -66,12 +66,12 @@ struct MvnBlobOrdering
       }
     }
 
-    if (HasMean()) {
+    if (HasMeanTop()) {
       CHECK(mean_index_ != -1) << "Mean blob " << MeanName() <<
               " was specified in layer " << layer_param_.name() << " but " <<
               "was not found in blobs.";
     }
-    if (HasVariance()) {
+    if (HasVarianceTop()) {
       CHECK(variance_index_ != -1) << "Mean blob " << VarianceName() <<
                                   " was specified in layer "
                                 << layer_param_.name() << " but "
@@ -87,11 +87,10 @@ struct MvnBlobOrdering
   // it is an InverseMVNLayer.
   int NumBlobs() const
   {
-//    CHECK(layer_param_.has_mvn_param()) << "MVNLayer has no parameter.";
     int num = 1;
-    if ( HasMean() )
+    if ( HasMeanTop() )
       num++;
-    if ( HasVariance() )
+    if ( HasVarianceTop() )
       num++;
     return num;
   }
@@ -100,7 +99,7 @@ struct MvnBlobOrdering
   Blob<Dtype>* MeanBlob( const BlobVec& blobs )
   {
     LazyInit(blobs);
-    CHECK(HasMean()) << "Layer " << layer_param_.name() << " has no "
+    CHECK(HasMeanTop()) << "Layer " << layer_param_.name() << " has no "
                         << "mean blob.";
     return blobs[mean_index_];
   }
@@ -110,12 +109,12 @@ struct MvnBlobOrdering
   Blob<Dtype>* VarianceBlob( const BlobVec& blobs )
   {
     LazyInit(blobs);
-    CHECK(HasVariance()) << "Layer " << layer_param_.name() << " has no "
+    CHECK(HasVarianceTop()) << "Layer " << layer_param_.name() << " has no "
                       << "scale blob.";
     return blobs[variance_index_];
   }
 
-  //
+  // Get the output top blob of this layer.
   Blob<Dtype>* DataBlob( const BlobVec& blobs )
   {
     LazyInit(blobs);
@@ -124,24 +123,26 @@ struct MvnBlobOrdering
     return blobs[data_index_];
   }
 
-  // Return indication if the layer exports the mean in the top blobs.
-  bool HasMean() const
+  // Indicates if the layer exports the mean in the top blobs.
+  bool HasMeanTop() const
   {
     return MvnParam().has_mean_blob();
   }
 
+  // Name of the mean blob.
   std::string MeanName() const
   {
     return MvnParam().mean_blob();
   }
 
+  // Name of the variance blob.
   std::string VarianceName() const
   {
     return MvnParam().variance_blob();
   }
 
   // Return indication if the layer scales to a variance of one.
-  bool HasVariance() const
+  bool HasVarianceTop() const
   {
     return MvnParam().has_variance_blob();
   }

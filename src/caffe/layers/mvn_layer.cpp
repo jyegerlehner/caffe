@@ -10,8 +10,7 @@ namespace caffe {
 template <typename Dtype>
 void MVNLayer<Dtype>::SetBlobFinder(const BlobFinder<Dtype> &blob_finder)
 {
-  this->blob_helper_ = MvnBlobOrdering<Dtype>( this->layer_param_,
-                                               blob_finder );
+  this->blob_helper_ = MvnBlobHelper<Dtype>( this->layer_param_, blob_finder );
 }
 
 template <typename Dtype>
@@ -43,14 +42,14 @@ void MVNLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       input_blob->height(), input_blob->width());
 
   mean_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
-  if (blob_helper_.HasMean())
+  if (blob_helper_.HasMeanTop())
   {
     // If the mean_ is exported as a top blob, have to shape it too.
     blob_helper_.MeanBlob(top)->ReshapeLike(mean_);
   }
 
   variance_.Reshape(input_blob->num(), input_blob->channels(), 1, 1);
-  if (blob_helper_.HasVariance())
+  if (blob_helper_.HasVarianceTop())
   {
     // If variance_ is exported as a top blob, have to shape it too.
     blob_helper_.VarianceBlob(top)->ReshapeLike(variance_);
@@ -113,7 +112,7 @@ void MVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
     caffe_div(temp_.count(), top_data, temp_.cpu_data(), top_data);
 
-    if (blob_helper_.HasVariance()) {
+    if (blob_helper_.HasVarianceTop()) {
       // If the variance is exported as a top blob, it should just mirror the
       // data in the member mean_ blob.
       blob_helper_.VarianceBlob(top)->ShareData(variance_);
@@ -129,7 +128,7 @@ void MVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
     caffe_add(temp_.count(), bottom_data, temp_.cpu_data(), top_data);
   }
-  if (blob_helper_.HasMean()) {
+  if (blob_helper_.HasMeanTop()) {
     // If the mean is exported as a top blob, it should just mirror the
     // data in the member mean_ blob.
     blob_helper_.MeanBlob(top)->ShareData(mean_);

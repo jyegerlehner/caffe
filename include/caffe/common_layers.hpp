@@ -10,7 +10,7 @@
 #include "caffe/data_layers.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/loss_layers.hpp"
-#include "caffe/mvn_blob_order.hpp"
+#include "caffe/mvn_blob_helper.hpp"
 #include "caffe/neuron_layers.hpp"
 #include "caffe/proto/caffe.pb.h"
 
@@ -310,8 +310,9 @@ class MVNLayer : public Layer<Dtype> {
   /// sum_multiplier is used to carry out sum using BLAS
   Blob<Dtype> sum_multiplier_;
 
-  MvnBlobOrdering<Dtype> blob_helper_;
+  MvnBlobHelper<Dtype> blob_helper_;
 };
+
 
 /**
  * @brief Performs the inverse of the MVNLayer's operation.
