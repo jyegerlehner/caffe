@@ -127,6 +127,7 @@ void MVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
             temp_.mutable_cpu_data());
 
     caffe_add(temp_.count(), bottom_data, temp_.cpu_data(), top_data);
+//      caffe_sub(mean_.count(), bottom_data, mean_.cpu_data(), top_data);
   }
   if (blob_helper_.HasMeanTop()) {
     // If the mean is exported as a top blob, it should just mirror the
