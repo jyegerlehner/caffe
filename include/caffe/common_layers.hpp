@@ -354,11 +354,15 @@ class InverseMVNLayer : public Layer<Dtype> {
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  virtual void SetBlobFinder(const BlobFinder<Dtype>& blob_finder );
+  virtual void LayerSetUp(const vector<Blob<Dtype> *> &bottom,
+                     const vector<Blob<Dtype> *> &top);
 
-  Blob<Dtype> mean_, variance_, temp_;
+  Blob<Dtype> temp_;
 
   /// sum_multiplier is used to carry out sum using BLAS
   Blob<Dtype> sum_multiplier_;
+  MvnBlobHelper<Dtype> blob_helper_;
 };
 
 /**
