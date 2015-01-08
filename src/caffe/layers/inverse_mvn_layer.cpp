@@ -176,5 +176,5 @@ STUB_GPU(InverseMVNLayer);
 #endif
 
 INSTANTIATE_CLASS(InverseMVNLayer);
-REGISTER_LAYER_CLASS(MVN, InverseMVNLayer);
+REGISTER_LAYER_CLASS(INVERSE_MVN, InverseMVNLayer);
 }  // namespace caffe
