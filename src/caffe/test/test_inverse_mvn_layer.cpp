@@ -25,6 +25,11 @@ template <typename TypeParam>
 class InverseMVNLayerTest : public MultiDeviceTest<TypeParam> {
   typedef typename TypeParam::Dtype Dtype;
  protected:
+  void AddMvnTopBlob(Blob<Dtype>* blob, const std::string& name)
+  {
+    mvn_blob_top_vec_.push_back(blob);
+    blob_finder_.AddBlob(name, blob);
+  }
   InverseMVNLayerTest()
       : mvn_bottom_blob_(new Blob<Dtype>(INPUT_NUM, INPUT_CHANNELS,
                                          INPUT_HEIGHT, INPUT_WIDTH)),
@@ -38,9 +43,9 @@ class InverseMVNLayerTest : public MultiDeviceTest<TypeParam> {
     filler.Fill(this->mvn_bottom_blob_);
 
     mvn_bottom_blob_vec_.push_back(mvn_bottom_blob_);
-    mvn_blob_top_vec_.push_back(mvn_mean_blob_);
-    mvn_blob_top_vec_.push_back(mvn_variance_blob_);
-    mvn_blob_top_vec_.push_back(mvn_result_blob_);
+    AddMvnTopBlob(mvn_mean_blob_);
+    AddMvnTopBlob(mvn_variance_blob_);
+    AddMvnTopBlob(mvn_result_blob_);
 
     // The blob that contains the means computed by the mvn layer.
     inverse_mvn_bottom_blob_vec_.push_back(mvn_mean_blob_);
@@ -50,6 +55,7 @@ class InverseMVNLayerTest : public MultiDeviceTest<TypeParam> {
     inverse_mvn_bottom_blob_vec_.push_back(mvn_result_blob_);
     // The inverse mvn layer's output blob.
     inverse_mvn_blob_top_vec_.push_back(inverse_mvn_blob_top_);
+    blob_finder_.AddBlob("unnormalized",inverse_mvn_blob_top_);
   }
   virtual ~InverseMVNLayerTest() {
     delete mvn_mean_blob_;
