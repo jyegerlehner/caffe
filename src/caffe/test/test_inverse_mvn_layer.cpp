@@ -76,7 +76,7 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp) {
 
   LayerParameter mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
-      "mvn_param { mean_blob: \"mean_a\" scale_blob: \"variance_a\"}"
+      "mvn_param { mean_blob: \"mean_a\" variance_blob: \"variance_a\" "
       " normalize_variance: true   } "
       " top: \"normalized\" top: \"variance_a\" top: \"mean_a\" ",
           &mvn_layer_param));
@@ -85,7 +85,7 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp) {
 
   LayerParameter inverse_mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
-      "mvn_param { mean_blob: \"mean_a\" scale_blob: \"variance_a\" }"
+      "mvn_param { mean_blob: \"mean_a\" variance_blob: \"variance_a\" "
       " normalize_variance: true   } "
       " bottom: \"normalized\" bottom: \"variance_a\" bottom: \"mean_a\" "
       " top: \"unnormalized\"", &inverse_mvn_layer_param ));
@@ -126,7 +126,7 @@ TYPED_TEST(InverseMVNLayerTest, TestForward) {
 
   LayerParameter mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
-      "mvn_param { mean_blob: \"mean_a\" scale_blob: \"variance_a\"}"
+      "mvn_param { mean_blob: \"mean_a\" variance_blob: \"variance_a\" "
       " normalize_variance: true   } "
       " top: \"normalized\" top: \"variance_a\" top: \"mean_a\" ",
           &mvn_layer_param));
@@ -135,7 +135,7 @@ TYPED_TEST(InverseMVNLayerTest, TestForward) {
 
   LayerParameter inverse_mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
-      "mvn_param { mean_blob: \"mean_a\" scale_blob: \"variance_a\" }"
+      "mvn_param { mean_blob: \"mean_a\" variance_blob: \"variance_a\" "
       " normalize_variance: true   } "
       " bottom: \"normalized\" bottom: \"variance_a\" bottom: \"mean_a\" "
       " top: \"unnormalized\"", &inverse_mvn_layer_param));
@@ -189,7 +189,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradient) {
 
   LayerParameter mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
-      "mvn_param { mean_blob: \"mean_a\" scale_blob: \"variance_a\"}"
+      "mvn_param { mean_blob: \"mean_a\" variance_blob: \"variance_a\" "
       " normalize_variance: true   } "
       " top: \"normalized\" top: \"variance_a\" top: \"mean_a\" ",
           &mvn_layer_param));
@@ -198,7 +198,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradient) {
 
   LayerParameter inverse_mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
-      "mvn_param { mean_blob: \"mean_a\" scale_blob: \"variance_a\" }"
+      "mvn_param { mean_blob: \"mean_a\" variance_blob: \"variance_a\" "
       " normalize_variance: true   } "
       " bottom: \"normalized\" bottom: \"variance_a\" bottom: \"mean_a\" "
       " top: \"unnormalized\"", &inverse_mvn_layer_param));
