@@ -19,8 +19,11 @@ template <typename Dtype>
 std::string BlobFinder<Dtype>::NameFromPointer(
                       Blob<Dtype>* blob_pointer ) const {
   typename BlobToNameMap::const_iterator it = blob_to_name_.find(blob_pointer);
-  CHECK(it != blob_to_name_.end()) << "Blob pointer not found in pointer-to-"
-                                   << "name map.";
+  if (it == blob_to_name_.end())
+  {
+    CHECK(it != blob_to_name_.end()) << "Blob pointer not found in pointer-to-"
+                                     << "name map.";
+  }
 
   return it->second;
 }
