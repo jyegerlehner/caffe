@@ -43,9 +43,9 @@ class InverseMVNLayerTest : public MultiDeviceTest<TypeParam> {
     filler.Fill(this->mvn_bottom_blob_);
 
     mvn_bottom_blob_vec_.push_back(mvn_bottom_blob_);
-    AddMvnTopBlob(mvn_mean_blob_);
-    AddMvnTopBlob(mvn_variance_blob_);
-    AddMvnTopBlob(mvn_result_blob_);
+    AddMvnTopBlob(mvn_mean_blob_,"mean_a");
+    AddMvnTopBlob(mvn_variance_blob_,"variance_a");
+    AddMvnTopBlob(mvn_result_blob_,"normalized");
 
     // The blob that contains the means computed by the mvn layer.
     inverse_mvn_bottom_blob_vec_.push_back(mvn_mean_blob_);
@@ -73,6 +73,8 @@ class InverseMVNLayerTest : public MultiDeviceTest<TypeParam> {
   vector<Blob<Dtype>*> mvn_blob_top_vec_;
   vector<Blob<Dtype>*> inverse_mvn_bottom_blob_vec_;
   vector<Blob<Dtype>*> inverse_mvn_blob_top_vec_;
+
+  BlobFinder<Dtype> blob_finder_;
 };
 
 TYPED_TEST_CASE(InverseMVNLayerTest, TestDtypesAndDevices);
@@ -87,7 +89,8 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp) {
       " top: \"normalized\" top: \"variance_a\" top: \"mean_a\" ",
           &mvn_layer_param));
   MVNLayer<Dtype> mvn_layer(mvn_layer_param);
-  mvn_layer.SetUp(this->mvn_bottom_blob_vec_, this->mvn_blob_top_vec_);
+  mvn_layer.SetUp(this->mvn_bottom_blob_vec_, this->mvn_blob_top_vec_,
+                  this->blob_finder_);
 
   LayerParameter inverse_mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
@@ -98,7 +101,8 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp) {
   shared_ptr<InverseMVNLayer<Dtype> >
       inverse_mvn_layer(new InverseMVNLayer<Dtype>( inverse_mvn_layer_param ));
   inverse_mvn_layer->SetUp(this->inverse_mvn_bottom_blob_vec_,
-                           this->inverse_mvn_blob_top_vec_);
+                           this->inverse_mvn_blob_top_vec_,
+                           this->blob_finder_);
 
   EXPECT_EQ(this->mvn_blob_top_vec_.size(), 3);
   EXPECT_EQ(this->inverse_mvn_blob_top_vec_.size(), 1);
