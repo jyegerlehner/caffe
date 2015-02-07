@@ -327,9 +327,7 @@ class InverseMVNLayer : public Layer<Dtype> {
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
 
-  virtual inline LayerParameter_LayerType type() const {
-    return LayerParameter_LayerType_INVERSE_MVN;
-  }
+  virtual inline const char* type() const { return "InverseMVN"; }
   virtual inline int ExactNumBottomBlobs() const
                 { return blob_helper_.NumBlobs(); }
   virtual inline int ExactNumTopBlobs() const { return 1; }
