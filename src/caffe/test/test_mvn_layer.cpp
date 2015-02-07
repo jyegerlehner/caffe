@@ -7,6 +7,7 @@
 #include "caffe/common.hpp"
 #include "caffe/common_layers.hpp"
 #include "caffe/filler.hpp"
+#include "caffe/util/io.hpp"
 #include "google/protobuf/text_format.h"
 #include "gtest/gtest.h"
 

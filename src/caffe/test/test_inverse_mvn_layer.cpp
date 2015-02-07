@@ -6,6 +6,7 @@
 #include "caffe/common.hpp"
 #include "caffe/common_layers.hpp"
 #include "caffe/filler.hpp"
+#include "caffe/util/io.hpp"
 #include "google/protobuf/text_format.h"
 #include "gtest/gtest.h"
 
@@ -108,23 +109,31 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp) {
   EXPECT_EQ(this->inverse_mvn_blob_top_vec_.size(), 1);
 
   const int num_channels = 5;
-  Blob<Dtype>* blob0 = this->mvn_blob_top_vec_[0];
-  EXPECT_EQ(blob0->num(), INPUT_NUM);
-  EXPECT_EQ(blob0->height(), INPUT_HEIGHT);
-  EXPECT_EQ(blob0->width(), INPUT_WIDTH);
-  EXPECT_EQ(blob0->channels(), INPUT_CHANNELS);
+  Blob<Dtype>* normalized_blob =
+      this->blob_finder_.PointerFromName("normalized");
+  EXPECT_EQ(normalized_blob->num(), INPUT_NUM);
+  EXPECT_EQ(normalized_blob->height(), INPUT_HEIGHT);
+  EXPECT_EQ(normalized_blob->width(), INPUT_WIDTH);
+  EXPECT_EQ(normalized_blob->channels(), INPUT_CHANNELS);
 
-  Blob<Dtype>* blob1 = this->mvn_blob_top_vec_[1];
-  EXPECT_EQ(blob1->num(), INPUT_NUM);
-  EXPECT_EQ(blob1->height(), 1);
-  EXPECT_EQ(blob1->width(), 1);
-  EXPECT_EQ(blob1->channels(), INPUT_CHANNELS);
+  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean_a");
+  EXPECT_EQ(mean_blob->num(), INPUT_NUM);
+  EXPECT_EQ(mean_blob->height(), 1);
+  EXPECT_EQ(mean_blob->width(), 1);
+  EXPECT_EQ(mean_blob->channels(), INPUT_CHANNELS);
 
-  Blob<Dtype>* blob2 = this->inverse_mvn_blob_top_vec_[0];
-  EXPECT_EQ(blob2->num(), INPUT_NUM);
-  EXPECT_EQ(blob2->height(), INPUT_HEIGHT);
-  EXPECT_EQ(blob2->width(), INPUT_WIDTH);
-  EXPECT_EQ(blob2->channels(), INPUT_CHANNELS);
+  Blob<Dtype>* variance_blob = this->blob_finder_.PointerFromName("variance_a");
+  EXPECT_EQ(variance_blob->num(), INPUT_NUM);
+  EXPECT_EQ(variance_blob->height(), 1);
+  EXPECT_EQ(variance_blob->width(), 1);
+  EXPECT_EQ(variance_blob->channels(), INPUT_CHANNELS);
+
+  Blob<Dtype>* unnormalized_blob =
+      this->blob_finder_.PointerFromName("unnormalized");
+  EXPECT_EQ(unnormalized_blob->num(), INPUT_NUM);
+  EXPECT_EQ(unnormalized_blob->height(), INPUT_HEIGHT);
+  EXPECT_EQ(unnormalized_blob->width(), INPUT_WIDTH);
+  EXPECT_EQ(unnormalized_blob->channels(), INPUT_CHANNELS);
 }
 
 // We rely on MVNLayer working correctly (as it is independently tested).
@@ -158,6 +167,7 @@ TYPED_TEST(InverseMVNLayerTest, TestForward) {
   // Run the blob forward through the MVN layer.
   mvn_layer.Forward(this->mvn_bottom_blob_vec_,
                 this->mvn_blob_top_vec_);
+
   // Run the output of the MVN layer forward through the Inverse MVN layer.
   inverse_mvn_layer.Forward(this->inverse_mvn_bottom_blob_vec_,
                 this->inverse_mvn_blob_top_vec_);
@@ -230,9 +240,22 @@ TYPED_TEST(InverseMVNLayerTest, TestGradient) {
                             this->inverse_mvn_blob_top_vec_);
 
   GradientChecker<Dtype> checker(1e-2, 1e-3);
+  checker.SetBlobFinder(this->blob_finder_);
+
+  int blob_index_to_check = -1;
+  for( int index = 0; index < this->inverse_mvn_bottom_blob_vec_.size();
+       ++index)
+  {
+    if ( this->inverse_mvn_bottom_blob_vec_[index] ==
+         this->blob_finder_.PointerFromName("normalized"))
+    {
+      blob_index_to_check = index;
+    }
+  }
+
   checker.CheckGradientExhaustive(&inverse_mvn_layer,
       this->inverse_mvn_bottom_blob_vec_,
-      this->inverse_mvn_blob_top_vec_);
+      this->inverse_mvn_blob_top_vec_, blob_index_to_check);
 }
 
 } // namespace caffe

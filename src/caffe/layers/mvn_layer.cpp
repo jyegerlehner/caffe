@@ -1,8 +1,9 @@
-#include <algorithm>
+                                                       #include <algorithm>
 #include <vector>
 
 #include "caffe/common_layers.hpp"
 #include "caffe/layer.hpp"
+#include "caffe/util/io.hpp"
 #include "caffe/util/math_functions.hpp"
 
 namespace caffe {
@@ -66,7 +67,9 @@ template <typename Dtype>
 void MVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   const Dtype* bottom_data = bottom[0]->cpu_data();
-  Dtype* top_data = top[0]->mutable_cpu_data();
+
+  // Get the blob that has our output
+  Blob<Dtype>* top_blob = blob_helper_.DataBlob(top);
   int num;
   if (this->layer_param_.mvn_param().across_channels())
     num = bottom[0]->num();
@@ -98,7 +101,8 @@ void MVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
             mean_.cpu_data(), sum_multiplier_.cpu_data(), 0.,
             temp_.mutable_cpu_data());
 
-    caffe_add(temp_.count(), bottom_data, temp_.cpu_data(), top_data);
+    caffe_add(temp_.count(), bottom_data, temp_.cpu_data(),
+              top_blob->mutable_cpu_data());
 
     // normalize variance
     caffe_powx(variance_.count(), variance_.cpu_data(), Dtype(0.5),
@@ -110,7 +114,8 @@ void MVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
           variance_.cpu_data(), sum_multiplier_.cpu_data(), 0.,
           temp_.mutable_cpu_data());
 
-    caffe_div(temp_.count(), top_data, temp_.cpu_data(), top_data);
+    caffe_div(temp_.count(), top_blob->cpu_data(), temp_.cpu_data(),
+              top_blob->mutable_cpu_data());
 
     if (blob_helper_.HasVarianceTop()) {
       // If the variance is exported as a top blob, it should just mirror the
@@ -121,14 +126,17 @@ void MVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     caffe_cpu_gemv<Dtype>(CblasNoTrans, num, dim, 1. / dim, bottom_data,
             sum_multiplier_.cpu_data(), 0., mean_.mutable_cpu_data());  // EX
 
-    // subtract mean
+    // Outer product of the means vector and the vector of -1's to
+    // create a matrix the same size as the bottom data.
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, dim, 1, -1.,
             mean_.cpu_data(), sum_multiplier_.cpu_data(), 0.,
             temp_.mutable_cpu_data());
 
-    caffe_add(temp_.count(), bottom_data, temp_.cpu_data(), top_data);
-//      caffe_sub(mean_.count(), bottom_data, mean_.cpu_data(), top_data);
+    // subtract mean
+    caffe_add(temp_.count(), bottom_data, temp_.cpu_data(),
+              top_blob->mutable_cpu_data());
   }
+
   if (blob_helper_.HasMeanTop()) {
     // If the mean is exported as a top blob, it should just mirror the
     // data in the member mean_ blob.

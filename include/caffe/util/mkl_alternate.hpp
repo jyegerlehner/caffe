@@ -11,6 +11,7 @@ extern "C" {
 #include <cblas.h>
 }
 #include <math.h>
+#include <iostream>
 
 // Functions that caffe uses but are not present if MKL is not linked.
 
