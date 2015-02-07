@@ -61,7 +61,8 @@ struct MvnBlobHelper
       }
       else
       {
-        // The blob not named by
+        // The blob not named as the mean or variance blob, by elimination,
+        // must be the data blob.
         data_index_ = i;
       }
     }
@@ -110,7 +111,7 @@ struct MvnBlobHelper
   {
     LazyInit(blobs);
     CHECK(HasVarianceTop()) << "Layer " << layer_param_.name() << " has no "
-                      << "scale blob.";
+                      << "variance blob.";
     return blobs[variance_index_];
   }
 
@@ -118,7 +119,8 @@ struct MvnBlobHelper
   Blob<Dtype>* DataBlob( const BlobVec& blobs )
   {
     LazyInit(blobs);
-    CHECK(data_index_ < (int) blobs.size()) << "Invalid data blob index in MVNLayer "
+    CHECK(data_index_ < (int) blobs.size())
+                  << "Invalid data blob index in MVNLayer "
                                     << this->layer_param_.name();
     return blobs[data_index_];
   }
@@ -126,31 +128,25 @@ struct MvnBlobHelper
   // Indicates if the layer exports the mean in the top blobs.
   bool HasMeanTop() const
   {
-    return MvnParam().has_mean_blob();
+    return layer_param_.mvn_param().has_mean_blob();
   }
 
   // Name of the mean blob.
   std::string MeanName() const
   {
-    return MvnParam().mean_blob();
+    return layer_param_.mvn_param().mean_blob();
   }
 
   // Name of the variance blob.
   std::string VarianceName() const
   {
-    return MvnParam().variance_blob();
+    return layer_param_.mvn_param().variance_blob();
   }
 
   // Return indication if the layer scales to a variance of one.
   bool HasVarianceTop() const
   {
-    return MvnParam().has_variance_blob();
-  }
-
-  // Get the value of the MVN layer's parameter.
-  MVNParameter MvnParam() const
-  {
-    return layer_param_.mvn_param();
+    return layer_param_.mvn_param().has_variance_blob();
   }
 
   // The MVNLayer's parameter.
