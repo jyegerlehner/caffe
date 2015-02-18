@@ -79,10 +79,12 @@ void dump_dataset( const std::string& input_dir,
   CHECK(dataset->open( input_dir, Dataset<string, Datum>::ReadOnly ) );
 
   int num_to_write = atoi( num.c_str() );
+
+  caffe::db::Cursor* cursor = db->NewCursor();
   int ctr = 0;
   // For each datum in the db, write it to a jpg file.
-  for (Dataset<std::string, Datum>::const_iterator iter = dataset->begin();
-      iter != dataset->end() && ctr++ < num_to_write; ++iter)
+  for (cursor->SeekToFirst(); cursor->valid() && ctr < num_to_write;
+       cursor->Next() )
   {
     const Datum& datum = iter->value;
     cv::Mat cvmat = DatumToCvMat( datum );
@@ -92,6 +94,8 @@ void dump_dataset( const std::string& input_dir,
     output_file_path.replace_extension( ".jpg" );
     std::cout << "output file: " << output_file_path.string() << std::endl;
     bool result = cv::imwrite( output_file_path.string(), cvmat );
+    if ( result )
+      ctr++;
   }
 }
 
