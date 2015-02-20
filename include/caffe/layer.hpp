@@ -77,26 +77,7 @@ class Layer {
    *     Object that can look up blobs by name, or name by pointer to the blob.
    *
    */
-  virtual void SetBlobFinder(const BlobFinder<Dtype>& blob_finder)
-  {
-    // Default behavior is do nothing. Override this method in layers
-    // that need to be able to look up blobs by name.
-    (void) blob_finder;
-  }
-
-  /**
-   * @brief Does layer-specific setup: your layer should implement this function
-   *        as well as Reshape. This method just delegates to the LayerSetUp()
-   *        that does not take BlobInfo pointer as an argument. Any layer type
-   *        that needs access to the BlobInfo object should override this
-   *        method.
-   *
-   * @param blob_finder
-   *     Object that can look up blobs by name, or name by pointer to the blob.
-   *
-   */
-  virtual void SetBlobFinder(const BlobFinder<Dtype>& blob_finder)
-  {
+  virtual void SetBlobFinder(const BlobFinder<Dtype>& blob_finder) {
     // Default behavior is do nothing. Override this method in layers
     // that need to be able to look up blobs by name.
     (void) blob_finder;
