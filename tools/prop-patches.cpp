@@ -14,9 +14,9 @@
 
 #include "caffe/blob.hpp"
 #include "caffe/common.hpp"
-#include "caffe/dataset_factory.hpp"
 #include "caffe/net.hpp"
 #include "caffe/proto/caffe.pb.h"
+#include "caffe/util/db.hpp"
 #include "caffe/util/io.hpp"
 #include "caffe/vision_layers.hpp"
 
@@ -94,7 +94,7 @@ int main( int argc, char** argv )
   path output_dir( argv[4] );
 
 
-  shared_ptr<Net<float> > net( new Net<float>( net_proto ) );
+  shared_ptr<Net<float> > net( new Net<float>( net_proto, TEST ) );
   {
     std::vector<std::string> model_names;
     boost::split(model_names, model_weights, boost::is_any_of(",") );
@@ -102,16 +102,15 @@ int main( int argc, char** argv )
       net->CopyTrainedLayersFrom( model_names[i] );
     }
   }
-  Caffe::set_phase( Caffe::TEST );
 
   const float img_to_net_scale = 0.0039215684;
   TransformationParameter input_xform_param;
   input_xform_param.set_scale( img_to_net_scale );
-  DataTransformer<float> input_xformer( input_xform_param );
+  DataTransformer<float> input_xformer( input_xform_param, TEST );
 
   TransformationParameter output_xform_param;
   output_xform_param.set_scale( 1.0 / img_to_net_scale );
-  DataTransformer<float> output_xformer( output_xform_param );
+  DataTransformer<float> output_xformer( output_xform_param, TEST );
 
   path input_path( input_dir );
   directory_iterator end_iter;

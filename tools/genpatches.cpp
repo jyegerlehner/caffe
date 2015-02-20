@@ -9,16 +9,14 @@
 #include <vector>
 
 #include "caffe/util/io.hpp"
+#include "caffe/util/db.hpp"
 #include "glog/logging.h"
 #include "google/protobuf/text_format.h"
 #include "stdint.h"
 
-#include "caffe/dataset_factory.hpp"
 #include "caffe/proto/caffe.pb.h"
 
 using std::string;
-using caffe::Dataset;
-using caffe::DatasetFactory;
 using caffe::Datum;
 using caffe::shared_ptr;
 using namespace boost::filesystem;
@@ -40,7 +38,6 @@ Directories GetInputDirectories( const std::string& input_file )
   }
   std::string line;
   Directories directories;
-  int line_ctr = 0;
   while ( getline( fs, line ) )
   {
     directories.push_back( line );
@@ -221,15 +218,17 @@ void convert_dataset(const string& input_file,
   path output_path( output_directory );
 
   // Open new db
-  shared_ptr<Dataset<string, Datum> > dataset;
+//  shared_ptr<Dataset<string, Datum> > dataset;
+  shared_ptr<caffe::db::DB> output_db;
+  caffe::db::Transaction* tx = NULL;
   if ( is_lmdb )
   {
-    dataset = DatasetFactory<string, Datum>(output_type);
-    // Open db.
-    CHECK(dataset->open(output_path.string(),
-                        Dataset<string, Datum>::New ) );
+    output_db =  shared_ptr<caffe::db::DB>( caffe::db::GetDB("lmdb") );
+    output_db->Open(output_directory, caffe::db::NEW);
+    tx = output_db->NewTransaction();
   }
 
+  bool put_since_commit = false;
   int count = 0;
   Directories input_directories = GetInputDirectories(input_file);
   for( Directories::const_iterator dit = input_directories.begin();
@@ -309,10 +308,18 @@ void convert_dataset(const string& input_file,
                 // Saving to lmdb database.
                 Datum datum;
                 CVMatToDatum( patch, &datum );
-                CHECK(dataset->put( key.str(), datum ));
+                std::string datum_string;
+                datum.SerializeToString(&datum_string);
+                tx->Put( key.str(), datum_string );
                 count++;
                 if (count % 1000 == 0) {
-                  CHECK(dataset->commit());
+                  tx->Commit();
+                  tx = output_db->NewTransaction();
+                  put_since_commit = false;
+                }
+                else
+                {
+                  put_since_commit = true;
                 }
               }
             }
@@ -323,11 +330,11 @@ void convert_dataset(const string& input_file,
   }
   if ( is_lmdb )
   {
-    // write the last batch
-    if (count % 1000 != 0) {
-      CHECK(dataset->commit());
+    if ( put_since_commit )
+    {
+      tx->Commit();
     }
-    dataset->close();
+    output_db->Close();
   }
 }
 

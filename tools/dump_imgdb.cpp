@@ -8,17 +8,15 @@
 #include <string>
 #include <vector>
 
+#include "caffe/util/db.hpp"
 #include "caffe/util/io.hpp"
 #include "glog/logging.h"
 #include "google/protobuf/text_format.h"
 #include "stdint.h"
 
-#include "caffe/dataset_factory.hpp"
 #include "caffe/proto/caffe.pb.h"
 
 using std::string;
-using caffe::Dataset;
-using caffe::DatasetFactory;
 using caffe::Datum;
 using caffe::shared_ptr;
 using namespace boost::filesystem;
@@ -73,10 +71,9 @@ void dump_dataset( const std::string& input_dir,
   path output_path( output_dir );
 
   // The lmdb database is at the input_dir.
-  shared_ptr<Dataset<string, Datum> > dataset =
-                        DatasetFactory<string, Datum>( "lmdb" );
+  shared_ptr<caffe::db::DB> db( caffe::db::GetDB("lmdb") );
   // Open db.
-  CHECK(dataset->open( input_dir, Dataset<string, Datum>::ReadOnly ) );
+  db->Open(input_dir, caffe::db::READ);
 
   int num_to_write = atoi( num.c_str() );
 
@@ -86,9 +83,10 @@ void dump_dataset( const std::string& input_dir,
   for (cursor->SeekToFirst(); cursor->valid() && ctr < num_to_write;
        cursor->Next() )
   {
-    const Datum& datum = iter->value;
+    Datum datum;
+    datum.ParseFromString(cursor->value());
     cv::Mat cvmat = DatumToCvMat( datum );
-    std::string keystring = iter->key;
+    std::string keystring = cursor->key();
     path output_file_path = output_path;
     output_file_path /= keystring;
     output_file_path.replace_extension( ".jpg" );

@@ -77,11 +77,6 @@ int feature_extraction_pipeline(int argc, char** argv) {
     LOG(ERROR) << "Using CPU";
     Caffe::set_mode(Caffe::CPU);
   }
-<<<<<<< HEAD
-=======
-  LOG(ERROR) << "Using DB batch size=" << db_batch_size;
-  Caffe::set_phase(Caffe::TEST);
->>>>>>> Use correct arg_pos for db_type argument. Reduce memory footprint with selectable db batch size.
 
   arg_pos = 0;  // the name of the executable
   std::string pretrained_binary_proto(argv[++arg_pos]);
@@ -138,7 +133,6 @@ int feature_extraction_pipeline(int argc, char** argv) {
 
   int num_mini_batches = atoi(argv[++arg_pos]);
 
-<<<<<<< HEAD
   std::vector<shared_ptr<db::DB> > feature_dbs;
   std::vector<shared_ptr<db::Transaction> > txns;
   for (size_t i = 0; i < num_features; ++i) {
@@ -148,16 +142,6 @@ int feature_extraction_pipeline(int argc, char** argv) {
     feature_dbs.push_back(db);
     shared_ptr<db::Transaction> txn(db->NewTransaction());
     txns.push_back(txn);
-=======
-  std::string db_type(argv[++arg_pos]);
-  std::vector<shared_ptr<Dataset<std::string, Datum> > > feature_dbs;
-  for (size_t i = 0; i < num_features; ++i) {
-    LOG(INFO)<< "Opening dataset " << dataset_names[i];
-    shared_ptr<Dataset<std::string, Datum> > dataset =
-        DatasetFactory<std::string, Datum>(db_type);
-    CHECK(dataset->open(dataset_names.at(i), Dataset<std::string, Datum>::New));
-    feature_dbs.push_back(dataset);
->>>>>>> Use correct arg_pos for db_type argument. Reduce memory footprint with selectable db batch size.
   }
 
   LOG(ERROR)<< "Extacting Features";
