@@ -16,7 +16,7 @@ void ReLULayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
   // Threshholded RELU (TREC) has zero output in the TRAIN phase when the
   // input does not exceed the threshold theta.
-  if ( phase_ == TRAIN && this->layer_param_.relu_param().has_theta() ) {
+  if ( this->phase_ == TRAIN && this->layer_param_.relu_param().has_theta() ) {
     Dtype theta = this->layer_param_.relu_param().theta();
     for (int i = 0; i < count; ++i) {
       Dtype input = bottom_data[i];
@@ -50,7 +50,7 @@ void ReLULayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 
     // Threshholded RELU (TREC) has zero output in the TRAIN phase when the
     // input does not exceed the threshold theta.
-    if ( Caffe::phase() == Caffe::TRAIN &&
+    if ( this->phase_ == TRAIN &&
          this->layer_param_.relu_param().has_theta() ) {
       for (int i = 0; i < count; ++i) {
         Dtype theta = this->layer_param_.relu_param().theta();

@@ -37,7 +37,7 @@ void ReLULayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 
   // Thresholded RELU (TREC) has zero derivative in the TRAIN phase when the
   // input magnitude does not exceed the threshold theta.
-  if ( phase_ == TRAIN && this->layer_param_.relu_param().has_theta() ) {
+  if ( this->phase_ == TRAIN && this->layer_param_.relu_param().has_theta() ) {
     Dtype theta = this->layer_param_.relu_param().theta();
     // NOLINT_NEXT_LINE(whitespace/operators)
     TRECforward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
@@ -92,7 +92,7 @@ void ReLULayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     Dtype negative_slope = this->layer_param_.relu_param().negative_slope();
     // Threshholded RELU (TREC) has zero derivative in the TRAIN phase when the
     // input does not exceed the threshold theta.
-    if ( Caffe::phase() == Caffe::TRAIN &&
+    if ( this->phase_ == TRAIN &&
          this->layer_param_.relu_param().has_theta() ) {
       Dtype theta = this->layer_param_.relu_param().theta();
       // NOLINT_NEXT_LINE(whitespace/operators)
