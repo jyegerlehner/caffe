@@ -1,29 +1,29 @@
 #include <algorithm>
 #include <vector>
 
-#include "caffe/util/io.hpp"
 #include "caffe/common_layers.hpp"
 #include "caffe/layer.hpp"
+#include "caffe/util/io.hpp"
 #include "caffe/util/math_functions.hpp"
 
 namespace caffe {
 
 template <typename Dtype>
-void InverseMVNLayer<Dtype>::SetBlobFinder(const BlobFinder<Dtype> &blob_finder)
-{
-  this->blob_helper_ = MvnBlobHelper<Dtype>( this->layer_param_, blob_finder );
+void InverseMVNLayer<Dtype>::SetBlobFinder(
+    const BlobFinder<Dtype> &blob_finder) {
+  this->blob_helper_ = MvnBlobHelper<Dtype>(this->layer_param_, blob_finder);
 }
 
 template <typename Dtype>
-void InverseMVNLayer<Dtype>::LayerSetUp(const std::vector<Blob<Dtype> *> &bottom,
-                                        const std::vector<Blob<Dtype> *> &top) {
+void InverseMVNLayer<Dtype>::LayerSetUp(
+        const std::vector<Blob<Dtype> *> &bottom,
+        const std::vector<Blob<Dtype> *> &top) {
   const MVNParameter& param = this->layer_param_.mvn_param();
 
   // If the parameter specifies a name for the variance and or mean blob,
   // then that blob must appear in the bottom vector of blobs.
   bool specifies_var_blob = param.has_variance_blob();
-  if ( specifies_var_blob)
-  {
+  if (specifies_var_blob) {
     CHECK(blob_helper_.VarianceBlob(bottom) != NULL) << "InverseMVNLayer " <<
       this->layer_param_.name() << " specifies variance blob " <<
       param.variance_blob() << " but it was not found in bottom blobs.";
@@ -44,7 +44,6 @@ void InverseMVNLayer<Dtype>::LayerSetUp(const std::vector<Blob<Dtype> *> &bottom
 template <typename Dtype>
 void InverseMVNLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
-
   Blob<Dtype>* output_blob = top[0];
   Blob<Dtype>* input_blob = blob_helper_.DataBlob(bottom);
 
@@ -54,7 +53,12 @@ void InverseMVNLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 
   temp_.Reshape(input_blob->num(), input_blob->channels(),
       input_blob->height(), input_blob->width());
-  sum_multiplier_.Reshape(1, 1, input_blob->height(), input_blob->width());
+  if ( this->layer_param_.mvn_param().across_channels() ) {
+    sum_multiplier_.Reshape(1, input_blob->channels(), input_blob->height(),
+                            input_blob->width());
+  } else {
+    sum_multiplier_.Reshape(1, 1, input_blob->height(), input_blob->width());
+  }
   Dtype* multiplier_data = sum_multiplier_.mutable_cpu_data();
   caffe_set(sum_multiplier_.count(), Dtype(1), multiplier_data);
 }
@@ -78,8 +82,6 @@ void InverseMVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     // Get the variance blob.
     Blob<Dtype>* variance_blob = blob_helper_.VarianceBlob(bottom);
 
-    // Fill a matrix of the same dimension as the input data blob that has
-    // the variance at every location.
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, dim, 1, 1.,
           variance_blob->cpu_data(), sum_multiplier_.cpu_data(), 0.,
           temp_.mutable_cpu_data());

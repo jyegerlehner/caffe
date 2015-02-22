@@ -189,7 +189,8 @@ class Net {
   /// @brief Append a new input or top blob to the net.
   void AppendTop(const NetParameter& param, const int layer_id,
                  const int top_id, set<string>* available_blobs,
-                 map<string, int>* blob_name_to_idx, BlobFinder<Dtype>& blob_finder );
+                 map<string, int>* blob_name_to_idx,
+                 BlobFinder<Dtype>* blob_finder);
   /// @brief Append a new bottom blob to the net.
   int AppendBottom(const NetParameter& param, const int layer_id,
                    const int bottom_id, set<string>* available_blobs,
