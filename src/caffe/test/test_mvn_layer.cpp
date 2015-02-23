@@ -94,45 +94,24 @@ TYPED_TEST(MVNLayerTest, TestForward) {
   int height = this->blob_bottom_->height();
   int width = this->blob_bottom_->width();
 
-  Blob<Dtype> expected_input_means(num, channels, 1, 1);
   for (int i = 0; i < num; ++i) {
     for (int j = 0; j < channels; ++j) {
-      Dtype input_mean = 0.0;
       Dtype sum = 0, var = 0;
       for (int k = 0; k < height; ++k) {
         for (int l = 0; l < width; ++l) {
           Dtype data = this->blob_top_->data_at(i, j, k, l);
           sum += data;
           var += data * data;
-
-          Dtype input_data = this->blob_bottom_->data_at(i, j, k, l);
-          input_mean += input_data;
         }
       }
       sum /= height * width;
       var /= height * width;
-
-      Dtype n = height*width;
-      input_mean /= n;
 
       const Dtype kErrorBound = 0.001;
       // expect zero mean
       EXPECT_NEAR(0, sum, kErrorBound);
       // expect unit variance
       EXPECT_NEAR(1, var, kErrorBound);
-      *(expected_input_means.mutable_cpu_data() +
-          expected_input_means.offset(i, j, 0, 0)) = input_mean;
-    }
-  }
-
-  // The means should match what we computed in the loop above.
-  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean");
-  for (int i = 0; i < num; ++i) {
-    for (int j = 0; j < channels; ++j) {
-      const Dtype kErrorBound = 0.0001;
-      EXPECT_NEAR(expected_input_means.data_at(i, j, 0, 0),
-                   mean_blob->data_at(i, j, 0, 0),
-                   kErrorBound);
     }
   }
 
