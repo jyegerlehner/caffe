@@ -156,8 +156,10 @@ template <typename Dtype>
 void MVNLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
-  const Dtype* top_diff = top[0]->cpu_diff();
-  const Dtype* top_data = top[0]->cpu_data();
+
+  Blob<Dtype>* top_blob = blob_helper_.DataBlob(top);
+  const Dtype* top_diff = top_blob->cpu_diff();
+  const Dtype* top_data = top_blob->cpu_data();
   const Dtype* bottom_data = bottom[0]->cpu_data();
   Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
 
@@ -168,7 +170,6 @@ void MVNLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     num = bottom[0]->num() * bottom[0]->channels();
 
   int dim = bottom[0]->count() / num;
-  Dtype eps = 1e-10;
 
   if (this->layer_param_.mvn_param().normalize_variance()) {
     caffe_mul(temp_.count(), top_data, top_diff, bottom_diff);
@@ -192,30 +193,19 @@ void MVNLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     caffe_powx(temp_.count(), bottom_data, Dtype(2),
         temp_.mutable_cpu_data());
 
-    // computes variance using var(X) = E(X^2) - (EX)^2
-    caffe_cpu_gemv<Dtype>(CblasNoTrans, num, dim, 1. / dim, bottom_data,
-        sum_multiplier_.cpu_data(), 0., mean_.mutable_cpu_data());  // EX
-    caffe_cpu_gemv<Dtype>(CblasNoTrans, num, dim, 1. / dim, temp_.cpu_data(),
-        sum_multiplier_.cpu_data(), 0.,
-        variance_.mutable_cpu_data());  // E(X^2)
-    caffe_powx(mean_.count(), mean_.cpu_data(), Dtype(2),
-        temp_.mutable_cpu_data());  // (EX)^2
-    caffe_sub(mean_.count(), variance_.cpu_data(), temp_.cpu_data(),
-        variance_.mutable_cpu_data());  // variance
-
-    // normalize variance
-    caffe_powx(variance_.count(), variance_.cpu_data(), Dtype(0.5),
-          variance_.mutable_cpu_data());
-
-    caffe_add_scalar(variance_.count(), eps, variance_.mutable_cpu_data());
-
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, dim, 1, 1.,
         variance_.cpu_data(), sum_multiplier_.cpu_data(), 0.,
         temp_.mutable_cpu_data());
 
     caffe_div(temp_.count(), bottom_diff, temp_.cpu_data(), bottom_diff);
   } else {
-    caffe_copy(temp_.count(), top_diff, bottom_diff);
+    caffe_cpu_gemv<Dtype>(CblasNoTrans, num, dim, 1. / dim, top_diff,
+            sum_multiplier_.cpu_data(), 0., mean_.mutable_cpu_data());  // EX
+
+    caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, dim, 1, -1.,
+            mean_.cpu_data(), sum_multiplier_.cpu_data(), 0.,
+            temp_.mutable_cpu_data());
+    caffe_add(temp_.count(), top_diff, temp_.cpu_data(), bottom_diff);
   }
 }
 

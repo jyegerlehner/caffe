@@ -74,7 +74,6 @@ class GradientChecker {
   BlobFinder<Dtype> blob_finder_;
 };
 
-
 template <typename Dtype>
 void GradientChecker<Dtype>::CheckGradientSingle(Layer<Dtype>* layer,
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top,
