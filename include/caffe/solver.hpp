@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "caffe/net.hpp"
+#include "caffe/util/stats_listener.hpp"
 
 namespace caffe {
 
@@ -17,6 +18,13 @@ namespace caffe {
 template <typename Dtype>
 class Solver {
  public:
+  // Type of collection of listeners that want to be notified of training
+  // statistics.
+  typedef std::vector<TrainStatsListener> TrainStatsListeners;
+  // Type of collection of listeners that want to be notified of testing
+  // statistics.
+  typedef std::vector<TestStatsListener> TestStatsListeners;
+
   explicit Solver(const SolverParameter& param);
   explicit Solver(const string& param_file);
   void Init(const SolverParameter& param);
@@ -33,7 +41,8 @@ class Solver {
     return test_nets_;
   }
   int iter() { return iter_; }
-
+  void RegisterTrainStatsListener(TrainStatsListener listener);
+  void RegisterTestStatsListener(TestStatsListener listener);
  protected:
   // Get the update value for the current iteration.
   virtual void ComputeUpdateValue() = 0;
@@ -53,11 +62,16 @@ class Solver {
   virtual void RestoreSolverState(const SolverState& state) = 0;
   void DisplayOutputBlobs(const int net_id);
 
+  void BroadcastTrainStats(const TrainStats& stats);
+  void BroadcastTestStats(const TestStats& stats);
+
   SolverParameter param_;
   int iter_;
   int current_step_;
   shared_ptr<Net<Dtype> > net_;
   vector<shared_ptr<Net<Dtype> > > test_nets_;
+  TrainStatsListeners train_stats_listeners_;
+  TestStatsListeners test_stats_listeners_;
 
   DISABLE_COPY_AND_ASSIGN(Solver);
 };

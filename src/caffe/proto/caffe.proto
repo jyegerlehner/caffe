@@ -75,7 +75,7 @@ message NetParameter {
 // NOTE
 // Update the next available ID when you add a new SolverParameter field.
 //
-// SolverParameter next available ID: 36 (last added: clip_gradients)
+// SolverParameter next available ID: 37 (last added: save_stats_log)
 message SolverParameter {
   //////////////////////////////////////////////////////////////////////////////
   // Specifying the train and test networks
@@ -179,6 +179,9 @@ message SolverParameter {
 
   // If false, don't save a snapshot after training finishes.
   optional bool snapshot_after_train = 28 [default = true];
+
+  // If false, don't save statistics to the training_log.csv
+  optional bool save_stats_log = 36 [default = false];
 }
 
 // A message that stores the solver snapshots
@@ -717,6 +720,30 @@ message WindowDataParameter {
   optional bool cache_images = 12 [default = false];
   // append root_folder to locate images
   optional string root_folder = 13 [default = ""];
+}
+
+message TrainStats {
+  optional uint32 iter = 1;
+  optional float loss = 2 [default = 0.0];
+  repeated TrainStat stat =3;
+}
+
+message TrainStat {
+  optional string blob_name = 1;
+  optional float loss_weight = 2;
+  repeated float loss = 3;
+}
+
+message TestStats {
+  optional uint32 iter = 1;
+  optional float loss = 2;
+  repeated TestStat stat = 3;
+}
+
+message TestStat {
+  optional string blob_name = 1;
+  optional float loss_weight = 2;
+  optional float mean_loss = 3;
 }
 
 // DEPRECATED: use LayerParameter.

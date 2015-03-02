@@ -186,7 +186,12 @@ void Solver<Dtype>::Step(int iters) {
       losses[idx] = loss;
     }
     if (display) {
-      LOG(INFO) << "Iteration " << iter_ << ", loss = " << smoothed_loss;
+
+
+//      LOG(INFO) << "Iteration " << iter_ << ", loss = " << smoothed_loss;
+      TrainStats stats;
+      stats.set_iter(iter_);
+      stats.set_loss(smoothed_loss);
       const vector<Blob<Dtype>*>& result = net_->output_blobs();
       int score_index = 0;
       for (int j = 0; j < result.size(); ++j) {
@@ -195,17 +200,15 @@ void Solver<Dtype>::Step(int iters) {
             net_->blob_names()[net_->output_blob_indices()[j]];
         const Dtype loss_weight =
             net_->blob_loss_weights()[net_->output_blob_indices()[j]];
+        TrainStat stat;
+        stat.set_blob_name(output_name);
+        stat.set_loss_weight(loss_weight);
         for (int k = 0; k < result[j]->count(); ++k) {
-          ostringstream loss_msg_stream;
-          if (loss_weight) {
-            loss_msg_stream << " (* " << loss_weight
-                            << " = " << loss_weight * result_vec[k] << " loss)";
-          }
-          LOG(INFO) << "    Train net output #"
-              << score_index++ << ": " << output_name << " = "
-              << result_vec[k] << loss_msg_stream.str();
+          stat.add_loss(result_vec[k]);
         }
+        stats.add_stat(stat);
       }
+      BroadcastTrainStats(stats);
     }
     ComputeUpdateValue();
     net_->Update();
@@ -823,6 +826,18 @@ void AdaGradSolver<Dtype>::ComputeUpdateValue() {
   default:
     LOG(FATAL) << "Unknown caffe mode: " << Caffe::mode();
   }
+}
+
+template<typename Dtype>
+void Solver<Dtype>::RegisterTrainStatsListener(TrainStatsListener listener)
+{
+  train_stats_listeners_.push_back(listener);
+}
+
+template<typename Dtype>
+void Solver<Dtype>::RegisterTestStatsListener(TestStatsListener listener)
+{
+  test_stats_listeners_.push_back(listener);
 }
 
 INSTANTIATE_CLASS(Solver);
