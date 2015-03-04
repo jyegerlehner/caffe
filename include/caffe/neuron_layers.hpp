@@ -667,8 +667,8 @@ class PReLULayer : public NeuronLayer<Dtype> {
   /**
    * @param param provides PReLUParameter prelu_param,
    *     with PReLULayer options:
-   *   - init_value (\b optional, default 0.25).
-   *     all negative slopes over channels are set to this value.
+   *   - filler (\b optional, FillerParameter,
+   *     default {'type': constant 'value':0.25}).
    *   - channel_shared (\b optional, default false).
    *     negative slopes are shared across channels.
    */

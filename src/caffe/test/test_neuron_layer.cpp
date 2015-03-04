@@ -410,7 +410,19 @@ TYPED_TEST(NeuronLayerTest, TestBNLLGradient) {
       this->blob_top_vec_);
 }
 
-TYPED_TEST(NeuronLayerTest, TestPReLU1) {
+TYPED_TEST(NeuronLayerTest, TestPReLUParam) {
+  typedef typename TypeParam::Dtype Dtype;
+  LayerParameter layer_param;
+  PReLULayer<Dtype> layer(layer_param);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
+  const Dtype* slopes = layer.blobs()[0]->cpu_data();
+  int count = layer.blobs()[0]->count();
+  for (int i = 0; i < count; ++i, ++slopes) {
+    EXPECT_EQ(*slopes, 0.25);
+  }
+}
+
+TYPED_TEST(NeuronLayerTest, TestPReLUForward) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;
   PReLULayer<Dtype> layer(layer_param);
@@ -421,7 +433,7 @@ TYPED_TEST(NeuronLayerTest, TestPReLU1) {
   this->TestPReLU(&layer);
 }
 
-TYPED_TEST(NeuronLayerTest, TestPReLU2ChannelShared) {
+TYPED_TEST(NeuronLayerTest, TestPReLUForwardChannelShared) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;
   layer_param.mutable_prelu_param()->set_channel_shared(true);
@@ -430,7 +442,7 @@ TYPED_TEST(NeuronLayerTest, TestPReLU2ChannelShared) {
   this->TestPReLU(&layer);
 }
 
-TYPED_TEST(NeuronLayerTest, TestPReLU3Gradient) {
+TYPED_TEST(NeuronLayerTest, TestPReLUGradient) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;
   PReLULayer<Dtype> layer(layer_param);
@@ -443,7 +455,7 @@ TYPED_TEST(NeuronLayerTest, TestPReLU3Gradient) {
       this->blob_top_vec_);
 }
 
-TYPED_TEST(NeuronLayerTest, TestPReLU4GradientChannelShared) {
+TYPED_TEST(NeuronLayerTest, TestPReLUGradientChannelShared) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;
   layer_param.mutable_prelu_param()->set_channel_shared(true);

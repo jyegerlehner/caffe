@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <vector>
 
+#include "caffe/filler.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/vision_layers.hpp"
 
@@ -22,8 +23,16 @@ void PReLULayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     } else {
       this->blobs_[0].reset(new Blob<Dtype>(1, 1, 1, channels));
     }
-    caffe_set<Dtype>(this->blobs_[0]->count(),
-      (Dtype)(prelu_param.init_value()), this->blobs_[0]->mutable_cpu_data());
+    shared_ptr<Filler<Dtype> > filler;
+    if (prelu_param.has_filler()) {
+      filler.reset(GetFiller<Dtype>(prelu_param.filler()));
+    } else {
+      FillerParameter filler_param;
+      filler_param.set_type("constant");
+      filler_param.set_value(0.25);
+      filler.reset(GetFiller<Dtype>(filler_param));
+    }
+    filler->Fill(this->blobs_[0].get());
   }
   if (channel_shared_) {
     CHECK_EQ(this->blobs_[0]->count(), 1)
