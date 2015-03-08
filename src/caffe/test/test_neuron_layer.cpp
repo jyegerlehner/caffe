@@ -466,6 +466,49 @@ TYPED_TEST(NeuronLayerTest, TestPReLUGradientChannelShared) {
       this->blob_top_vec_);
 }
 
+TYPED_TEST(NeuronLayerTest, TestPReLUConsistencyReLU) {
+  typedef typename TypeParam::Dtype Dtype;
+  LayerParameter prelu_layer_param;
+  LayerParameter relu_layer_param;
+  relu_layer_param.mutable_relu_param()->set_negative_slope(0.25);
+  PReLULayer<Dtype> prelu(prelu_layer_param);
+  ReLULayer<Dtype> relu(relu_layer_param);
+  // Set up blobs
+  vector<Blob<Dtype>*> blob_bottom_vec_2;
+  vector<Blob<Dtype>*> blob_top_vec_2;
+  shared_ptr<Blob<Dtype> > blob_bottom_2(new Blob<Dtype>());
+  shared_ptr<Blob<Dtype> > blob_top_2(new Blob<Dtype>());
+  blob_bottom_vec_2.push_back(blob_bottom_2.get());
+  blob_top_vec_2.push_back(blob_top_2.get());
+  blob_bottom_2->CopyFrom(*this->blob_bottom_, false, true);
+  // SetUp layers
+  prelu.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
+  relu.SetUp(blob_bottom_vec_2, blob_top_vec_2);
+  // Check forward
+  prelu.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
+  relu.Forward(this->blob_bottom_vec_, blob_top_vec_2);
+  for (int s = 0; s < blob_top_2->count(); ++s) {
+    EXPECT_EQ(this->blob_top_->cpu_data()[s], blob_top_2->cpu_data()[s]);
+  }
+  // Check backward
+  shared_ptr<Blob<Dtype> > tmp_blob(new Blob<Dtype>());
+  tmp_blob->ReshapeLike(*blob_top_2.get());
+  FillerParameter filler_param;
+  GaussianFiller<Dtype> filler(filler_param);
+  filler.Fill(tmp_blob.get());
+  caffe_copy(blob_top_2->count(), tmp_blob->cpu_data(),
+    this->blob_top_->mutable_cpu_diff());
+  caffe_copy(blob_top_2->count(), tmp_blob->cpu_data(),
+    blob_top_2->mutable_cpu_diff());
+  vector<bool> propagate_down;
+  propagate_down.push_back(true);
+  prelu.Backward(this->blob_bottom_vec_, propagate_down, this->blob_top_vec_);
+  relu.Backward(blob_bottom_vec_2, propagate_down, blob_top_vec_2);
+  for (int s = 0; s < blob_bottom_2->count(); ++s) {
+    EXPECT_EQ(this->blob_bottom_->cpu_diff()[s], blob_bottom_2->cpu_diff()[s]);
+  }
+}
+
 #ifdef USE_CUDNN
 template <typename Dtype>
 class CuDNNNeuronLayerTest : public ::testing::Test {
