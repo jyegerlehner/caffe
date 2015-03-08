@@ -502,8 +502,8 @@ TYPED_TEST(NeuronLayerTest, TestPReLUConsistencyReLU) {
     blob_top_2->mutable_cpu_diff());
   vector<bool> propagate_down;
   propagate_down.push_back(true);
-  prelu.Backward(this->blob_bottom_vec_, propagate_down, this->blob_top_vec_);
-  relu.Backward(blob_bottom_vec_2, propagate_down, blob_top_vec_2);
+  prelu.Backward(this->blob_top_vec_, propagate_down, this->blob_bottom_vec_);
+  relu.Backward(blob_top_vec_2, propagate_down, blob_bottom_vec_2);
   for (int s = 0; s < blob_bottom_2->count(); ++s) {
     EXPECT_EQ(this->blob_bottom_->cpu_diff()[s], blob_bottom_2->cpu_diff()[s]);
   }
