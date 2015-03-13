@@ -113,8 +113,8 @@ class NeuronLayerTest : public MultiDeviceTest<TypeParam> {
     for (int i = 0; i < this->blob_bottom_->count(); ++i) {
       int c = channel_shared ? 0 : (i / hw) % channels;
       EXPECT_EQ(top_data[i],
-        std::max(bottom_data[i], (Dtype)(0))
-        + slope_data[c] * std::min(bottom_data[i], (Dtype)(0)));
+          std::max(bottom_data[i], (Dtype)(0))
+          + slope_data[c] * std::min(bottom_data[i], (Dtype)(0)));
     }
   }
 };
@@ -497,9 +497,9 @@ TYPED_TEST(NeuronLayerTest, TestPReLUConsistencyReLU) {
   GaussianFiller<Dtype> filler(filler_param);
   filler.Fill(tmp_blob.get());
   caffe_copy(blob_top_2->count(), tmp_blob->cpu_data(),
-    this->blob_top_->mutable_cpu_diff());
+      this->blob_top_->mutable_cpu_diff());
   caffe_copy(blob_top_2->count(), tmp_blob->cpu_data(),
-    blob_top_2->mutable_cpu_diff());
+      blob_top_2->mutable_cpu_diff());
   vector<bool> propagate_down;
   propagate_down.push_back(true);
   prelu.Backward(this->blob_top_vec_, propagate_down, this->blob_bottom_vec_);
@@ -509,13 +509,13 @@ TYPED_TEST(NeuronLayerTest, TestPReLUConsistencyReLU) {
   }
 }
 
-TYPED_TEST(NeuronLayerTest, TestPReLUInplace) {
+TYPED_TEST(NeuronLayerTest, TestPReLUInPlace) {
   typedef typename TypeParam::Dtype Dtype;
   // Set layer parameters
   LayerParameter ip_layer_param;
   LayerParameter prelu_layer_param;
   InnerProductParameter *ip_param =
-    ip_layer_param.mutable_inner_product_param();
+      ip_layer_param.mutable_inner_product_param();
   ip_param->mutable_weight_filler()->set_type("gaussian");
   ip_param->set_num_output(3);
   InnerProductLayer<Dtype> ip(ip_layer_param);
@@ -539,7 +539,7 @@ TYPED_TEST(NeuronLayerTest, TestPReLUInplace) {
   ip2.SetUp(blob_bottom_vec_2, blob_middle_vec_2);
   prelu2.SetUp(blob_middle_vec_2, blob_top_vec_2);
   caffe_copy(ip2.blobs()[0]->count(), ip.blobs()[0]->cpu_data(),
-    ip2.blobs()[0]->mutable_cpu_data());
+      ip2.blobs()[0]->mutable_cpu_data());
   // Forward in-place
   ip.Reshape(this->blob_bottom_vec_, this->blob_top_vec_);
   ip.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
@@ -561,9 +561,9 @@ TYPED_TEST(NeuronLayerTest, TestPReLUInplace) {
   GaussianFiller<Dtype> filler(filler_param);
   filler.Fill(tmp_blob.get());
   caffe_copy(blob_top_2->count(), tmp_blob->cpu_data(),
-    this->blob_top_->mutable_cpu_diff());
+      this->blob_top_->mutable_cpu_diff());
   caffe_copy(blob_top_2->count(), tmp_blob->cpu_data(),
-    blob_top_2->mutable_cpu_diff());
+      blob_top_2->mutable_cpu_diff());
   // Backward in-place
   vector<bool> propagate_down;
   propagate_down.push_back(true);
@@ -584,7 +584,7 @@ TYPED_TEST(NeuronLayerTest, TestPReLUInplace) {
   }
   for (int s = 0; s < prelu.blobs()[0]->count(); ++s) {
     EXPECT_EQ(prelu.blobs()[0]->cpu_diff()[s],
-      prelu2.blobs()[0]->cpu_diff()[s]);
+        prelu2.blobs()[0]->cpu_diff()[s]);
   }
 }
 

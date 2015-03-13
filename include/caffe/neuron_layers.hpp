@@ -659,7 +659,8 @@ class ThresholdLayer : public NeuronLayer<Dtype> {
  *        y_i = \max(0, x_i) + a_i \min(0, x_i)
  *        @f$. The differences from ReLULayer are 1) negative slopes are
  *        learnable though backprop and 2) negative slopes can vary across
- *        channels.
+ *        channels. The number of axes of input blob should be greater than or
+ *        equal to 2. The 1st axis (0-based) is seen as channels.
  */
 template <typename Dtype>
 class PReLULayer : public NeuronLayer<Dtype> {
@@ -686,10 +687,10 @@ class PReLULayer : public NeuronLayer<Dtype> {
  protected:
   /**
    * @param bottom input Blob vector (length 1)
-   *   -# @f$ (N \times C \times H \times W) @f$
+   *   -# @f$ (N \times C \times ...) @f$
    *      the inputs @f$ x @f$
    * @param top output Blob vector (length 1)
-   *   -# @f$ (N \times C \times H \times W) @f$
+   *   -# @f$ (N \times C \times ...) @f$
    *      the computed outputs for each channel @f$i@f$ @f$
    *        y_i = \max(0, x_i) + a_i \min(0, x_i)
    *      @f$.
@@ -704,12 +705,12 @@ class PReLULayer : public NeuronLayer<Dtype> {
    *
    * @param top output Blob vector (length 1), providing the error gradient with
    *      respect to the outputs
-   *   -# @f$ (N \times C \times H \times W) @f$
+   *   -# @f$ (N \times C \times ...) @f$
    *      containing error gradients @f$ \frac{\partial E}{\partial y} @f$
    *      with respect to computed outputs @f$ y @f$
    * @param propagate_down see Layer::Backward.
    * @param bottom input Blob vector (length 1)
-   *   -# @f$ (N \times C \times H \times W) @f$
+   *   -# @f$ (N \times C \times ...) @f$
    *      the inputs @f$ x @f$; For each channel @f$i@f$, backward fills their
    *      diff with gradients @f$
    *        \frac{\partial E}{\partial x_i} = \left\{
