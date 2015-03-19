@@ -1,6 +1,9 @@
 #pragma once
 #include <fstream>
 #include "caffe/util/stats_listener.hpp"
+#include "caffe/proto/caffe.pb.h"
+
+namespace caffe {
 
 // Listens for training statistics
 class TrainStatsLog
@@ -16,3 +19,5 @@ private:
   // Prefix where to place the log.
   std::string path_prefix_;
 };
+
+}

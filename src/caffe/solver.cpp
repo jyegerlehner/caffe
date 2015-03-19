@@ -193,20 +193,18 @@ void Solver<Dtype>::Step(int iters) {
       stats.set_iter(iter_);
       stats.set_loss(smoothed_loss);
       const vector<Blob<Dtype>*>& result = net_->output_blobs();
-      int score_index = 0;
       for (int j = 0; j < result.size(); ++j) {
         const Dtype* result_vec = result[j]->cpu_data();
         const string& output_name =
             net_->blob_names()[net_->output_blob_indices()[j]];
         const Dtype loss_weight =
             net_->blob_loss_weights()[net_->output_blob_indices()[j]];
-        TrainStat stat;
-        stat.set_blob_name(output_name);
-        stat.set_loss_weight(loss_weight);
+        TrainStat* stat = stats.add_stat();
+        stat->set_blob_name(output_name);
+        stat->set_loss_weight(loss_weight);
         for (int k = 0; k < result[j]->count(); ++k) {
-          stat.add_loss(result_vec[k]);
+          stat->add_loss(result_vec[k]);
         }
-        stats.add_stat(stat);
       }
       BroadcastTrainStats(stats);
     }
@@ -300,24 +298,34 @@ void Solver<Dtype>::Test(const int test_net_id) {
       }
     }
   }
+
+  TestStats stats;
+  stats.set_iter(iter_);
+
   if (param_.test_compute_loss()) {
     loss /= param_.test_iter(test_net_id);
-    LOG(INFO) << "Test loss: " << loss;
+//    LOG(INFO) << "Test loss: " << loss;
+    stats.set_loss(loss);
   }
   for (int i = 0; i < test_score.size(); ++i) {
+    TestStat* stat = stats.add_stat();
     const int output_blob_index =
         test_net->output_blob_indices()[test_score_output_id[i]];
     const string& output_name = test_net->blob_names()[output_blob_index];
     const Dtype loss_weight = test_net->blob_loss_weights()[output_blob_index];
     ostringstream loss_msg_stream;
     const Dtype mean_score = test_score[i] / param_.test_iter(test_net_id);
+    stat->set_blob_name(output_name);
     if (loss_weight) {
-      loss_msg_stream << " (* " << loss_weight
-                      << " = " << loss_weight * mean_score << " loss)";
+      stat->set_loss_weight(loss_weight);
+//      loss_msg_stream << " (* " << loss_weight
+//                      << " = " << loss_weight * mean_score << " loss)";
     }
-    LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
-        << mean_score << loss_msg_stream.str();
+    stat->set_mean_score(mean_score);
+//    LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
+ //       << mean_score << loss_msg_stream.str();
   }
+  BroadcastTestStats(stats);
 }
 
 
@@ -839,6 +847,25 @@ void Solver<Dtype>::RegisterTestStatsListener(TestStatsListener listener)
 {
   test_stats_listeners_.push_back(listener);
 }
+
+template<typename Dtype>
+void Solver<Dtype>::BroadcastTrainStats(const TrainStats& stats)
+{
+  for(int i=0; i<train_stats_listeners_.size(); ++i)
+  {
+    train_stats_listeners_[i](stats);
+  }
+}
+
+template<typename Dtype>
+void Solver<Dtype>::BroadcastTestStats(const TestStats& stats)
+{
+  for(int i=0; i<test_stats_listeners_.size(); ++i)
+  {
+    test_stats_listeners_[i](stats);
+  }
+}
+
 
 INSTANTIATE_CLASS(Solver);
 INSTANTIATE_CLASS(SGDSolver);

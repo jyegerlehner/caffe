@@ -743,7 +743,7 @@ message TestStats {
 message TestStat {
   optional string blob_name = 1;
   optional float loss_weight = 2;
-  optional float mean_loss = 3;
+  optional float mean_score = 3;
 }
 
 // DEPRECATED: use LayerParameter.
