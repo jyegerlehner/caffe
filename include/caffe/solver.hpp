@@ -1,12 +1,17 @@
 #ifndef CAFFE_OPTIMIZATION_SOLVER_HPP_
 #define CAFFE_OPTIMIZATION_SOLVER_HPP_
-
+#include <boost/function.hpp>
 #include <string>
 #include <vector>
 
 #include "caffe/net.hpp"
 
 namespace caffe {
+
+/**
+ * @brief Type of a function that returns a Solver Action enumeration.
+ */
+typedef boost::function<SolverParameter_Action()> ActionCallback;
 
 /**
  * @brief An interface for classes that perform optimization on Net%s.
@@ -22,6 +27,12 @@ class Solver {
   void Init(const SolverParameter& param);
   void InitTrainNet();
   void InitTestNets();
+
+  // Client of the Solver optionally may call this in order to set the function
+  // that the solver uses to see what action it should take (e.g. snapshot or
+  // exit training early).
+  void SetActionFunction(ActionCallback func);
+  SolverParameter_Action GetRequestedAction();
   // The main entry of the solver function. In default, iter will be zero. Pass
   // in a non-zero iter number to resume training for a pre-trained net.
   virtual void Solve(const char* resume_file = NULL);
@@ -47,6 +58,8 @@ class Solver {
   // written to disk together with the learned net.
   void Snapshot();
   // The test routine
+  // stop_was_requested will be set to true iff a request to stop training
+  // was received whilst testing.
   void TestAll();
   void Test(const int test_net_id = 0);
   virtual void SnapshotSolverState(SolverState* state) = 0;
@@ -58,6 +71,13 @@ class Solver {
   int current_step_;
   shared_ptr<Net<Dtype> > net_;
   vector<shared_ptr<Net<Dtype> > > test_nets_;
+
+  // A function that can be set by a client of the Solver to provide indication
+  // that it wants a snapshot saved and/or to exit early.
+  ActionCallback action_request_function_;
+
+  // True iff a request to stop early was received.
+  bool requested_early_exit_;
 
   DISABLE_COPY_AND_ASSIGN(Solver);
 };
