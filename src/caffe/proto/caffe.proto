@@ -192,6 +192,19 @@ message SolverParameter {
 
   // If false, don't save a snapshot after training finishes.
   optional bool snapshot_after_train = 28 [default = true];
+
+  // Enumeration of actions that a client of the Solver may request by
+  // implementing the Solver's action request function, which a
+  // a client may optionally provide in order to request early termination
+  // or saving a snapshot without exiting. In the executable caffe, this
+  // mechanism is used to allow the snapshot to be saved when stopping
+  // execution with a SIGINT (Ctrl-C).
+  enum Action {
+    NONE = 0; // Take no special action.
+    STOP = 1; // Stop training. snapshot_after_train controls whether a snapshot
+              // is created.
+    SNAPSHOT = 2; // Take a snapshot, and keep training.
+  }
 }
 
 // A message that stores the solver snapshots

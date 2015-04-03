@@ -13,6 +13,20 @@
 
 namespace caffe {
 
+template<typename Dtype>
+void Solver<Dtype>::SetActionFunction(ActionCallback func) {
+  action_request_function_ = func;
+}
+
+template<typename Dtype>
+SolverParameter_Action Solver<Dtype>::GetRequestedAction() {
+  if (action_request_function_) {
+    // If the external request function has been set, call it.
+    return action_request_function_();
+  }
+  return SolverParameter_Action_NONE;
+}
+
 template <typename Dtype>
 Solver<Dtype>::Solver(const SolverParameter& param)
     : net_() {
@@ -167,7 +181,9 @@ void Solver<Dtype>::Step(int iters) {
   vector<Dtype> losses;
   Dtype smoothed_loss = 0;
 
-  for (; iter_ < stop_iter; ++iter_) {
+  SolverParameter_Action request = SolverParameter_Action_NONE;
+
+  for (; iter_ < stop_iter && request != SolverParameter_Action_STOP; ++iter_) {
     if (param_.test_interval() && iter_ % param_.test_interval() == 0
         && (iter_ > 0 || param_.test_initialization())) {
       TestAll();
@@ -210,8 +226,11 @@ void Solver<Dtype>::Step(int iters) {
     ComputeUpdateValue();
     net_->Update();
 
+    request = GetRequestedAction();
+
     // Save a snapshot if needed.
-    if (param_.snapshot() && (iter_ + 1) % param_.snapshot() == 0) {
+    if ((param_.snapshot() && (iter_ + 1) % param_.snapshot() == 0) ||
+         (request == SolverParameter_Action_SNAPSHOT)) {
       Snapshot();
     }
   }
@@ -252,7 +271,6 @@ void Solver<Dtype>::Solve(const char* resume_file) {
   }
   LOG(INFO) << "Optimization Done.";
 }
-
 
 template <typename Dtype>
 void Solver<Dtype>::TestAll() {
