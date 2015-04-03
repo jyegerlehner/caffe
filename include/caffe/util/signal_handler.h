@@ -6,8 +6,7 @@
 
 namespace caffe {
 
-class SignalHandler
-{
+class SignalHandler {
  public:
   // Contructor. Specify what action to take when a signal is received.
   SignalHandler(SolverParameter_Action SIGINT_action,
