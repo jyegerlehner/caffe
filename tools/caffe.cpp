@@ -7,6 +7,7 @@
 
 #include "boost/algorithm/string.hpp"
 #include "caffe/caffe.hpp"
+#include "caffe/util/signal_handler.h"
 
 using caffe::Blob;
 using caffe::Caffe;
@@ -15,7 +16,6 @@ using caffe::Layer;
 using caffe::shared_ptr;
 using caffe::Timer;
 using caffe::vector;
-
 
 DEFINE_int32(gpu, -1,
     "Run in GPU mode on given device ID.");
@@ -30,6 +30,12 @@ DEFINE_string(weights, "",
     "Cannot be set simultaneously with snapshot.");
 DEFINE_int32(iterations, 50,
     "The number of iterations to run.");
+DEFINE_string(sigint_effect, "stop",
+             "Optional; action to take when a SIGINT signal is received: "
+              "snapshot, stop or none.");
+DEFINE_string(sighup_effect, "snapshot",
+             "Optional; action to take when a SIGHUP signal is received: "
+             "snapshot, stop or none.");
 
 // A simple registry for caffe commands.
 typedef int (*BrewFunction)();
@@ -91,6 +97,20 @@ void CopyLayers(caffe::Solver<float>* solver, const std::string& model_list) {
   }
 }
 
+caffe::SolverParameter_Action GetRequestedAction(
+                              const std::string& flag_value) {
+  if (flag_value == "stop") {
+    return caffe::SolverParameter_Action_STOP;
+  }
+  if (flag_value == "snapshot") {
+    return caffe::SolverParameter_Action_SNAPSHOT;
+  }
+  if (flag_value == "none") {
+    return caffe::SolverParameter_Action_NONE;
+  }
+  LOG(FATAL) << "Invalid signal effect \""<< flag_value << "\" was specified";
+}
+
 // Train / Finetune a model.
 int train() {
   CHECK_GT(FLAGS_solver.size(), 0) << "Need a solver definition to train.";
@@ -118,9 +138,15 @@ int train() {
     Caffe::set_mode(Caffe::CPU);
   }
 
+  caffe::SignalHandler signal_handler(
+        GetRequestedAction(FLAGS_sigint_effect),
+        GetRequestedAction(FLAGS_sighup_effect));
+
   LOG(INFO) << "Starting Optimization";
   shared_ptr<caffe::Solver<float> >
     solver(caffe::GetSolver<float>(solver_param));
+
+  solver->SetActionFunction(signal_handler.GetActionFunction());
 
   if (FLAGS_snapshot.size()) {
     LOG(INFO) << "Resuming from " << FLAGS_snapshot;
