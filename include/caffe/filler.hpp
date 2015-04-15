@@ -156,6 +156,54 @@ class XavierFiller : public Filler<Dtype> {
   }
 };
 
+/**
+ * @brief Special purpose filler for filling a 2 x cn channel x 3 x 3
+ *        Convolution filter blob with the Scharr filter for horizontal and
+ *        vertical edge detection.
+ *
+ */
+template <typename Dtype>
+class ScharrFiller : public Filler<Dtype> {
+ public:
+  explicit ScharrFiller(const FillerParameter& param)
+      : Filler<Dtype>(param) {}
+  virtual void Fill(Blob<Dtype>* blob) {
+    CHECK_EQ(blob->num_axes(), 4);
+    // Filter must have two output channels, once for vertical edge and
+    // and one for horizontal.
+    CHECK_EQ(blob->num(), 2);
+    CHECK_EQ(blob->width(), 3);
+    CHECK_EQ(blob->height(),3);
+
+    Dtype* data = blob->mutable_cpu_data();
+
+    for(int channel = 0; channel < blob->channels(); ++channel) {
+      // For each input channel, fill the 3x3 horizontal edge filter.
+      data[blob->offset(0, channel, 0, 0)] = 3.0f;
+      data[blob->offset(0, channel, 0, 1)] = 10.0f;
+      data[blob->offset(0, channel, 0, 2)] = 3.0f;
+      data[blob->offset(0, channel, 1, 0)] = 0.0f;
+      data[blob->offset(0, channel, 1, 1)] = 0.0f;
+      data[blob->offset(0, channel, 1, 2)] = 0.0f;
+      data[blob->offset(0, channel, 2, 0)] = -3.0f;
+      data[blob->offset(0, channel, 2, 1)] = -10.0f;
+      data[blob->offset(0, channel, 2, 2)] = -3.0f;
+
+      // Second output channel: vertical edge
+      data[blob->offset(1, channel, 0, 0)] = 3.0f;
+      data[blob->offset(1, channel, 0, 1)] = 0.0f;
+      data[blob->offset(1, channel, 0, 2)] = -3.0f;
+      data[blob->offset(1, channel, 1, 0)] = 10.0f;
+      data[blob->offset(1, channel, 1, 1)] = 0.0f;
+      data[blob->offset(1, channel, 1, 2)] = -10.0f;
+      data[blob->offset(1, channel, 2, 0)] = 3.0f;
+      data[blob->offset(1, channel, 2, 1)] = 0.0f;
+      data[blob->offset(1, channel, 2, 2)] = -3.0f;
+    }
+    CHECK_EQ(this->filler_param_.sparse(), -1)
+        << "Sparsity not supported by this Filler.";
+  }
+};
 
 /**
  * @brief Get a specific filler from the specification given in FillerParameter.
@@ -176,6 +224,8 @@ Filler<Dtype>* GetFiller(const FillerParameter& param) {
     return new UniformFiller<Dtype>(param);
   } else if (type == "xavier") {
     return new XavierFiller<Dtype>(param);
+  } else if (type == "scharr") {
+    return new ScharrFiller<Dtype>(param);
   } else {
     CHECK(false) << "Unknown filler name: " << param.type();
   }
