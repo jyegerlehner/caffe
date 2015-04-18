@@ -9,8 +9,8 @@
 #include "caffe/util/signal_handler.h"
 
 namespace {
-  static sig_atomic_t got_sigint = false;
-  static sig_atomic_t got_sighup = false;
+  static volatile sig_atomic_t got_sigint = false;
+  static volatile sig_atomic_t got_sighup = false;
   static bool already_hooked_up = false;
 
   void handle_signal(int signal) {
