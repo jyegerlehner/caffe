@@ -4,17 +4,16 @@
 #include <glog/logging.h>
 
 #include <signal.h>
+#include <csignal>
 
 #include "caffe/util/signal_handler.h"
 
 namespace {
-  boost::mutex signal_mutex;
-  bool got_sigint = false;
-  bool got_sighup = false;
-  bool already_hooked_up = false;
+  static sig_atomic_t got_sigint = false;
+  static sig_atomic_t got_sighup = false;
+  static bool already_hooked_up = false;
 
   void handle_signal(int signal) {
-    boost::mutex::scoped_lock scoped_lock(signal_mutex);
     switch (signal) {
     case SIGHUP:
       got_sighup = true;
@@ -22,14 +21,10 @@ namespace {
     case SIGINT:
       got_sigint = true;
       break;
-    default:
-      LOG(FATAL) << "Caught wrong signal.";
     }
   }
 
   void HookupHandler() {
-    boost::mutex::scoped_lock scoped_lock(signal_mutex);
-
     if (already_hooked_up) {
       LOG(FATAL) << "Tried to hookup signal handlers more than once.";
     }
@@ -54,7 +49,6 @@ namespace {
   // Return true iff a SIGINT has been received since the last time this
   // function was called.
   bool GotSIGINT() {
-    boost::mutex::scoped_lock scoped_lock(signal_mutex);
     bool result = got_sigint;
     got_sigint = false;
     return result;
@@ -63,7 +57,6 @@ namespace {
   // Return true iff a SIGHUP has been received since the last time this
   // function was called.
   bool GotSIGHUP() {
-    boost::mutex::scoped_lock scoped_lock(signal_mutex);
     bool result = got_sighup;
     got_sighup = false;
     return result;
