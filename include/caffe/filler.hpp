@@ -157,7 +157,7 @@ class XavierFiller : public Filler<Dtype> {
 };
 
 /**
- * @brief Special purpose filler for filling a 2 x cn channel x 3 x 3
+ * @brief Special purpose filler for filling a 2 x c channel x 3 x 3
  *        Convolution filter blob with the Scharr filter for horizontal and
  *        vertical edge detection.
  *
@@ -177,28 +177,31 @@ class ScharrFiller : public Filler<Dtype> {
 
     Dtype* data = blob->mutable_cpu_data();
 
+    // Parameter "max" is used to scale the magnitude of the filter weights.
+    Dtype scale = this->filler_param_.max();
+
     for(int channel = 0; channel < blob->channels(); ++channel) {
       // For each input channel, fill the 3x3 horizontal edge filter.
-      data[blob->offset(0, channel, 0, 0)] = 3.0f;
-      data[blob->offset(0, channel, 0, 1)] = 10.0f;
-      data[blob->offset(0, channel, 0, 2)] = 3.0f;
-      data[blob->offset(0, channel, 1, 0)] = 0.0f;
-      data[blob->offset(0, channel, 1, 1)] = 0.0f;
-      data[blob->offset(0, channel, 1, 2)] = 0.0f;
-      data[blob->offset(0, channel, 2, 0)] = -3.0f;
-      data[blob->offset(0, channel, 2, 1)] = -10.0f;
-      data[blob->offset(0, channel, 2, 2)] = -3.0f;
+      data[blob->offset(0, channel, 0, 0)] = 3.0f * scale;
+      data[blob->offset(0, channel, 0, 1)] = 10.0f * scale;
+      data[blob->offset(0, channel, 0, 2)] = 3.0f * scale;
+      data[blob->offset(0, channel, 1, 0)] = 0.0f * scale;
+      data[blob->offset(0, channel, 1, 1)] = 0.0f * scale;
+      data[blob->offset(0, channel, 1, 2)] = 0.0f * scale;
+      data[blob->offset(0, channel, 2, 0)] = -3.0f * scale;
+      data[blob->offset(0, channel, 2, 1)] = -10.0f * scale;
+      data[blob->offset(0, channel, 2, 2)] = -3.0f * scale;
 
       // Second output channel: vertical edge
-      data[blob->offset(1, channel, 0, 0)] = 3.0f;
-      data[blob->offset(1, channel, 0, 1)] = 0.0f;
-      data[blob->offset(1, channel, 0, 2)] = -3.0f;
-      data[blob->offset(1, channel, 1, 0)] = 10.0f;
-      data[blob->offset(1, channel, 1, 1)] = 0.0f;
-      data[blob->offset(1, channel, 1, 2)] = -10.0f;
-      data[blob->offset(1, channel, 2, 0)] = 3.0f;
-      data[blob->offset(1, channel, 2, 1)] = 0.0f;
-      data[blob->offset(1, channel, 2, 2)] = -3.0f;
+      data[blob->offset(1, channel, 0, 0)] = 3.0f * scale;
+      data[blob->offset(1, channel, 0, 1)] = 0.0f * scale;
+      data[blob->offset(1, channel, 0, 2)] = -3.0f * scale;
+      data[blob->offset(1, channel, 1, 0)] = 10.0f * scale;
+      data[blob->offset(1, channel, 1, 1)] = 0.0f * scale;
+      data[blob->offset(1, channel, 1, 2)] = -10.0f * scale;
+      data[blob->offset(1, channel, 2, 0)] = 3.0f * scale;
+      data[blob->offset(1, channel, 2, 1)] = 0.0f * scale;
+      data[blob->offset(1, channel, 2, 2)] = -3.0f * scale;
     }
     CHECK_EQ(this->filler_param_.sparse(), -1)
         << "Sparsity not supported by this Filler.";
