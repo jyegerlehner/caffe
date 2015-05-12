@@ -332,6 +332,7 @@ message LayerParameter {
   optional TanHParameter tanh_param = 127;
   optional ThresholdParameter threshold_param = 128;
   optional WindowDataParameter window_data_param = 129;
+  optional SoftmaximaParameter softmaxima_param = 132;
 }
 
 // Message that stores parameters used to apply transformation
@@ -717,6 +718,16 @@ message SoftmaxParameter {
   // from the end (e.g., -1 for the last axis).
   // Any other axes will be evaluated as independent softmaxes.
   optional int32 axis = 2 [default = 1];
+}
+
+message SoftmaximaParameter {
+  // The axis along which to perform the softmax -- may be negative to index
+  // from the end (e.g., -1 for the last axis).
+  // Any other axes will be evaluated as independent softmaxes.
+  optional int32 axis = 1 [default = 1];
+
+  // Each individual Softmax within the layer is of this size.
+  optional int32 softmax_size = 2 [default = 2];
 }
 
 // Message that stores parameters used by TanHLayer
