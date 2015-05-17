@@ -58,8 +58,10 @@ class Solver {
   // written to disk together with the learned net.
   void Snapshot();
   // The test routine
-  void TestAll();
-  void Test(const int test_net_id = 0);
+  // stop_was_requested will be set to true iff a request to stop training
+  // was received whilst testing.
+  void TestAll(bool& stop_was_requested);
+  void Test(bool& requested_stop_while_testing, const int test_net_id = 0);
   virtual void SnapshotSolverState(SolverState* state) = 0;
   virtual void RestoreSolverState(const SolverState& state) = 0;
   void DisplayOutputBlobs(const int net_id);
