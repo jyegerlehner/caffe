@@ -302,6 +302,7 @@ class MVNLayer : public Layer<Dtype> {
   Blob<Dtype> sum_multiplier_;
 
   MvnBlobHelper<Dtype> blob_helper_;
+  Dtype eps_;
 };
 
 
@@ -341,6 +342,7 @@ class InverseMVNLayer : public Layer<Dtype> {
   /// sum_multiplier is used to carry out sum using BLAS
   Blob<Dtype> sum_multiplier_;
   MvnBlobHelper<Dtype> blob_helper_;
+  Dtype eps_;
 };
 
 /*
@@ -378,7 +380,7 @@ class ReshapeLayer : public Layer<Dtype> {
   /// @brief the index of the axis whose dimension we infer, or -1 if none
   int inferred_axis_;
   /// @brief the product of the "constant" output dimensions
-  int64_t constant_count_;
+  int constant_count_;
 };
 
 /**

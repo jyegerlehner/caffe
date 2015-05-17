@@ -45,8 +45,6 @@ void MVNLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     caffe_gpu_sub(mean_.count(), variance_.gpu_data(), temp_.gpu_data(),
         variance_.mutable_gpu_data());  // variance
 
-    Dtype eps = 1e-10;
-
     // Check for, and correct, slightly negative variance numbers which can
     // happen when true variance is zero (e.g. solid color image) due to float
     // roundoff error.
@@ -54,7 +52,7 @@ void MVNLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     // NOLINT_NEXT_LINE(whitespace/operators)
     FixNegVar<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS >>>(
         variance_.count(), variance_.gpu_data(),
-        variance_.mutable_gpu_data(), eps);
+        variance_.mutable_gpu_data(), eps_);
 
     // do mean and variance normalization
     // subtract mean
@@ -68,7 +66,7 @@ void MVNLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     caffe_gpu_powx(variance_.count(), variance_.gpu_data(), Dtype(0.5),
           variance_.mutable_gpu_data());
 
-    caffe_gpu_add_scalar(variance_.count(), eps, variance_.mutable_gpu_data());
+    caffe_gpu_add_scalar(variance_.count(), eps_, variance_.mutable_gpu_data());
 
     caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, dim, 1, 1.,
           variance_.gpu_data(), sum_multiplier_.gpu_data(), 0.,
