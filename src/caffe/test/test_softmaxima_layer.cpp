@@ -18,12 +18,46 @@
 namespace caffe {
 
 template <typename Dtype>
+void PrintBlob( const std::string& nam, Blob<Dtype>& blob )
+{
+  std::cout << "Blob: " << nam << std::endl;
+  int num = blob.num();
+  int chans = blob.channels();
+  int height = blob.height();
+  int width = blob.width();
+
+  std::cout << "shape=(" << num << "," << chans << "," << height << ","
+            << width << ")" << std::endl;
+  for( int n = 0; n < num; ++n) {
+    for( int c = 0; c < chans; ++c) {
+      for( int h = 0; h < height; ++h) {
+        for( int w=0; w < width; ++w) {
+          Dtype val = blob.data_at(n,c,h,w);
+          std::cout << "data(" << n << "," << c << "," << h << "," << w << ")"
+                       << "=" << val << std::endl;
+        }
+      }
+    }
+  }
+}
+
+template <typename Dtype>
 struct NaiveSoftmaximaLayer {
   NaiveSoftmaximaLayer( int softmax_size ) :
   softmax_size_(softmax_size) {
   }
 
-  shared_ptr<Blob<Dtype> > Forward( const Blob<Dtype>& input) {
+  shared_ptr<Blob<Dtype> > Forward( const Blob<Dtype>& orig_input) {
+    // Make a copy of the original input.
+    Blob<Dtype> input;
+    input.ReshapeLike(orig_input);
+    Dtype* in_data = input.mutable_cpu_data();
+    const Dtype* orig_in_data = orig_input.cpu_data();
+    for(int i=0; i < orig_input.count(); ++i)
+    {
+      *(in_data++) = *(orig_in_data++);
+    }
+
     shared_ptr<Blob<Dtype> > result( new Blob<Dtype>());
     result->ReshapeLike(input);
     std::vector<int> shape = input.shape();
@@ -32,17 +66,60 @@ struct NaiveSoftmaximaLayer {
     int height = shape[2];
     int width = shape[3];
 
+
     // The number of canonical axis input channels must be an integer multiple
     // of the softmax size of the softmaxima layer.
     EXPECT_EQ(channels % softmax_size_, 0);
 
     int num_softmaxes = channels / softmax_size_;
 
+    Blob<Dtype> maxes;
+    maxes.Reshape(cardinality, num_softmaxes,height,width);
+
+//    std::cout << "NaiveForward:" << std::endl;
+
     for( int instance = 0; instance < cardinality; ++instance) {
       for(int h = 0; h < height; ++h ) {
         for(int w = 0; w < width; ++w ) {
           for( int softmax_index = 0; softmax_index < num_softmaxes;
                ++softmax_index) {
+
+            // Find the max of each channel that participates in this softmax.
+            float max = -10000.0;
+            // For each scalar that participates in this softmax, compute its
+            // exponentiation.
+            for( int inner_index = 0; inner_index < softmax_size_;
+                 ++inner_index ) {
+              int channel = softmax_index * softmax_size_ + inner_index;
+              float val = input.data_at(instance, channel, h, w);
+              //expons.push_back(std::exp(val));
+              if ( val > max)
+              {
+                max = val;
+              }
+            }
+
+            (maxes.mutable_cpu_data()[maxes.offset(instance,softmax_index,
+                                                  h,w)]) = max;
+//            std::cout << "max(" << instance << "," << softmax_index << ","
+//                      << h << "," << w << ")"
+//                      << "=" << max << std::endl;
+
+            in_data = input.mutable_cpu_data();
+            // Subtract the max from each of the values before exponentiating.
+            for( int inner_index = 0; inner_index < softmax_size_;
+                 ++inner_index ) {
+              int channel = softmax_index * softmax_size_ + inner_index;
+              float val = input.data_at(instance, channel, h, w);
+              //expons.push_back(std::exp(val));
+              in_data[input.offset(instance,channel,h,w)] =
+                  val - max;
+
+//              std::cout << "minusmax(" << instance << "," << channel
+//                        << "," << h << "," << w << ")"
+//                        << "=" << (val - max) << std::endl;
+
+            }
 
             std::vector<float> expons;
             // For each scalar that participates in this softmax, compute its
@@ -52,10 +129,20 @@ struct NaiveSoftmaximaLayer {
               int channel = softmax_index * softmax_size_ + inner_index;
               float val = input.data_at(instance, channel, h, w);
               expons.push_back(std::exp(val));
+
+//              std::cout << "exp(" << instance << "," << channel
+//                        << "," << h << "," << w << ")"
+//                        << "=" << std::exp(val) << std::endl;
             }
 
             // Compute the sum.
             Dtype sum = std::accumulate(expons.begin(), expons.end(), (Dtype)0.0f);
+
+//            std::cout << "exp(" << instance << "," << softmax_index
+//                      << "," << h << "," << w << ")"
+//                      << "=" << sum << std::endl;
+
+//            std::cout << "(n,smi,h,w)=" <<
             // Compute the softmax's output.
             for( int inner_index = 0; inner_index < softmax_size_;
                  ++ inner_index) {
@@ -69,6 +156,7 @@ struct NaiveSoftmaximaLayer {
         }
       }
     }
+    //PrintBlob("Naive maxes", maxes);
     return result;
   }
 
@@ -91,26 +179,29 @@ struct NaiveNonGPUSoftmaximaLayer {
     shared_ptr<Blob<Dtype> > result( new Blob<Dtype>());
     result->ReshapeLike(input);
 
-    num_softmaxed_inputs = bottom[0]->shape(softmax_axis);
+    int num_softmaxed_inputs = input.shape(softmax_axis);
 
 //    int num_softmaxed_inputs =
 //      vector<int> mult_dims(1, bottom[0]->shape(softmax_axis_));
 
     vector<int> scale_dims = input.shape();
-    num_softmaxes_ = num_softmaxed_inputs / softmax_size_;
+    int num_softmaxes_ = num_softmaxed_inputs / softmax_size_;
     Blob<Dtype> scale;
-    scale_dims[softmax_axis] = num_softmaxes;
+    scale_dims[softmax_axis] = num_softmaxes_;
     scale.Reshape(scale_dims);
     Dtype* scale_data = scale.mutable_cpu_data();
 
-    int count = bottom[0]->count();
+    int count = input.count();
     int channels = num_softmaxed_inputs;
     //caffe_copy(count, bottom_data, top_data);
+    Dtype* top_data = result->mutable_cpu_data();
     for( int i=0; i < count; ++i)
     {
-      *(top_data++) = *(bottom_data++);
+      Dtype dat = *(bottom_data++);
+      *(top_data++) = dat;
     }
 
+    top_data = result->mutable_cpu_data();
     // We need to subtract the max to avoid numerical issues, compute the exp,
     // and then normalize.
     // compute max
@@ -130,11 +221,13 @@ struct NaiveNonGPUSoftmaximaLayer {
 //        CAFFE_CUDA_NUM_THREADS>>>(count, outer_num_, channels, inner_num_,
 //        scale_data, top_data);
       kernel_channel_subtract(count,
-                             outer_num_,
-                             channels,
+                             softmax_size_,
                              inner_num_,
                              scale_data,
                              top_data);
+
+      //Print out the blob after maxes have been subtracted.
+//      PrintBlob("NonGPU top after subtract", *result);
 
 
     // exponentiate
@@ -148,18 +241,33 @@ struct NaiveNonGPUSoftmaximaLayer {
 //    kernel_channel_sum<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
 //        CAFFE_CUDA_NUM_THREADS>>>(outer_num_, channels, inner_num_, top_data,
 //        scale_data);
-    kernel_channel_sum(outer_num_, channels, softmax_size_, inner_num_, top_data,
-        scale_data);
+    kernel_channel_sum(outer_num_,
+                       channels,
+                       inner_num_,
+                       softmax_size_,
+                       num_softmaxes_,
+                       top_data,
+                       scale_data);
+
+//    PrintBlob("NonGPU softmax sums after exp", scale);
 
     // divide
     // NOLINT_NEXT_LINE(whitespace/operators)
 //    kernel_channel_div<Dtype><<<CAFFE_GET_BLOCKS(count),
 //        CAFFE_CUDA_NUM_THREADS>>>(count, outer_num_, channels, inner_num_,
 //        scale_data, top_data);
-    kernel_channel_div(count, outer_num_, channels, inner_num_,
-        scale_data, top_data);
-  }
+    kernel_channel_div(outer_num_,
+                       channels,
+                       inner_num_,
+                       softmax_size_,
+                       num_softmaxes_,
+                       scale_data,
+                       top_data);
 
+//    PrintBlob("NonGPU softmax div by sum", top_data);
+
+    return result;
+  }
 private:
   void kernel_channel_max( const int num,
                            const int channels,
@@ -173,13 +281,16 @@ private:
       int s = index % spatial_dim;
       // For each softmax along the canonical axis.
       for( int smi = 0; smi < num_softmaxes; ++smi) {
-        Dtype maxval = -FLT_MAX;
+        Dtype maxval = -1000.0;
         // For each channel within this softmax.
         for (int c_off = 0; c_off < softmax_size; ++c_off) {
           int c = smi * softmax_size + c_off;
-          maxval = max(data[(n * channels + c) * spatial_dim + s], maxval);
+          int data_index = (n * channels + c) * spatial_dim + s;
+          maxval = std::max(data[data_index], maxval);
         }
-        out[index*num_softmaxes + smi] = maxval;
+        //int out_index = index*num_softmaxes + smi;
+        int out_index = s + (n * num_softmaxes + smi) * spatial_dim ; //index*num_softmaxes + smi;
+        out[out_index] = maxval;
       }
     }
   }
@@ -190,56 +301,53 @@ private:
                            const int softmax_size,
                            const int num_softmaxes,
                            const Dtype* data,
-                           Dtype* channel_sum)
-  {
+                           Dtype* out) {
     for( int index = 0; index < num * spatial_dim; ++index)  {
       int n = index / spatial_dim;
       int s = index % spatial_dim;
       // For each softmax along the canonical axis.
       for( int smi = 0; smi < num_softmaxes; ++smi) {
-        Dtype sum = 0.0;
+        Dtype sum = 0;
         // For each channel within this softmax.
         for (int c_off = 0; c_off < softmax_size; ++c_off) {
           int c = smi * softmax_size + c_off;
-          sum += data[(n * channels + c) * spatial_dim + s];
+          int data_index = (n * channels + c) * spatial_dim + s;
+          sum += data[data_index];
         }
-        out[index*num_softmaxes + smi] = sum;
+        //int out_index = index*num_softmaxes + smi;
+        int out_index = s + (n * num_softmaxes + smi) * spatial_dim ; //index*num_softmaxes + smi;
+        out[out_index] = sum;
       }
     }
   }
 
-  void kernel_channel_div(const int count,
-                          const int num,
-                          const int channels,
-                          const int softmax_size,
-                          const int spatial_dim,
-                          const Dtype* channel_sum,
-                          Dtype* data) {
-    for( int index = 0; index < count; ++index )
-    {
-      int n = index / softmax_size / spatial_dim;
+  void kernel_channel_div( const int num,
+                           const int channels,
+                           const int spatial_dim,
+                           const int softmax_size,
+                           const int num_softmaxes,
+                           const Dtype* sums,
+                           Dtype* out) {
+    for( int index = 0; index < num * spatial_dim; ++index)  {
+      int n = index / spatial_dim;
       int s = index % spatial_dim;
-      data[index] /= channel_max[n * spatial_dim + s];
+      // For each softmax along the canonical axis.
+      for( int smi = 0; smi < num_softmaxes; ++smi) {
+        int sum_index = s + (n * num_softmaxes + smi) * spatial_dim ; //index*num_softmaxes + smi;
+        Dtype sum = sums[sum_index];
+        // For each channel within this softmax.
+        for (int c_off = 0; c_off < softmax_size; ++c_off) {
+          int c = smi * softmax_size + c_off;
+          int data_index = (n * channels + c) * spatial_dim + s;
+          out[data_index] = out[data_index] / sum;
+        }
+        //int out_index = index*num_softmaxes + smi;
+      }
     }
   }
 
-//  {
-//    for( int index = 0; index < num * spatial_dim; ++index)
-//    {
-//      int n = index / spatial_dim;
-//      int s = index % spatial_dim;
-//      Dtype sum = 0;
-//      for (int c = 0; c < channels; ++c) {
-//        sum += data[(n * channels + c) * spatial_dim + s];
-//      }
-//      channel_sum[index] = sum;
-//    }
-//  }
-
 
   void kernel_channel_subtract(const int count,
-                               const int num,
-                               const int channels,
                                const int softmax_size,
                                const int spatial_dim,
                                const Dtype* channel_max,
@@ -249,7 +357,10 @@ private:
     {
       int n = index / softmax_size / spatial_dim;
       int s = index % spatial_dim;
-      data[index] -= channel_max[n * spatial_dim + s];
+
+      int softmax_max_index = n * spatial_dim + s;
+      //int softmax_index = chanset*num_softmaxes
+      data[index] -= channel_max[softmax_max_index];
     }
   }
 
@@ -260,7 +371,6 @@ private:
       out[index] = exp(data[index]);
     }
  }
-
 
   int softmax_size_;
 };
@@ -374,15 +484,11 @@ TYPED_TEST(SoftmaximaLayerTest, TestForward_NaiveImplementation) {
 TYPED_TEST(SoftmaximaLayerTest, TestForward_NaiveNonGpuImplementation) {
   typedef typename TypeParam::Dtype Dtype;
 
-  shared_ptr<Blob<Dtype> > expected_result =
-            this->ForwardPropThroughTwoSoftmaxes();
-
   NaiveSoftmaximaLayer<Dtype> layer(5);
   shared_ptr<Blob<Dtype> > expected_result = layer.Forward(*(this->blob_bottom_vec_[0]));
 
   NaiveNonGPUSoftmaximaLayer<Dtype> nongpulayer(5);
-  shared_ptr<Blob<Dtype> > result = layer.Forward(*(this->blob_bottom_vec_[0]));
-
+  shared_ptr<Blob<Dtype> > result = nongpulayer.Forward(*(this->blob_bottom_vec_[0]));
 
   EXPECT_EQ((expected_result->shape()), (result->shape()));
 
