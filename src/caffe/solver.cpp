@@ -186,7 +186,13 @@ void Solver<Dtype>::Step(int iters) {
   while(iter_ < stop_iter && request != SolverParameter_Action_STOP) {
     if (param_.test_interval() && iter_ % param_.test_interval() == 0
         && (iter_ > 0 || param_.test_initialization())) {
-      TestAll();
+
+      bool requested_stop_while_testing = false;
+      TestAll(requested_stop_while_testing);
+      if (requested_stop_while_testing) {
+        // Break out of the while loop because stop was requested.
+        break;
+      }
     }
 
     const bool display = param_.display() && iter_ % param_.display() == 0;
@@ -271,20 +277,22 @@ void Solver<Dtype>::Solve(const char* resume_file) {
     LOG(INFO) << "Iteration " << iter_ << ", loss = " << loss;
   }
   if (param_.test_interval() && iter_ % param_.test_interval() == 0) {
-    TestAll();
+    bool requested_stop_while_testing = false;
+    TestAll(requested_stop_while_testing);
   }
   LOG(INFO) << "Optimization Done.";
 }
 
 template <typename Dtype>
-void Solver<Dtype>::TestAll() {
+void Solver<Dtype>::TestAll(bool& requested_stop_while_testing) {
   for (int test_net_id = 0; test_net_id < test_nets_.size(); ++test_net_id) {
-    Test(test_net_id);
+    Test(requested_stop_while_testing, test_net_id);
   }
 }
 
 template <typename Dtype>
-void Solver<Dtype>::Test(const int test_net_id) {
+void Solver<Dtype>::Test(bool& requested_stop_while_testing,
+                         const int test_net_id) {
   LOG(INFO) << "Iteration " << iter_
             << ", Testing net (#" << test_net_id << ")";
   CHECK_NOTNULL(test_nets_[test_net_id].get())->
@@ -295,6 +303,22 @@ void Solver<Dtype>::Test(const int test_net_id) {
   const shared_ptr<Net<Dtype> >& test_net = test_nets_[test_net_id];
   Dtype loss = 0;
   for (int i = 0; i < param_.test_iter(test_net_id); ++i) {
+
+    SolverParameter_Action request = GetRequestedAction();
+    // Check to see if stoppage of testing/training has been requested.
+    while (request != SolverParameter_Action_NONE) {
+        if (SolverParameter_Action_SNAPSHOT == request) {
+          Snapshot();
+        } else if (SolverParameter_Action_STOP == request) {
+          requested_stop_while_testing = true;
+        }
+        request = GetRequestedAction();
+    }
+    if(requested_stop_while_testing) {
+      // break out of test loop.
+      break;
+    }
+
     Dtype iter_loss;
     const vector<Blob<Dtype>*>& result =
         test_net->Forward(bottom_vec, &iter_loss);
@@ -319,26 +343,29 @@ void Solver<Dtype>::Test(const int test_net_id) {
       }
     }
   }
-  if (param_.test_compute_loss()) {
-    loss /= param_.test_iter(test_net_id);
-    LOG(INFO) << "Test loss: " << loss;
-  }
-  for (int i = 0; i < test_score.size(); ++i) {
-    const int output_blob_index =
-        test_net->output_blob_indices()[test_score_output_id[i]];
-    const string& output_name = test_net->blob_names()[output_blob_index];
-    const Dtype loss_weight = test_net->blob_loss_weights()[output_blob_index];
-    ostringstream loss_msg_stream;
-    const Dtype mean_score = test_score[i] / param_.test_iter(test_net_id);
-    if (loss_weight) {
-      loss_msg_stream << " (* " << loss_weight
-                      << " = " << loss_weight * mean_score << " loss)";
+  if(requested_stop_while_testing) {
+    LOG(INFO)     << "Test interrupted.";
+  } else {
+    if (param_.test_compute_loss()) {
+      loss /= param_.test_iter(test_net_id);
+      LOG(INFO) << "Test loss: " << loss;
     }
-    LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
-        << mean_score << loss_msg_stream.str();
+    for (int i = 0; i < test_score.size(); ++i) {
+      const int output_blob_index =
+          test_net->output_blob_indices()[test_score_output_id[i]];
+      const string& output_name = test_net->blob_names()[output_blob_index];
+      const Dtype loss_weight = test_net->blob_loss_weights()[output_blob_index];
+      ostringstream loss_msg_stream;
+      const Dtype mean_score = test_score[i] / param_.test_iter(test_net_id);
+      if (loss_weight) {
+        loss_msg_stream << " (* " << loss_weight
+                        << " = " << loss_weight * mean_score << " loss)";
+      }
+      LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
+          << mean_score << loss_msg_stream.str();
+    }
   }
 }
-
 
 template <typename Dtype>
 void Solver<Dtype>::Snapshot() {
@@ -377,7 +404,6 @@ void Solver<Dtype>::Restore(const char* state_file) {
   current_step_ = state.current_step();
   RestoreSolverState(state);
 }
-
 
 // Return the current learning rate. The currently implemented learning rate
 // policies are as follows:
