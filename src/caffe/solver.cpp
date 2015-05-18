@@ -183,7 +183,7 @@ void Solver<Dtype>::Step(int iters) {
   vector<Dtype> losses;
   Dtype smoothed_loss = 0;
 
-  while (iter_ < stop_iter)  {
+  while (iter_ < stop_iter) {
     if (param_.test_interval() && iter_ % param_.test_interval() == 0
         && (iter_ > 0 || param_.test_initialization())) {
       TestAll();
