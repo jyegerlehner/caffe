@@ -183,12 +183,12 @@ void Solver<Dtype>::Step(int iters) {
   vector<Dtype> losses;
   Dtype smoothed_loss = 0;
 
-  while (iter_ < stop_iter) {
+  while (iter_ < stop_iter)  {
     if (param_.test_interval() && iter_ % param_.test_interval() == 0
         && (iter_ > 0 || param_.test_initialization())) {
       TestAll();
       if (requested_early_exit_) {
-        // Break out of the while loop because client is asking for early exit.
+        // Break out of the while loop because stop was requested while testing.
         break;
       }
     }
@@ -254,6 +254,9 @@ void Solver<Dtype>::Solve(const char* resume_file) {
   LOG(INFO) << "Solving " << net_->name();
   LOG(INFO) << "Learning Rate Policy: " << param_.lr_policy();
 
+  // Initialize to false every time we start solving.
+  requested_early_exit_ = false;
+
   if (resume_file) {
     LOG(INFO) << "Restoring previous solver status from " << resume_file;
     Restore(resume_file);
@@ -269,7 +272,7 @@ void Solver<Dtype>::Solve(const char* resume_file) {
     Snapshot();
   }
   if (requested_early_exit_) {
-    LOG(INFO) << "Optimization stopping early.";
+    LOG(INFO) << "Optimization stopped early.";
     return;
   }
   // After the optimization is done, run an additional train and test pass to
