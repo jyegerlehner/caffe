@@ -29,13 +29,15 @@ SolverParameter_Action Solver<Dtype>::GetRequestedAction() {
 
 template <typename Dtype>
 Solver<Dtype>::Solver(const SolverParameter& param)
-    : net_() {
+    : net_(),
+      requested_early_exit_(false) {
   Init(param);
 }
 
 template <typename Dtype>
 Solver<Dtype>::Solver(const string& param_file)
-    : net_() {
+    : net_(),
+      requested_early_exit_(false) {
   SolverParameter param;
   ReadProtoFromTextFileOrDie(param_file, &param);
   Init(param);
@@ -181,16 +183,13 @@ void Solver<Dtype>::Step(int iters) {
   vector<Dtype> losses;
   Dtype smoothed_loss = 0;
 
-  SolverParameter_Action request = SolverParameter_Action_NONE;
-
-  while (iter_ < stop_iter && request != SolverParameter_Action_STOP) {
+  while(iter_ < stop_iter)  {
     if (param_.test_interval() && iter_ % param_.test_interval() == 0
         && (iter_ > 0 || param_.test_initialization())) {
 
-      bool requested_stop_while_testing = false;
-      TestAll(requested_stop_while_testing);
-      if (requested_stop_while_testing) {
-        // Break out of the while loop because stop was requested.
+      TestAll();
+      if (requested_early_exit_) {
+        // Break out of the while loop because client is asking for early exit.
         break;
       }
     }
@@ -232,18 +231,21 @@ void Solver<Dtype>::Step(int iters) {
     ComputeUpdateValue();
     net_->Update();
 
-    request = GetRequestedAction();
-
     // Increment the internal iter_ counter -- its value should always indicate
     // the number of times the weights have been updated.
     ++iter_;
 
-    request = GetRequestedAction();
+    SolverParameter_Action request = GetRequestedAction();
 
     // Save a snapshot if needed.
     if ((param_.snapshot() && iter_ % param_.snapshot() == 0) ||
          (request == SolverParameter_Action_SNAPSHOT)) {
       Snapshot();
+    }
+    if (SolverParameter_Action_STOP == request) {
+      requested_early_exit_ = true;
+      // Break out of training loop.
+      break;
     }
   }
 }
@@ -267,6 +269,10 @@ void Solver<Dtype>::Solve(const char* resume_file) {
       && (!param_.snapshot() || iter_ % param_.snapshot() != 0)) {
     Snapshot();
   }
+  if(requested_early_exit_) {
+    LOG(INFO) << "Optimization stopping early.";
+    return;
+  }
   // After the optimization is done, run an additional train and test pass to
   // display the train and test loss/outputs if appropriate (based on the
   // display and test_interval settings, respectively).  Unlike in the rest of
@@ -279,22 +285,22 @@ void Solver<Dtype>::Solve(const char* resume_file) {
     LOG(INFO) << "Iteration " << iter_ << ", loss = " << loss;
   }
   if (param_.test_interval() && iter_ % param_.test_interval() == 0) {
-    bool requested_stop_while_testing = false;
-    TestAll(requested_stop_while_testing);
+    TestAll();
   }
   LOG(INFO) << "Optimization Done.";
 }
 
 template <typename Dtype>
-void Solver<Dtype>::TestAll(bool& requested_stop_while_testing) {
-  for (int test_net_id = 0; test_net_id < test_nets_.size(); ++test_net_id) {
-    Test(requested_stop_while_testing, test_net_id);
+void Solver<Dtype>::TestAll() {
+  for (int test_net_id = 0;
+       test_net_id < test_nets_.size() && !requested_early_exit_;
+       ++test_net_id) {
+    Test(test_net_id);
   }
 }
 
 template <typename Dtype>
-void Solver<Dtype>::Test(bool& requested_stop_while_testing,
-                         const int test_net_id) {
+void Solver<Dtype>::Test(const int test_net_id) {
   LOG(INFO) << "Iteration " << iter_
             << ", Testing net (#" << test_net_id << ")";
   CHECK_NOTNULL(test_nets_[test_net_id].get())->
@@ -312,11 +318,11 @@ void Solver<Dtype>::Test(bool& requested_stop_while_testing,
         if (SolverParameter_Action_SNAPSHOT == request) {
           Snapshot();
         } else if (SolverParameter_Action_STOP == request) {
-          requested_stop_while_testing = true;
+          requested_early_exit_ = true;
         }
         request = GetRequestedAction();
     }
-    if(requested_stop_while_testing) {
+    if(requested_early_exit_) {
       // break out of test loop.
       break;
     }
@@ -345,7 +351,7 @@ void Solver<Dtype>::Test(bool& requested_stop_while_testing,
       }
     }
   }
-  if(requested_stop_while_testing) {
+  if(requested_early_exit_) {
     LOG(INFO)     << "Test interrupted.";
   } else {
     if (param_.test_compute_loss()) {

@@ -60,8 +60,8 @@ class Solver {
   // The test routine
   // stop_was_requested will be set to true iff a request to stop training
   // was received whilst testing.
-  void TestAll(bool& stop_was_requested);
-  void Test(bool& requested_stop_while_testing, const int test_net_id = 0);
+  void TestAll();
+  void Test(const int test_net_id = 0);
   virtual void SnapshotSolverState(SolverState* state) = 0;
   virtual void RestoreSolverState(const SolverState& state) = 0;
   void DisplayOutputBlobs(const int net_id);
@@ -75,6 +75,9 @@ class Solver {
   // A function that can be set by a client of the Solver to provide indication
   // that it wants a snapshot saved and/or to exit early.
   ActionCallback action_request_function_;
+
+  // True iff a request to stop early was received.
+  bool requested_early_exit_;
 
   DISABLE_COPY_AND_ASSIGN(Solver);
 };
