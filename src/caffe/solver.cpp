@@ -183,10 +183,9 @@ void Solver<Dtype>::Step(int iters) {
   vector<Dtype> losses;
   Dtype smoothed_loss = 0;
 
-  while(iter_ < stop_iter)  {
+  while (iter_ < stop_iter)  {
     if (param_.test_interval() && iter_ % param_.test_interval() == 0
         && (iter_ > 0 || param_.test_initialization())) {
-
       TestAll();
       if (requested_early_exit_) {
         // Break out of the while loop because stop was requested while testing.
@@ -269,7 +268,7 @@ void Solver<Dtype>::Solve(const char* resume_file) {
       && (!param_.snapshot() || iter_ % param_.snapshot() != 0)) {
     Snapshot();
   }
-  if(requested_early_exit_) {
+  if (requested_early_exit_) {
     LOG(INFO) << "Optimization stopping early.";
     return;
   }
@@ -311,7 +310,6 @@ void Solver<Dtype>::Test(const int test_net_id) {
   const shared_ptr<Net<Dtype> >& test_net = test_nets_[test_net_id];
   Dtype loss = 0;
   for (int i = 0; i < param_.test_iter(test_net_id); ++i) {
-
     SolverParameter_Action request = GetRequestedAction();
     // Check to see if stoppage of testing/training has been requested.
     while (request != SolverParameter_Action_NONE) {
@@ -322,7 +320,7 @@ void Solver<Dtype>::Test(const int test_net_id) {
         }
         request = GetRequestedAction();
     }
-    if(requested_early_exit_) {
+    if (requested_early_exit_) {
       // break out of test loop.
       break;
     }
@@ -351,27 +349,27 @@ void Solver<Dtype>::Test(const int test_net_id) {
       }
     }
   }
-  if(requested_early_exit_) {
+  if (requested_early_exit_) {
     LOG(INFO)     << "Test interrupted.";
-  } else {
-    if (param_.test_compute_loss()) {
-      loss /= param_.test_iter(test_net_id);
-      LOG(INFO) << "Test loss: " << loss;
+    return;
+  }
+  if (param_.test_compute_loss()) {
+    loss /= param_.test_iter(test_net_id);
+    LOG(INFO) << "Test loss: " << loss;
+  }
+  for (int i = 0; i < test_score.size(); ++i) {
+    const int output_blob_index =
+        test_net->output_blob_indices()[test_score_output_id[i]];
+    const string& output_name = test_net->blob_names()[output_blob_index];
+    const Dtype loss_weight = test_net->blob_loss_weights()[output_blob_index];
+    ostringstream loss_msg_stream;
+    const Dtype mean_score = test_score[i] / param_.test_iter(test_net_id);
+    if (loss_weight) {
+      loss_msg_stream << " (* " << loss_weight
+                      << " = " << loss_weight * mean_score << " loss)";
     }
-    for (int i = 0; i < test_score.size(); ++i) {
-      const int output_blob_index =
-          test_net->output_blob_indices()[test_score_output_id[i]];
-      const string& output_name = test_net->blob_names()[output_blob_index];
-      const Dtype loss_weight = test_net->blob_loss_weights()[output_blob_index];
-      ostringstream loss_msg_stream;
-      const Dtype mean_score = test_score[i] / param_.test_iter(test_net_id);
-      if (loss_weight) {
-        loss_msg_stream << " (* " << loss_weight
-                        << " = " << loss_weight * mean_score << " loss)";
-      }
-      LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
-          << mean_score << loss_msg_stream.str();
-    }
+    LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
+        << mean_score << loss_msg_stream.str();
   }
 }
 
@@ -878,5 +876,4 @@ INSTANTIATE_CLASS(Solver);
 INSTANTIATE_CLASS(SGDSolver);
 INSTANTIATE_CLASS(NesterovSolver);
 INSTANTIATE_CLASS(AdaGradSolver);
-
 }  // namespace caffe
