@@ -506,38 +506,38 @@ TYPED_TEST(SoftmaximaLayerTest, TestForward_NaiveNonGpuImplementation) {
   }
 }
 
+// Forward propagating through the Softmaxima layer should produce the same
+// result as forward propagating through two individual Softmax layers whose
+// outputs are concatenated appropriately.
+TYPED_TEST(SoftmaximaLayerTest, TestForward_SoftmaximaLayer) {
+  typedef typename TypeParam::Dtype Dtype;
 
-//// Forward propagating through the Softmaxima layer should produce the same
-//// result as forward propagating through two individual Softmax layers whose
-//// outputs are concatenated appropriately.
-//TYPED_TEST(SoftmaximaLayerTest, TestForward) {
-//  typedef typename TypeParam::Dtype Dtype;
+  shared_ptr<Blob<Dtype> > expected_result =
+            this->ForwardPropThroughTwoSoftmaxes();
 
-//  shared_ptr<Blob<Dtype> > expected_result =
-//            this->ForwardPropThroughTwoSoftmaxes();
+  LayerParameter layer_param;
+  std::string proto = "softmaxima_param { softmax_size: 5 }";
+  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
+  SoftmaximaLayer<Dtype> layer(layer_param);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
+  layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
+  Blob<Dtype>& result = *(this->blob_top_vec_[0]);
 
-//  LayerParameter layer_param;
-//  std::string proto = "softmaxima_param { softmax_size: 5 }";
-//  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
-//  SoftmaximaLayer<Dtype> layer(layer_param);
-//  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
-//  shared_ptr<Blob<Dtype> > result = layer.Forward(*(this->blob_bottom_vec_[0]));
+  EXPECT_EQ((expected_result->shape()), (result.shape()));
 
-//  EXPECT_EQ((expected_result->shape()), (result->shape()));
-
-//  // Test that results are the same.
-//  for (int i = 0; i < this->blob_bottom_->num(); ++i) {
-//    for (int k = 0; k < this->blob_bottom_->height(); ++k) {
-//      for (int l = 0; l < this->blob_bottom_->width(); ++l) {
-//        for (int j = 0; j < this->blob_bottom_->channels(); ++j) {
-//          Dtype expected_val = expected_result->data_at(i,j,k,l);
-//          Dtype actual_val = result->data_at(i, j, k, l);
-//          EXPECT_NEAR( expected_val, actual_val, 1e-4 );
-//        }
-//      }
-//    }
-//  }
-//}
+  // Test that results are the same.
+  for (int i = 0; i < this->blob_bottom_->num(); ++i) {
+    for (int k = 0; k < this->blob_bottom_->height(); ++k) {
+      for (int l = 0; l < this->blob_bottom_->width(); ++l) {
+        for (int j = 0; j < this->blob_bottom_->channels(); ++j) {
+          Dtype expected_val = expected_result->data_at(i,j,k,l);
+          Dtype actual_val = result.data_at(i, j, k, l);
+          EXPECT_NEAR( expected_val, actual_val, 1e-4 );
+        }
+      }
+    }
+  }
+}
 
 
 //TYPED_TEST(SoftmaximaLayerTest, TestGradient) {
