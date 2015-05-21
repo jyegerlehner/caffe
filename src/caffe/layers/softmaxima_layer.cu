@@ -121,18 +121,39 @@ __global__ void kernel_channel_div_sma( const int num,
 }
 
 template <typename Dtype>
-__global__ void kernel_channel_dot(const int num, const int channels,
-    const int spatial_dim, const Dtype* data_1, const Dtype* data_2,
-    Dtype* channel_dot) {
+__global__ void kernel_softmax_dot(const int num,
+                                   const int channels,
+                                   const int spatial_dim,
+                                   const int softmax_size,
+                                   const int num_softmaxes,
+                                   const Dtype* data_1,
+                                   const Dtype* data_2,
+                                   Dtype* softmax_dot) {
   CUDA_KERNEL_LOOP(index, num * spatial_dim) {
     int n = index / spatial_dim;
     int s = index % spatial_dim;
-    Dtype dot = 0;
-    for (int c = 0; c < channels; ++c) {
-      dot += (data_1[(n * channels + c) * spatial_dim + s]
-          * data_2[(n * channels + c) * spatial_dim + s]);
+    // For each softmax along the canonical axis.
+    for( int smi = 0; smi < num_softmaxes; ++smi) {
+      Dtype dot = 0;
+      // For each channel within this softmax.
+      for (int c_off = 0; c_off < softmax_size; ++c_off) {
+        int c = smi * softmax_size + c_off;
+        int data_index = (n * channels + c) * spatial_dim + s;
+        dot += data_1[data_index] * data_2[data_index];
+      }
+      //int out_index = index*num_softmaxes + smi;
+      int out_index = s + (n * num_softmaxes + smi) * spatial_dim ; //index*num_softmaxes + smi;
+      softmax_dot[out_index] = dot;
     }
-    channel_dot[index] = dot;
+
+//    int n = index / spatial_dim;
+//    int s = index % spatial_dim;
+//    Dtype dot = 0;
+//    for (int c = 0; c < channels; ++c) {
+//      dot += (data_1[(n * channels + c) * spatial_dim + s]
+//          * data_2[(n * channels + c) * spatial_dim + s]);
+//    }
+//    softmax_dot[index] = dot;
   }
 }
 
@@ -192,24 +213,30 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 template <typename Dtype>
 void SoftmaximaLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
-//  const Dtype* top_diff = top[0]->gpu_diff();
-//  const Dtype* top_data = top[0]->gpu_data();
-//  Dtype* bottom_diff = bottom[0]->mutable_gpu_diff();
-//  Dtype* scale_data = scale_.mutable_gpu_data();
-//  int count = top[0]->count();
-//  int channels = top[0]->shape(softmax_axis_);
-//  caffe_copy(count, top_diff, bottom_diff);
-//  // Compute inner1d(top_diff, top_data) and subtract them from the bottom diff.
-//  // NOLINT_NEXT_LINE(whitespace/operators)
-//  kernel_channel_dot<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
-//      CAFFE_CUDA_NUM_THREADS>>>(outer_num_, channels, inner_num_,
-//      top_diff, top_data, scale_data);
-//  // NOLINT_NEXT_LINE(whitespace/operators)
-//  kernel_channel_subtract<Dtype><<<CAFFE_GET_BLOCKS(count),
-//      CAFFE_CUDA_NUM_THREADS>>>(count, outer_num_, channels, inner_num_,
-//      scale_data, bottom_diff);
-//  // elementwise multiplication
-//  caffe_gpu_mul<Dtype>(top[0]->count(), bottom_diff, top_data, bottom_diff);
+  const Dtype* top_diff = top[0]->gpu_diff();
+  const Dtype* top_data = top[0]->gpu_data();
+  Dtype* bottom_diff = bottom[0]->mutable_gpu_diff();
+  Dtype* scale_data = scale_.mutable_gpu_data();
+  int count = top[0]->count();
+  int channels = top[0]->shape(softmax_axis_);
+  caffe_copy(count, top_diff, bottom_diff);
+  // Compute inner1d(top_diff, top_data) and subtract them from the bottom diff.
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  kernel_softmax_dot<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
+      CAFFE_CUDA_NUM_THREADS>>>(outer_num_,
+                                channels,
+                                inner_num_,
+                                softmax_size_,
+                                num_softmaxes_,
+                                top_diff,
+                                top_data,
+                                scale_data);
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  kernel_channel_subtract_sma<Dtype><<<CAFFE_GET_BLOCKS(count),
+      CAFFE_CUDA_NUM_THREADS>>>(count, softmax_size_, inner_num_,
+      scale_data, bottom_diff);
+  // elementwise multiplication
+  caffe_gpu_mul<Dtype>(top[0]->count(), bottom_diff, top_data, bottom_diff);
 }
 
 INSTANTIATE_LAYER_GPU_FUNCS(SoftmaximaLayer);

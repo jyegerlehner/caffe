@@ -539,15 +539,16 @@ TYPED_TEST(SoftmaximaLayerTest, TestForward_SoftmaximaLayer) {
   }
 }
 
-
-//TYPED_TEST(SoftmaximaLayerTest, TestGradient) {
-//  typedef typename TypeParam::Dtype Dtype;
-//  LayerParameter layer_param;
-//  SoftmaximaLayer<Dtype> layer(layer_param);
-//  GradientChecker<Dtype> checker(1e-2, 1e-3);
-//  checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
-//      this->blob_top_vec_);
-//}
+TYPED_TEST(SoftmaximaLayerTest, TestGradient) {
+  typedef typename TypeParam::Dtype Dtype;
+  LayerParameter layer_param;
+  std::string proto = "softmaxima_param { softmax_size: 5 }";
+  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
+  SoftmaximaLayer<Dtype> layer(layer_param);
+  GradientChecker<Dtype> checker(1e-2, 1e-3);
+  checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
+      this->blob_top_vec_);
+}
 
 }  // namespace caffe
 
