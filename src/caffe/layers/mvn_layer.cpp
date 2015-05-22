@@ -68,6 +68,7 @@ void MVNLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   }
   Dtype* multiplier_data = sum_multiplier_.mutable_cpu_data();
   caffe_set(sum_multiplier_.count(), Dtype(1), multiplier_data);
+  eps_ = this->layer_param_.mvn_param().eps();
 }
 
 template <typename Dtype>
@@ -85,7 +86,6 @@ void MVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   }
 
   int dim = bottom[0]->count() / num;
-  Dtype eps = 1e-10;
 
   if (this->layer_param_.mvn_param().normalize_variance()) {
     // put the squares of bottom into temp_
@@ -107,7 +107,7 @@ void MVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     Dtype* write_var = variance_.mutable_cpu_data();
     const Dtype* read_var = variance_.cpu_data();
     for (int i = 0; i < variance_.count(); ++i) {
-      write_var[i] = read_var[i] < eps ? eps : read_var[i];
+      write_var[i] = read_var[i] < eps_ ? eps_ : read_var[i];
     }
     // do mean and variance normalization
     // subtract mean
@@ -119,7 +119,9 @@ void MVNLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     // normalize variance
     caffe_powx(variance_.count(), variance_.cpu_data(), Dtype(0.5),
           variance_.mutable_cpu_data());
-    caffe_add_scalar(variance_.count(), eps, variance_.mutable_cpu_data());
+
+    caffe_add_scalar(variance_.count(), eps_, variance_.mutable_cpu_data());
+
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, dim, 1, 1.,
           variance_.cpu_data(), sum_multiplier_.cpu_data(), 0.,
           temp_.mutable_cpu_data());
@@ -192,7 +194,6 @@ void MVNLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     // put the squares of bottom into temp_
     caffe_powx(temp_.count(), bottom_data, Dtype(2),
         temp_.mutable_cpu_data());
-
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, dim, 1, 1.,
         variance_.cpu_data(), sum_multiplier_.cpu_data(), 0.,
         temp_.mutable_cpu_data());

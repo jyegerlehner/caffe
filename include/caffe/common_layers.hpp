@@ -302,6 +302,7 @@ class MVNLayer : public Layer<Dtype> {
   Blob<Dtype> sum_multiplier_;
 
   MvnBlobHelper<Dtype> blob_helper_;
+  Dtype eps_;
 };
 
 
@@ -341,6 +342,7 @@ class InverseMVNLayer : public Layer<Dtype> {
   /// sum_multiplier is used to carry out sum using BLAS
   Blob<Dtype> sum_multiplier_;
   MvnBlobHelper<Dtype> blob_helper_;
+  Dtype eps_;
 };
 
 /*
@@ -378,7 +380,7 @@ class ReshapeLayer : public Layer<Dtype> {
   /// @brief the index of the axis whose dimension we infer, or -1 if none
   int inferred_axis_;
   /// @brief the product of the "constant" output dimensions
-  int64_t constant_count_;
+  int constant_count_;
 };
 
 /**
@@ -444,6 +446,46 @@ class SoftmaxLayer : public Layer<Dtype> {
   Blob<Dtype> sum_multiplier_;
   /// scale is an intermediate Blob to hold temporary results.
   Blob<Dtype> scale_;
+};
+
+/**
+ * @brief Computes the softmaxima function.
+ *
+ * TODO(dox): thorough documentation for Forward, Backward, and proto params.
+ */
+template <typename Dtype>
+class SoftmaximaLayer : public Layer<Dtype> {
+ public:
+  explicit SoftmaximaLayer(const LayerParameter& param)
+      : Layer<Dtype>(param) {}
+  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline const char* type() const { return "Softmaxima"; }
+  virtual inline int ExactNumBottomBlobs() const { return 1; }
+  virtual inline int ExactNumTopBlobs() const { return 1; }
+
+ protected:
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+
+  int outer_num_;
+  int inner_num_;
+  int softmax_axis_;
+  /// sum_multiplier is used to carry out sum using BLAS
+  Blob<Dtype> sum_multiplier_;
+  /// scale is an intermediate Blob to hold temporary results.
+  Blob<Dtype> scale_;
+  // The ratio of the input size along the canonical axis to the softmax size.
+  int num_softmaxes_;
+  // The size of each softmax.
+  int softmax_size_;
 };
 
 #ifdef USE_CUDNN
