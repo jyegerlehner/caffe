@@ -417,6 +417,34 @@ class Layer {
   DISABLE_COPY_AND_ASSIGN(Layer);
 };  // class Layer
 
+template<typename Dtype>
+void CheckForNan( const std::string& name,
+                  Blob<Dtype>& blob)
+{
+  bool showed = false;
+//  for( int i = 0; i < blobs.size(); ++i) {
+//    Blob<Dtype>* blob = blobs[i];
+    const Dtype* blob_data = blob.cpu_data();
+    for( int bi = 0; bi < blob.count(); ++bi ) {
+      if ( std::isnan(blob_data[bi]) )
+      {
+        if ( !showed )
+        {
+          std::cout << "Blob from " << name << " contains NaN at bi=" << bi << std::endl;
+          showed = true;
+        }
+      }
+      else
+      {
+        if (showed) {
+          std::cout << "Non NaN for blob at index " << bi << std::endl;
+          showed = false;
+        }
+      }
+    }
+//  }
+}
+
 // Forward and backward wrappers. You should implement the cpu and
 // gpu specific implementations instead, and should not change these
 // functions.
@@ -433,7 +461,12 @@ inline Dtype Layer<Dtype>::Forward(const vector<Blob<Dtype>*>& bottom,
       const int count = top[top_id]->count();
       const Dtype* data = top[top_id]->cpu_data();
       const Dtype* loss_weights = top[top_id]->cpu_diff();
-      loss += caffe_cpu_dot(count, data, loss_weights);
+      Dtype blob_loss = caffe_cpu_dot(count, data, loss_weights);
+      if (std::isnan(blob_loss)) {
+        std::cout << "layer_loss is NaN, name="
+                  << this->layer_param_.name() << std::endl;
+      }
+      loss += blob_loss;
     }
     break;
   case Caffe::GPU:
@@ -446,6 +479,10 @@ inline Dtype Layer<Dtype>::Forward(const vector<Blob<Dtype>*>& bottom,
       const Dtype* loss_weights = top[top_id]->gpu_diff();
       Dtype blob_loss = 0;
       caffe_gpu_dot(count, data, loss_weights, &blob_loss);
+      if (std::isnan(blob_loss)) {
+        std::cout << "layer_loss is NaN, name="
+                  << this->layer_param_.name() << std::endl;
+      }
       loss += blob_loss;
     }
 #endif

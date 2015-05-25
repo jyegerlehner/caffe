@@ -465,6 +465,22 @@ class SoftmaximaLayer : public Layer<Dtype> {
   virtual inline int ExactNumBottomBlobs() const { return 1; }
   virtual inline int ExactNumTopBlobs() const { return 1; }
 
+//  Blob<Dtype>& GetMaxes() {
+//    return maxes_;
+//  }
+
+//  Blob<Dtype>& GetBotMinusMaxes() {
+//    return bot_minus_maxes_;
+//  }
+
+//  Blob<Dtype>& GetBotExponentiated() {
+//    return bot_exponentiated_;
+//  }
+
+//  Blob<Dtype>& GetDenomSums() {
+//    return denom_sums_;
+//  }
+
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
@@ -486,6 +502,19 @@ class SoftmaximaLayer : public Layer<Dtype> {
   int num_softmaxes_;
   // The size of each softmax.
   int softmax_size_;
+
+//  // Debugging blobs.
+//  // The maxes of each softmax. N * num_softmaxes * h * w
+//  Blob<Dtype> maxes_;
+//  // The bottom, with the max for each softmax subtracted off.
+//  // N * chans * h * w
+//  Blob<Dtype> bot_minus_maxes_;
+//  // The bottom, after subtracting per-softmax-max, then exponentiated.
+//  // N * chans * h * w
+//  Blob<Dtype> bot_exponentiated_;
+//  // The sum of the exponentiated inputs that are summed for the softmax.
+//  // N * num_softmaxes * h * w
+//  Blob<Dtype> denom_sums_;
 };
 
 #ifdef USE_CUDNN
