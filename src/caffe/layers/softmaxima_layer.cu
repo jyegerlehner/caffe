@@ -6,7 +6,7 @@
 
 #include "caffe/layer.hpp"
 #include "caffe/util/math_functions.hpp"
-#include "caffe/vision_layers.hpp"
+#include "caffe/common_layers.hpp"
 
 namespace caffe {
 
@@ -18,7 +18,7 @@ __global__ void kernel_channel_max_sma(const int num,
                                    const int num_softmaxes,
                                    const Dtype* data,
                                    Dtype* out) {
-  CUDA_KERNEL_LOOP(index, index < num * spatial_dim) {
+  CUDA_KERNEL_LOOP(index, num * spatial_dim) {
     int n = index / spatial_dim;
     int s = index % spatial_dim;
     // For each softmax along the canonical axis.
@@ -82,7 +82,7 @@ __global__ void kernel_channel_sum_sma(const int num,
         sum += data[data_index];
       }
       //int out_index = index*num_softmaxes + smi;
-      int out_index = s + (n * num_softmaxes + smi) * spatial_dim ; //index*num_softmaxes + smi;
+      int out_index = s + (n * num_softmaxes + smi) * spatial_dim ;
       channel_sum[out_index] = sum;
     }
   }
@@ -96,12 +96,6 @@ __global__ void kernel_channel_div_sma( const int num,
                                     const int num_softmaxes,
                                     const Dtype* sums,
                                     Dtype* out) {
-//  CUDA_KERNEL_LOOP(index, count) {
-//    int n = index / channels / spatial_dim;
-//    int s = index % spatial_dim;
-//    data[index] /= channel_sum[n * spatial_dim + s];
-//  }
-  //  for( int index = 0; index < num * spatial_dim; ++index)  {
   CUDA_KERNEL_LOOP(index, num*spatial_dim) {
     int n = index / spatial_dim;
     int s = index % spatial_dim;
@@ -145,17 +139,27 @@ __global__ void kernel_softmax_dot(const int num,
       int out_index = s + (n * num_softmaxes + smi) * spatial_dim ; //index*num_softmaxes + smi;
       softmax_dot[out_index] = dot;
     }
-
-//    int n = index / spatial_dim;
-//    int s = index % spatial_dim;
-//    Dtype dot = 0;
-//    for (int c = 0; c < channels; ++c) {
-//      dot += (data_1[(n * channels + c) * spatial_dim + s]
-//          * data_2[(n * channels + c) * spatial_dim + s]);
-//    }
-//    softmax_dot[index] = dot;
   }
 }
+
+//template<typename Dtype>
+//void InitBlob( Blob<Dtype>& blob )
+//{
+//  int cardinality = blob.num();
+//  int channels = blob.channels();
+//  int height = blob.height();
+//  int width = blob.width();
+//  Dtype* ptr = blob.mutable_cpu_data();
+//  for(int n = 0; n < cardinality; ++n) {
+//    for(int c = 0; c < channels; ++c ) {
+//      for(int h = 0; h < height; ++h ) {
+//        for(int w = 0; w < width; ++w ) {
+//          ptr[blob.offset(n,c,h,w)] = (Dtype) -333333.0;
+//        }
+//      }
+//    }
+//  }
+//}
 
 template <typename Dtype>
 void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
@@ -167,10 +171,25 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   int count = bottom[0]->count();
   int channels = top[0]->shape(softmax_axis_);
   caffe_copy(count, bottom_data, top_data);
+
+//  int height = bottom[0]->height();
+//  int width = bottom[0]->width();
+//  maxes_.Reshape(outer_num_, num_softmaxes_, height, width);
+//  bot_minus_maxes_.Reshape(outer_num_, channels, height, width);
+//  bot_exponentiated_.Reshape(outer_num_, channels, height, width);
+//  denom_sums_.Reshape(outer_num_, num_softmaxes_, height, width);
+
+//  InitBlob(maxes_);
+//  InitBlob(bot_minus_maxes_);
+//  InitBlob(bot_exponentiated_);
+//  InitBlob(denom_sums_);
+
   // We need to subtract the max to avoid numerical issues, compute the exp,
   // and then normalize.
   // compute max
   // NOLINT_NEXT_LINE(whitespace/operators)
+//  scale_data = scale_.mutable_gpu_data();
+//  top_data = top[0]->mutable_gpu_data();
   kernel_channel_max_sma<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
       CAFFE_CUDA_NUM_THREADS>>>(  outer_num_,
                                   channels,
@@ -179,17 +198,30 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                   num_softmaxes_,
                                   top_data,
                                   scale_data);
+//  maxes_.CopyFrom(scale_,false,false);
+
   // subtract
   // NOLINT_NEXT_LINE(whitespace/operators)
+//  scale_data = scale_.mutable_gpu_data();
+//  top_data = top[0]->mutable_gpu_data();
   kernel_channel_subtract_sma<Dtype><<<CAFFE_GET_BLOCKS(input_count),
       CAFFE_CUDA_NUM_THREADS>>>(input_count, softmax_size_, inner_num_,
       scale_data, top_data);
+
+//  bot_minus_maxes_.CopyFrom(*top[0], false,false);
   // exponentiate
   // NOLINT_NEXT_LINE(whitespace/operators)
+//  top_data = top[0]->mutable_gpu_data();
   kernel_exp_sma<Dtype><<<CAFFE_GET_BLOCKS(input_count), CAFFE_CUDA_NUM_THREADS>>>(
       input_count, top_data, top_data);
+
+//  bot_exponentiated_.CopyFrom(*top[0], false, false);
+
   // sum after exp
   // NOLINT_NEXT_LINE(whitespace/operators)
+//  scale_data = scale_.mutable_gpu_data();
+//  top_data = top[0]->mutable_gpu_data();
+
   kernel_channel_sum_sma<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
       CAFFE_CUDA_NUM_THREADS>>>(outer_num_,
                                 channels,
@@ -198,8 +230,16 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 num_softmaxes_,
                                 top_data,
                                 scale_data);
+//  denom_sums_.CopyFrom(scale_,false,false);
+
+  Blob<Dtype> top_before_div;
+  top_before_div.ReshapeLike(*(top[0]));
+  top_before_div.CopyFrom(*(top[0]));
   // divide
   // NOLINT_NEXT_LINE(whitespace/operators)
+//  scale_data = scale_.mutable_gpu_data();
+//  top_data = top[0]->mutable_gpu_data();
+
   kernel_channel_div_sma<Dtype><<<CAFFE_GET_BLOCKS(outer_num_*inner_num_),
       CAFFE_CUDA_NUM_THREADS>>>(outer_num_,
                                 channels,
@@ -208,6 +248,8 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 num_softmaxes_,
                                 scale_data,
                                 top_data);
+
+  //PrintNanVals<Dtype>( *(top[0]), top_before_div, scale_ );
 }
 
 template <typename Dtype>

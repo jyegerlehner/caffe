@@ -4,7 +4,7 @@
 
 #include "caffe/layer.hpp"
 #include "caffe/util/math_functions.hpp"
-#include "caffe/vision_layers.hpp"
+#include "caffe/common_layers.hpp"
 
 namespace caffe {
 
@@ -44,6 +44,25 @@ void SoftmaximaLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   scale_.Reshape(scale_dims);
 }
 
+template<typename Dtype>
+void InitBlob( Blob<Dtype>& blob )
+{
+  int cardinality = blob.num();
+  int channels = blob.channels();
+  int height = blob.height();
+  int width = blob.width();
+  Dtype* ptr = blob.mutable_cpu_data();
+  for(int n = 0; n < cardinality; ++n) {
+    for(int c = 0; c < channels; ++c ) {
+      for(int h = 0; h < height; ++h ) {
+        for(int w = 0; w < width; ++w ) {
+          ptr[blob.offset(n,c,h,w)] = (Dtype) -333333.0;
+        }
+      }
+    }
+  }
+}
+
 template <typename Dtype>
 void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
@@ -73,10 +92,15 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
   int num_softmaxes = channels / softmax_size_;
 
-  Blob<Dtype> maxes;
-  maxes.Reshape(cardinality, num_softmaxes,height,width);
+//  maxes_.Reshape(cardinality, num_softmaxes, height, width);
+//  bot_minus_maxes_.Reshape(cardinality, channels, height, width);
+//  bot_exponentiated_.Reshape(cardinality, channels, height, width);
+//  denom_sums_.Reshape(cardinality, num_softmaxes, height, width);
 
-//    std::cout << "NaiveForward:" << std::endl;
+//  InitBlob(maxes_);
+//  InitBlob(bot_minus_maxes_);
+//  InitBlob(bot_exponentiated_);
+//  InitBlob(denom_sums_);
 
   for( int instance = 0; instance < cardinality; ++instance) {
     for(int h = 0; h < height; ++h ) {
@@ -99,8 +123,8 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
             }
           }
 
-          (maxes.mutable_cpu_data()[maxes.offset(instance,softmax_index,
-                                                h,w)]) = max;
+//          (maxes_.mutable_cpu_data()[maxes_.offset(instance,softmax_index,
+//                                                h,w)]) = max;
 //            std::cout << "max(" << instance << "," << softmax_index << ","
 //                      << h << "," << w << ")"
 //                      << "=" << max << std::endl;
@@ -118,6 +142,8 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 //              std::cout << "minusmax(" << instance << "," << channel
 //                        << "," << h << "," << w << ")"
 //                        << "=" << (val - max) << std::endl;
+//            bot_minus_maxes_.mutable_cpu_data()[bot_minus_maxes_.offset(instance,channel,h,w)]
+//                = val - max;
 
           }
 
@@ -128,11 +154,14 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
                ++inner_index ) {
             int channel = softmax_index * softmax_size_ + inner_index;
             float val = input.data_at(instance, channel, h, w);
-            expons.push_back(std::exp(val));
+            float exp_val = std::exp(val);
+            expons.push_back(exp_val);
 
 //              std::cout << "exp(" << instance << "," << channel
 //                        << "," << h << "," << w << ")"
 //                        << "=" << std::exp(val) << std::endl;
+//            bot_exponentiated_.mutable_cpu_data()[bot_exponentiated_.offset(instance,channel,h,w)] =
+//              exp_val;
           }
 
           // Compute the sum.
@@ -143,6 +172,10 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 //                      << "=" << sum << std::endl;
 
 //            std::cout << "(n,smi,h,w)=" <<
+
+//          denom_sums_.mutable_cpu_data()[denom_sums_.offset(instance,softmax_index,h,w)] =
+//              sum;
+
           // Compute the softmax's output.
           for( int inner_index = 0; inner_index < softmax_size_;
                ++ inner_index) {
@@ -150,6 +183,10 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
             Dtype val = expons[inner_index] / sum;
             Dtype* result_data = result.mutable_cpu_data();
             int offset = result.offset(instance, channel,h,w);
+
+            if ( std::isnan(val)) {
+              std::cout << "Found NaN" << std::endl;
+            }
             result_data[offset] = val;
           }
         }
@@ -246,5 +283,6 @@ STUB_GPU(SoftmaximaLayer);
 #endif
 
 INSTANTIATE_CLASS(SoftmaximaLayer);
+REGISTER_LAYER_CLASS(Softmaxima);
 
 }  // namespace caffe
