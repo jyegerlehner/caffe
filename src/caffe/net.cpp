@@ -747,6 +747,27 @@ void Net<Dtype>::CopyTrainedLayersFrom(const NetParameter& param) {
         << "Incompatible number of blobs for layer " << source_layer_name;
     for (int j = 0; j < target_blobs.size(); ++j) {
       const bool kReshape = false;
+      Blob<Dtype>& target_blob = *target_blobs[j];
+      BlobProto source_blob = source_layer.blobs(j);
+//      if(!target_blob.ShapeEquals(source_blob)) {
+        std::stringstream ss;
+        ss << "layer: " << source_layer.name() << std::endl;
+        ss << " source blob dims:";
+        for(int di = 0; di < source_blob.shape().dim_size(); ++di )
+        {
+          ss << source_blob.shape().dim(di) << ",";
+        }
+
+        ss << std::endl << "target_blob dims:";
+        for(int di = 0; di < target_blob.shape().size(); ++di)
+        {
+          ss << target_blob.shape()[di] << ",";
+        }
+        LOG(FATAL) << ss.str();
+//      }
+
+
+
       target_blobs[j]->FromProto(source_layer.blobs(j), kReshape);
     }
   }
