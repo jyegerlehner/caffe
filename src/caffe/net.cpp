@@ -749,7 +749,7 @@ void Net<Dtype>::CopyTrainedLayersFrom(const NetParameter& param) {
       const bool kReshape = false;
       Blob<Dtype>& target_blob = *target_blobs[j];
       BlobProto source_blob = source_layer.blobs(j);
-//      if(!target_blob.ShapeEquals(source_blob)) {
+      if(!target_blob.ShapeEquals(source_blob)) {
         std::stringstream ss;
         ss << "layer: " << source_layer.name() << std::endl;
         ss << " source blob dims:";
@@ -764,9 +764,7 @@ void Net<Dtype>::CopyTrainedLayersFrom(const NetParameter& param) {
           ss << target_blob.shape()[di] << ",";
         }
         LOG(FATAL) << ss.str();
-//      }
-
-
+      }
 
       target_blobs[j]->FromProto(source_layer.blobs(j), kReshape);
     }
