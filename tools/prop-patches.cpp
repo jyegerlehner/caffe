@@ -82,17 +82,25 @@ cv::Mat DatumToCvMat( const Datum& datum )
 
 int main( int argc, char** argv )
 {
-  if ( argc != 5 )
+  if ( argc < 5 || argc > 6)
   {
     LOG(ERROR) << "Usage: prop-patches model_proto model_weights"
-                  " input_dir_name output_dir_name";
+                  " input_dir_name output_dir_name [gpu=1]";
     return 1;
   }
   std::string net_proto( argv[1] );
   std::string model_weights( argv[2] );
   path input_dir( argv[3] );
   path output_dir( argv[4] );
-
+  if ( argc == 6) {
+    int gpu = atoi(argv[5]);
+    Caffe::SetDevice(gpu);
+    Caffe::set_mode(Caffe::GPU);
+    LOG(INFO) << "Set mode to GPU: " << gpu << std::endl;
+  } else {
+    Caffe::set_mode(Caffe::CPU);
+    LOG(INFO) << "Set mode to CPU" << std::endl;
+  }
 
   shared_ptr<Net<float> > net( new Net<float>( net_proto, TEST ) );
   {
