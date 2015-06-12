@@ -179,39 +179,54 @@ class ScharrFiller : public Filler<Dtype> {
       : Filler<Dtype>(param) {}
   virtual void Fill(Blob<Dtype>* blob) {
     CHECK_EQ(blob->num_axes(), 4);
-    // Filter must have two output channels, once for vertical edge and
-    // and one for horizontal.
-    CHECK_EQ(blob->num(), 2);
+    // Filter must have output channels = input channels * 2: vertical edge
+    // for each input channel and horizontal edge for each input channel. This
+    // way, each color gets its own horizontal and vertical edge detector.
+    CHECK_EQ(blob->num(), blob->channels()*2);
     CHECK_EQ(blob->width(), 3);
-    CHECK_EQ(blob->height(),3);
+    CHECK_EQ(blob->height(), 3);
 
     Dtype* data = blob->mutable_cpu_data();
 
     // Parameter "max" is used to scale the magnitude of the filter weights.
     Dtype scale = this->filler_param_.max();
 
-    for(int channel = 0; channel < blob->channels(); ++channel) {
-      // For each input channel, fill the 3x3 horizontal edge filter.
-      data[blob->offset(0, channel, 0, 0)] = 3.0f * scale;
-      data[blob->offset(0, channel, 0, 1)] = 10.0f * scale;
-      data[blob->offset(0, channel, 0, 2)] = 3.0f * scale;
-      data[blob->offset(0, channel, 1, 0)] = 0.0f * scale;
-      data[blob->offset(0, channel, 1, 1)] = 0.0f * scale;
-      data[blob->offset(0, channel, 1, 2)] = 0.0f * scale;
-      data[blob->offset(0, channel, 2, 0)] = -3.0f * scale;
-      data[blob->offset(0, channel, 2, 1)] = -10.0f * scale;
-      data[blob->offset(0, channel, 2, 2)] = -3.0f * scale;
-
-      // Second output channel: vertical edge
-      data[blob->offset(1, channel, 0, 0)] = 3.0f * scale;
-      data[blob->offset(1, channel, 0, 1)] = 0.0f * scale;
-      data[blob->offset(1, channel, 0, 2)] = -3.0f * scale;
-      data[blob->offset(1, channel, 1, 0)] = 10.0f * scale;
-      data[blob->offset(1, channel, 1, 1)] = 0.0f * scale;
-      data[blob->offset(1, channel, 1, 2)] = -10.0f * scale;
-      data[blob->offset(1, channel, 2, 0)] = 3.0f * scale;
-      data[blob->offset(1, channel, 2, 1)] = 0.0f * scale;
-      data[blob->offset(1, channel, 2, 2)] = -3.0f * scale;
+    for( int filter_no =0; filter_no < blob->num(); ++filter_no) {
+      for( int channel = 0; channel < blob->channels(); ++channel)
+      {
+        bool filter_matches_channel = (filter_no % blob->channels())
+                                        == channel;
+        Dtype mag = 0.0;
+        if ( filter_matches_channel )
+        {
+          mag = scale;
+        }
+        if (filter_no < blob->channels() ) {
+          // 3x3 horizontal edge filter.
+          data[blob->offset(filter_no, channel, 0, 0)] = 3.0f * mag;
+          data[blob->offset(filter_no, channel, 0, 1)] = 10.0f * mag;
+          data[blob->offset(filter_no, channel, 0, 2)] = 3.0f * mag;
+          data[blob->offset(filter_no, channel, 1, 0)] = 0.0f * mag;
+          data[blob->offset(filter_no, channel, 1, 1)] = 0.0f * mag;
+          data[blob->offset(filter_no, channel, 1, 2)] = 0.0f * mag;
+          data[blob->offset(filter_no, channel, 2, 0)] = -3.0f * mag;
+          data[blob->offset(filter_no, channel, 2, 1)] = -10.0f * mag;
+          data[blob->offset(filter_no, channel, 2, 2)] = -3.0f * mag;
+        }
+        else
+        {
+          // vertical edge
+          data[blob->offset(filter_no, channel, 0, 0)] = 3.0f * mag;
+          data[blob->offset(filter_no, channel, 0, 1)] = 0.0f * mag;
+          data[blob->offset(filter_no, channel, 0, 2)] = -3.0f * mag;
+          data[blob->offset(filter_no, channel, 1, 0)] = 10.0f * mag;
+          data[blob->offset(filter_no, channel, 1, 1)] = 0.0f * mag;
+          data[blob->offset(filter_no, channel, 1, 2)] = -10.0f * mag;
+          data[blob->offset(filter_no, channel, 2, 0)] = 3.0f * mag;
+          data[blob->offset(filter_no, channel, 2, 1)] = 0.0f * mag;
+          data[blob->offset(filter_no, channel, 2, 2)] = -3.0f * mag;
+        }
+      }
     }
     CHECK_EQ(this->filler_param_.sparse(), -1)
         << "Sparsity not supported by this Filler.";
