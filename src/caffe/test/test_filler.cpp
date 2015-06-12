@@ -293,7 +293,9 @@ TYPED_TEST(ScharrFillerTest, TestConvolution) {
   EXPECT_EQ(data[top_blob.offset(1, 1, 2, 0)], -16.0f);
   EXPECT_EQ(data[top_blob.offset(1, 1, 2, 1)], -16.0f);
   EXPECT_EQ(data[top_blob.offset(1, 1, 2, 2)], 0.0f);
+}
 
+template<typename Dtype>
 class XavierFillerTest : public ::testing::Test {
  protected:
   XavierFillerTest()
