@@ -120,9 +120,9 @@ void DevicePair::compute(const vector<int> devices, vector<DevicePair>* pairs) {
   vector<int> remaining(devices);
 
   // Depth for reduction tree
-  int remaining_depth = (int)ceil(log2(remaining.size()));
+  int remaining_depth = static_cast<int>(ceil(log2(remaining.size())));
 
-  // Group GPUs by board 
+  // Group GPUs by board
   for (int d = 0; d < remaining_depth; ++d) {
     for (int i = 0; i < remaining.size(); ++i) {
       for (int j = i + 1; j < remaining.size(); ++j) {
@@ -131,11 +131,10 @@ void DevicePair::compute(const vector<int> devices, vector<DevicePair>* pairs) {
         CUDA_CHECK(cudaGetDeviceProperties(&b, remaining[j]));
         if (a.isMultiGpuBoard && b.isMultiGpuBoard) {
           if (a.multiGpuBoardGroupID == b.multiGpuBoardGroupID) {
-              pairs->push_back(DevicePair(remaining[i], remaining[j]));
-              DLOG(INFO) << "GPU board: " << remaining[i]
-                         << ":" << remaining[j];
-              remaining.erase(remaining.begin() + j);
-              break;
+            pairs->push_back(DevicePair(remaining[i], remaining[j]));
+            DLOG(INFO) << "GPU board: " << remaining[i] << ":" << remaining[j];
+            remaining.erase(remaining.begin() + j);
+            break;
           }
         }
       }
@@ -153,39 +152,37 @@ void DevicePair::compute(const vector<int> devices, vector<DevicePair>* pairs) {
     for (int i = 0; i < remaining.size(); ++i) {
       for (int j = i + 1; j < remaining.size(); ++j) {
         int access;
-        CUDA_CHECK(cudaDeviceCanAccessPeer(&access,
-                                           remaining[i],
-                                           remaining[j]));
+        CUDA_CHECK(
+            cudaDeviceCanAccessPeer(&access, remaining[i], remaining[j]));
         if (access) {
-            pairs->push_back(DevicePair(remaining[i], remaining[j]));
-            DLOG(INFO) << "P2P pair: " << remaining[i]
-                       << ":" << remaining[j];
-            remaining.erase(remaining.begin() + j);
-            break;
+          pairs->push_back(DevicePair(remaining[i], remaining[j]));
+          DLOG(INFO) << "P2P pair: " << remaining[i] << ":" << remaining[j];
+          remaining.erase(remaining.begin() + j);
+          break;
         }
       }
     }
   }
   s.str("");
   for (int i = 0; i < remaining.size(); ++i) {
-      s << (i ? ", " : "") << remaining[i];
+    s << (i ? ", " : "") << remaining[i];
   }
   DLOG(INFO) << "GPUs paired by P2P access, remaining: " << s.str();
 
   // Group remaining
   remaining_depth = ceil(log2(remaining.size()));
-  for (int d = 0; d < remaining_depth; ++d) { 
+  for (int d = 0; d < remaining_depth; ++d) {
     for (int i = 0; i < remaining.size(); ++i) {
-          pairs->push_back(DevicePair(remaining[i], remaining[i+1]));
-          DLOG(INFO) << "Remaining pair: " << remaining[i]
-                     << ":" << remaining[i+1];
-          remaining.erase(remaining.begin() + i+1);
+      pairs->push_back(DevicePair(remaining[i], remaining[i + 1]));
+      DLOG(INFO) << "Remaining pair: " << remaining[i] << ":"
+                 << remaining[i + 1];
+      remaining.erase(remaining.begin() + i + 1);
     }
   }
 
   // Should only be the parent node remaining
   CHECK_EQ(remaining.size(), 1);
-  
+
   pairs->insert(pairs->begin(), DevicePair(-1, remaining[0]));
 
   CHECK(pairs->size() == devices.size());
