@@ -782,6 +782,13 @@ class XCovLossLayer : public LossLayer<Dtype> {
 
   virtual inline int ExactNumBottomBlobs() const { return 2; }
   virtual inline int ExactNumTopBlobs() const { return 1; }
+  void ShowMeans()
+  {
+    std::cout << "XCovLossLayer mean0:" << std::endl;
+    caffe::Show<Dtype>(this->mean_0_);
+    std::cout << "XCovLossLayer mean1:" << std::endl;
+    caffe::Show<Dtype>(this->mean_1_);
+  }
 
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
@@ -801,6 +808,53 @@ class XCovLossLayer : public LossLayer<Dtype> {
   /// sum_multiplier is used to carry out sum using BLAS
   Blob<Dtype> batch_sum_multiplier_;
 };
+
+/**
+ * @brief Cross-Covariance loss layer #2.
+ *
+ * TODO(dox): documentation for Forward, Backward, and proto params.
+ */
+template <typename Dtype>
+class XCovLoss2Layer : public LossLayer<Dtype> {
+ public:
+  explicit XCovLoss2Layer(const LayerParameter& param)
+      : LossLayer<Dtype>(param) {}
+  virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline const char* type() const { return "XCovLoss"; }
+
+  virtual inline int ExactNumBottomBlobs() const { return 2; }
+  virtual inline int ExactNumTopBlobs() const { return 1; }
+  void ShowMeans()
+  {
+    std::cout << "XCovLoss2Layer mean0:" << std::endl;
+    caffe::Show<Dtype>(this->mean_0_);
+    std::cout << "XCovLoss2Layer mean1:" << std::endl;
+    caffe::Show<Dtype>(this->mean_1_);
+  }
+
+ protected:
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+
+  vector<Blob<Dtype>*> mean_vec_, temp_vec_;
+  Blob<Dtype> mean_0_, mean_1_;
+  Blob<Dtype> temp_0_, temp_1_;
+  Blob<Dtype> xcov_;
+
+  /// sum_multiplier is used to carry out sum using BLAS
+  Blob<Dtype> batch_sum_multiplier_;
+};
+
 
 
 }  // namespace caffe
