@@ -15,21 +15,6 @@
 
 namespace caffe {
 
-//template<typename Dtype>
-//class XCovLossLayerForTest : public XCovLossLayer<Dtype>
-//{
-//public:
-//  explicit XCovLossLayerForTest(const LayerParameter& param) :
-//    XCovLossLayer<Dtype>(param) {}
-//  void ShowMeans()
-//  {
-//    std::cout << "XCovLossLayer mean0:" << std::endl;
-//    caffe::Show(this->mean_0_);
-//    std::cout << "XCovLossLayer mean1:" << std::endl;
-//    caffe::Show(this->mean_1_);
-//  }
-//};
-
 template<typename Dtype>
 struct NaiveXCovLossLayer
 {
@@ -43,19 +28,19 @@ struct NaiveXCovLossLayer
     Show(mean_1_);
   }
 
+  Blob<Dtype>* GetMean(int i)
+  {
+    return mean_vec_[i];
+  }
+
   NaiveXCovLossLayer()
   {
     mean_vec_.push_back(&mean_0_);
     mean_vec_.push_back(&mean_1_);
-//    temp_vec_.push_back(&temp_0_);
-//    temp_vec_.push_back(&temp_1_);
   }
 
   virtual ~NaiveXCovLossLayer()
   {
-//    std::vector<Blob<Dtype>* > mean_vec_;
-//    Blob<Dtype> mean_0_;
-//    Blob<Dtype> mean_1_;
   }
 
   void InitBlob( Blob<Dtype>& blob )
@@ -101,15 +86,6 @@ struct NaiveXCovLossLayer
     }
     return mean / ctr;
   }
-
-//  for( int row = 0; row < bottom[0]->channels(); ++row )
-//  {
-//    for( int col =0; col < bottom[1]->channels(); ++col )
-//    {
-//      xcov(row, col) = deltas0[row] * deltas[col];
-//    }
-//  }
-
 
   // Returns the covariance matrix before the elements are squared.
   Matrix ComputeXcov( int dim0,
@@ -178,13 +154,6 @@ struct NaiveXCovLossLayer
     std::vector<int> shape0 = bottom[0]->shape();
     std::vector<int> shape1 = bottom[1]->shape();
 
-//    xcov_temp_.Reshape( dim0*dim1, 1, 1, 1 );
-//    xcov_.Reshape( dim0*dim1, 1, 1, 1 );
-
-//    batch_sum_multiplier_.Reshape(bottom[0]->num(); /* *dim0*dim1? */, 1, 1, 1);
-//    Dtype* batch_multiplier_data = batch_sum_multiplier_.mutable_cpu_data();
-//    caffe_set(batch_sum_multiplier_.count(), Dtype(1), batch_multiplier_data);
-
     // for now, we support only two inputs
     CHECK_EQ(bottom.size(), 2);
 
@@ -200,12 +169,6 @@ struct NaiveXCovLossLayer
       }
       inner_dims.push_back(tot);
     }
-
-//      std::vector<int> shape = input.shape();
-//      int cardinality = shape[0];
-//      int channels = shape[1];
-//      int height = shape[2];
-//      int width = shape[3];
 
     mean_vec_[0]->Reshape(1, dim0, 1, 1 );
     {
@@ -248,13 +211,9 @@ struct NaiveXCovLossLayer
     return error;
   }
 
-//  Blob<Dtype> batch_sum_multiplier_;
-
-//  // The means
   std::vector<Blob<Dtype>* > mean_vec_;
   Blob<Dtype> mean_0_;
   Blob<Dtype> mean_1_;
-//  std::vector<Blob<Dtype>* > temp_vec_;
 };
 
 
@@ -307,8 +266,6 @@ TYPED_TEST(XCovLossLayer2Test, TestNaiveXcovForwardConsistency) {
 
   NaiveXCovLossLayer<Dtype> naive;
   float naive_value = naive.Forward(this->blob_bottom_vec_);
-//  naive.ShowMeans();
-//  layer.ShowMeans();
 
   EXPECT_EQ(this->blob_top_->count(),1);
   EXPECT_NEAR(this->blob_top_->cpu_data()[0], naive_value, kErrorMargin);
@@ -386,42 +343,185 @@ TYPED_TEST(XCovLossLayer2Test, TestNaiveXcovForwardConsistency_HW) {
   EXPECT_NEAR(new_top_0.cpu_data()[0], naive_value, kErrorMargin);
 }
 
+template <typename Dtype>
+void ExpectEqual(const Blob<Dtype>& blob1, const Blob<Dtype>& blob2 )
+{
+  EXPECT_EQ(blob1.count(), blob2.count());
+  EXPECT_EQ(blob1.shape().size(), blob2.shape().size());
+  for(int i = 0; i < blob1.shape().size(); ++i )
+  {
+    EXPECT_EQ(blob1.shape()[i], blob2.shape()[i]);
+  }
+  for(int i = 0; i < blob1.count(); ++i)
+  {
+    Dtype val1 = blob1.cpu_data()[i];
+    Dtype val2 = blob2.cpu_data()[i];
+    EXPECT_NEAR(val1, val2, 0.00001f);
+  }
+}
 
-//TYPED_TEST(XCovLossLayer2Test, TestForward) {
-//  typedef typename TypeParam::Dtype Dtype;
-//  LayerParameter layer_param;
-//  XCovLossLayer2<Dtype> layer(layer_param);
-//  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
-//  layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
+TYPED_TEST(XCovLossLayer2Test, TestInnerToOuterIdempotence) {
+  typedef typename TypeParam::Dtype Dtype;
 
-//  for (int i = 0; i < this->blob_top_->count(); i++) {
-//    Dtype val = *(this->blob_top_->cpu_data() + i);
-//    const Dtype kErrorMargin = 1e-5;
-//    EXPECT_NEAR(val, 0.048000015318393707, kErrorMargin);
-//  }
-//}
+  Blob<Dtype> bottom(2, 3, 2, 4);
+  FillerParameter filler_param;
+  CountFiller<Dtype> filler(filler_param);
+  filler.Fill(&bottom);
 
-//TYPED_TEST(XCovLossLayer2Test, TestGradient) {
-//  typedef typename TypeParam::Dtype Dtype;
-//  LayerParameter layer_param;
-//  XCovLossLayer2<Dtype> layer(layer_param);
-//  GradientChecker<Dtype> checker(1e-2, 1e-2);
-//  checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
-//      this->blob_top_vec_);
-//}
+  Blob<Dtype> orig_blob;
+  orig_blob.CopyFrom(bottom, true, true);
+  orig_blob.CopyFrom(bottom);
+  Blob<Dtype> expected_result;
+  expected_result.CopyFrom(orig_blob, true, true);
+  expected_result.CopyFrom(orig_blob);
 
-//TYPED_TEST(XCovLossLayer2Test, TestFatShapeForward) {
-//  typedef typename TypeParam::Dtype Dtype;
+  Blob<Dtype> outerized_blob;
+  outerized_blob.Reshape( orig_blob.num()*
+                          orig_blob.height()*
+                          orig_blob.width(),
+                          orig_blob.channels(),
+                          1,1);
 
-//  LayerParameter param;
-//  std::string proto = "xcov_param { axis: 1 }";
-//  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &param));
+  InnerToOuter<Dtype>(orig_blob.cpu_data(),
+                      outerized_blob.mutable_cpu_data(),
+                      orig_blob.num(),
+                      orig_blob.channels(),
+                      orig_blob.height(),
+                      orig_blob.width(),
+                      1);
 
-//  XCovLossLayer2<Dtype> layer(param);
-//  GradientChecker<Dtype> checker(1e-2, 1e-2);
-//  checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
-//      this->blob_top_vec_);
-//}
+  Blob<Dtype> result_blob;
+  result_blob.ReshapeLike(orig_blob);
 
+  OuterToInner<Dtype>(result_blob.mutable_cpu_data(),
+               outerized_blob.cpu_data(),
+               orig_blob.num(),
+               orig_blob.channels(),
+               orig_blob.height(),
+               orig_blob.width(),
+               1);
+
+  ExpectEqual(result_blob, expected_result);
+}
+
+TYPED_TEST(XCovLossLayer2Test, TestForwardSimple) {
+  typedef typename TypeParam::Dtype Dtype;
+  LayerParameter layer_param;
+  XCovLoss2Layer<Dtype> layer(layer_param);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
+  layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
+
+  for (int i = 0; i < this->blob_top_->count(); i++) {
+    Dtype val = *(this->blob_top_->cpu_data() + i);
+    const Dtype kErrorMargin = 1e-5;
+    EXPECT_NEAR(val, 0.048000015318393707, kErrorMargin);
+  }
+}
+
+TYPED_TEST(XCovLossLayer2Test, TestForwardVsNaive) {
+  typedef typename TypeParam::Dtype Dtype;
+
+  std::vector<Blob<Dtype>* > bottom;
+  Blob<Dtype> bottom0(2, 3, 2, 4);
+  Blob<Dtype> bottom1(2, 2, 2, 4);
+  FillerParameter filler_param;
+  CountFiller<Dtype> filler(filler_param);
+  filler.Fill(&bottom0);
+  filler.Fill(&bottom1);
+  bottom.push_back(&bottom0);
+  bottom.push_back(&bottom1);
+
+  Blob<Dtype> top_blob;
+  top_blob.Reshape(1,1,1,1);
+  std::vector<Blob<Dtype>*> top;
+  top.push_back(&top_blob);
+
+  // Compute forward using naive implementation.
+  NaiveXCovLossLayer<Dtype> naive;
+  float naive_value = naive.Forward(bottom);
+
+  // Compute forward using XCovLoss2Layer.
+  LayerParameter layer_param;
+  XCovLoss2Layer<Dtype> layer(layer_param);
+  layer.SetUp(bottom, top);
+  layer.Forward(bottom, top);
+
+  // Compare the means.
+  ExpectEqual(*naive.GetMean(0), *layer.GetMean(0));
+  ExpectEqual(*naive.GetMean(1), *layer.GetMean(1));
+
+  // Error should be the same.
+  const Dtype kErrorMargin = 1e-5;
+  EXPECT_NEAR(top_blob.cpu_data()[0], naive_value, kErrorMargin);
+}
+
+TYPED_TEST(XCovLossLayer2Test, TestNchwFromIndex) {
+  typedef typename TypeParam::Dtype Dtype;
+  Blob<Dtype> bottom(2, 3, 5, 4);
+  FillerParameter filler_param;
+  CountFiller<Dtype> filler(filler_param);
+  filler.Fill(&bottom);
+
+  for(int expected_n = 0; expected_n < bottom.num(); ++expected_n)
+    for(int expected_c = 0; expected_c < bottom.channels(); ++expected_c)
+      for(int expected_h = 0; expected_h < bottom.height(); ++expected_h)
+        for(int expected_w = 0; expected_w < bottom.width(); ++expected_w)
+        {
+          int offset = bottom.offset(expected_n,
+                                     expected_c,
+                                     expected_h,
+                                     expected_w);
+          int n = -1;
+          int c = -1;
+          int h = -1;
+          int w = -1;
+
+          NchwFromIndex( offset,
+                            bottom.channels(),
+                            bottom.num(),
+                            bottom.height(),
+                            bottom.width(),
+                            n, c, h, w);
+          ASSERT_EQ(n, expected_n);
+          ASSERT_EQ(c, expected_c);
+          ASSERT_EQ(h, expected_h);
+          ASSERT_EQ(w, expected_w);
+        }
+
+}
+
+// Test the case where the canonical axis is 1 (channels), and the inner axis
+// dimensions (height and width) are greater than 1.
+TYPED_TEST(XCovLossLayer2Test, TestGradient_HW_GT_1) {
+  typedef typename TypeParam::Dtype Dtype;
+
+  std::vector<Blob<Dtype>* > bottom;
+  Blob<Dtype> bottom0(2, 3, 2, 4);
+  Blob<Dtype> bottom1(2, 2, 2, 4);
+  FillerParameter filler_param;
+  CountFiller<Dtype> filler(filler_param);
+  filler.Fill(&bottom0);
+  filler.Fill(&bottom1);
+  bottom.push_back(&bottom0);
+  bottom.push_back(&bottom1);
+
+  LayerParameter layer_param;
+  XCovLoss2Layer<Dtype> layer(layer_param);
+  GradientChecker<Dtype> checker(1e-2, 1e-2);
+  checker.CheckGradientExhaustive(&layer, bottom,
+      this->blob_top_vec_);
+}
+
+// Test the case where the canonical axis is 1 (channels), and the inner axis
+// dimensions (height and width) are exactly equal to 1.
+TYPED_TEST(XCovLossLayer2Test, TestGradientSimple) {
+  typedef typename TypeParam::Dtype Dtype;
+
+  LayerParameter layer_param;
+  XCovLoss2Layer<Dtype> layer(layer_param);
+  GradientChecker<Dtype> checker(1e-2, 1e-2);
+  checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
+      this->blob_top_vec_);
+}
 
 }  // namespace caffe
