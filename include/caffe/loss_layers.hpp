@@ -763,6 +763,85 @@ class SoftmaxWithLossLayer : public LossLayer<Dtype> {
   int softmax_axis_, outer_num_, inner_num_;
 };
 
+int ComputeNewOuterDim(const std::vector<int>& bottom_shape,
+                       int canonical_axis );
+
+template<typename Dtype>
+void InnerToOuter( const Dtype* inner_buffer,
+                   Dtype* outer_buffer,
+                   int in_num,
+                   int channels,
+                   int in_height,
+                   int in_width,
+                   int canonical_axis )
+{
+  CHECK(canonical_axis == 1) << "Only canonical_axis == 1 supported.";
+  // Assumes canonical axis = 1;
+  int out_inx = 0;
+  for(int n = 0; n < in_num; ++n )
+  {
+    for(int h = 0; h < in_height; ++h )
+    {
+      for( int w = 0; w < in_width; ++w )
+      {
+        for(int c = 0; c < channels; ++c)
+        {
+          //int offset = blob.offset(n,c,h,w);
+          int in_offset = ((n * channels + c) * in_height + h) * in_width + w;
+          Dtype in_val = inner_buffer[in_offset];
+
+          //int result_offset = result.offset( out_inx, c, 0, 0);
+
+          int result_offset = channels*( (n*in_height*in_width) +
+                                            (h*in_width) + w) + c;
+          CHECK(result_offset == out_inx) << "offset/index mismatch";
+          outer_buffer[result_offset] = in_val;
+          out_inx++;
+        }
+      }
+    }
+  }
+}
+
+template<typename Dtype>
+void OuterToInner( Dtype* inner_buffer,
+                   const Dtype* outer_buffer,
+                   int inner_num,
+                   int channels,
+                   int inner_height,
+                   int inner_width,
+                   int canonical_axis )
+{
+  CHECK(canonical_axis == 1) << "Only canonical_axis == 1 supported.";
+  // Assumes canonical axis = 1;
+  int outer_inx = 0;
+  for(int n = 0; n < inner_num; ++n )
+  {
+    for(int h = 0; h < inner_height; ++h )
+    {
+      for( int w = 0; w < inner_width; ++w )
+      {
+        for(int c = 0; c < channels; ++c)
+        {
+          int outer_offset = channels*( (n*inner_height*inner_width) +
+                                            (h*inner_width) + w) + c;
+          CHECK(outer_offset == outer_inx) << "offset/index mismatch";
+          Dtype outer_val = outer_buffer[outer_offset];
+
+          //int offset = blob.offset(n,c,h,w);
+          int inner_offset = ((n * channels + c) * inner_height + h) *
+                              inner_width + w;
+          inner_buffer[inner_offset] = outer_val;
+
+          //int result_offset = result.offset( out_inx, c, 0, 0);
+
+          outer_inx++;
+        }
+      }
+    }
+  }
+}
+
 /**
  * @brief Cross-Covariance loss layer.
  *
@@ -782,6 +861,13 @@ class XCovLossLayer : public LossLayer<Dtype> {
 
   virtual inline int ExactNumBottomBlobs() const { return 2; }
   virtual inline int ExactNumTopBlobs() const { return 1; }
+  void ShowMeans()
+  {
+    std::cout << "XCovLossLayer mean0:" << std::endl;
+    caffe::Show<Dtype>(this->mean_0_);
+    std::cout << "XCovLossLayer mean1:" << std::endl;
+    caffe::Show<Dtype>(this->mean_1_);
+  }
 
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
@@ -801,6 +887,70 @@ class XCovLossLayer : public LossLayer<Dtype> {
   /// sum_multiplier is used to carry out sum using BLAS
   Blob<Dtype> batch_sum_multiplier_;
 };
+
+/**
+ * @brief Cross-Covariance loss layer #2.
+ *
+ * TODO(dox): documentation for Forward, Backward, and proto params.
+ */
+template <typename Dtype>
+class XCovLoss2Layer : public LossLayer<Dtype> {
+ public:
+  explicit XCovLoss2Layer(const LayerParameter& param)
+      : LossLayer<Dtype>(param) {}
+  virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline const char* type() const { return "XCovLoss"; }
+
+  virtual inline int ExactNumBottomBlobs() const { return 2; }
+  virtual inline int ExactNumTopBlobs() const { return 1; }
+  void ShowMeans()
+  {
+    std::cout << "XCovLoss2Layer mean0:" << std::endl;
+    caffe::Show<Dtype>(this->mean_0_);
+    std::cout << "XCovLoss2Layer mean1:" << std::endl;
+    caffe::Show<Dtype>(this->mean_1_);
+  }
+
+  Blob<Dtype>* GetMean(int i)
+  {
+    return mean_vec_[i];
+  }
+
+  void ShowTmp()
+  {
+    std::cout << "XCovLoss2Layer tmp0:" << std::endl;
+    caffe::Show<Dtype>(this->temp_0_);
+    std::cout << "XCovLoss2Layer tmp1:" << std::endl;
+    caffe::Show<Dtype>(this->temp_1_);
+  }
+
+ protected:
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+
+  vector<Blob<Dtype>*> mean_vec_, temp_vec_;
+  Blob<Dtype> mean_0_, mean_1_;
+  Blob<Dtype> temp_0_, temp_1_;
+  Blob<Dtype> xcov_;
+  int axis_dim0_;
+  int axis_dim1_;
+  Blob<Dtype> shuffled_bottom0_;
+  Blob<Dtype> shuffled_bottom1_;
+
+  /// sum_multiplier is used to carry out sum using BLAS
+  Blob<Dtype> batch_sum_multiplier_;
+};
+
 
 
 }  // namespace caffe

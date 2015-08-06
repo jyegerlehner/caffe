@@ -275,6 +275,36 @@ class Blob {
   DISABLE_COPY_AND_ASSIGN(Blob);
 };  // class Blob
 
+// Get the n,c,h,w indices for a blob from the offset AKA index, given the
+// blob's dimensions.
+void NchwFromIndex( int index,
+                    int channels,
+                    int num,
+                    int height,
+                    int width,
+                    int& n,
+                    int& c,
+                    int& h,
+                    int& w);
+
+template<typename Dtype>
+void Show( const Blob<Dtype>& blob )
+{
+  std::cout << "dims:" << std::endl;
+  std::vector<int> shape = blob.shape();
+  std::cout << "shape: ";
+  for( int i = 0; i < shape.size(); ++i )
+  {
+    std::cout << shape[i] << ",";
+  }
+  std::cout << std::endl;
+  const Dtype* data = blob.cpu_data();
+  for(int i=0; i < blob.count(); ++i)
+  {
+    std::cout << "blob[" << i << "]==" << data[i] << std::endl;
+  }
+}
+
 }  // namespace caffe
 
 #endif  // CAFFE_BLOB_HPP_

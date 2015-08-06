@@ -487,6 +487,25 @@ void Blob<Dtype>::ToProto(BlobProto* proto, bool write_diff) const {
   }
 }
 
+// Get the n,c,h,w indices for a blob from the offset AKA index, given the
+// blob's dimensions.
+void NchwFromIndex( int index,
+                    int channels,
+                    int num,
+                    int height,
+                    int width,
+                    int& n,
+                    int& c,
+                    int& h,
+                    int& w)
+{
+  n = index / (width*height*channels);
+  c = index / (width*height) - n*channels;
+  h = index / width - (n*channels + c)*height;
+  w = index - ((n*channels+c)*height+h)*width;
+}
+
+
 INSTANTIATE_CLASS(Blob);
 template class Blob<int>;
 template class Blob<unsigned int>;
