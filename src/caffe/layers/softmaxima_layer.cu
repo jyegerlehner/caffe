@@ -88,6 +88,9 @@ __global__ void kernel_channel_sum_sma(const int num,
   }
 }
 
+// out_probs is only assigned if winner_takes_all is true. Otherwise it is
+// ignored. If winner_takes_all, then the out buffer is assigned the binarized
+// result.
 template <typename Dtype>
 __global__ void kernel_channel_div_sma( const int num,
                                     const int channels,
@@ -95,7 +98,9 @@ __global__ void kernel_channel_div_sma( const int num,
                                     const int softmax_size,
                                     const int num_softmaxes,
                                     const Dtype* sums,
-                                    Dtype* out) {
+                                    Dtype* out,
+                                    bool winner_take_all,
+                                    Dtype* out_probs) {
   CUDA_KERNEL_LOOP(index, num*spatial_dim) {
     int n = index / spatial_dim;
     int s = index % spatial_dim;
@@ -103,13 +108,37 @@ __global__ void kernel_channel_div_sma( const int num,
     for( int smi = 0; smi < num_softmaxes; ++smi) {
       int sum_index = s + (n * num_softmaxes + smi) * spatial_dim ; //index*num_softmaxes + smi;
       Dtype sum = sums[sum_index];
+
+      Dtype largest_prob = -1.0;
+      int largest_prob_index = -1;
+
       // For each channel within this softmax.
       for (int c_off = 0; c_off < softmax_size; ++c_off) {
         int c = smi * softmax_size + c_off;
         int data_index = (n * channels + c) * spatial_dim + s;
-        out[data_index] = out[data_index] / sum;
+        Dtype val = out[data_index] / sum;
+        if ( winner_take_all) {
+          if ( val > largest_prob)
+          {
+            largest_prob = val;
+            largest_prob_index = data_index;
+          }
+          out_probs[data_index] = val;
+        } else {
+          out[data_index] = val;
+        }
       }
-      //int out_index = index*num_softmaxes + smi;
+
+      if (winner_take_all)
+      {
+        for (int c_off = 0; c_off < softmax_size; ++c_off)
+        {
+          int c = smi * softmax_size + c_off;
+          int data_index = (n * channels + c) * spatial_dim + s;
+          out[data_index] = ((data_index == largest_prob_index) ?
+                1 : 0 );
+        }
+      }
     }
   }
 }
@@ -142,25 +171,6 @@ __global__ void kernel_softmax_dot(const int num,
   }
 }
 
-//template<typename Dtype>
-//void InitBlob( Blob<Dtype>& blob )
-//{
-//  int cardinality = blob.num();
-//  int channels = blob.channels();
-//  int height = blob.height();
-//  int width = blob.width();
-//  Dtype* ptr = blob.mutable_cpu_data();
-//  for(int n = 0; n < cardinality; ++n) {
-//    for(int c = 0; c < channels; ++c ) {
-//      for(int h = 0; h < height; ++h ) {
-//        for(int w = 0; w < width; ++w ) {
-//          ptr[blob.offset(n,c,h,w)] = (Dtype) -333333.0;
-//        }
-//      }
-//    }
-//  }
-//}
-
 template <typename Dtype>
 void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
@@ -172,24 +182,7 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   int channels = top[0]->shape(softmax_axis_);
   caffe_copy(count, bottom_data, top_data);
 
-//  int height = bottom[0]->height();
-//  int width = bottom[0]->width();
-//  maxes_.Reshape(outer_num_, num_softmaxes_, height, width);
-//  bot_minus_maxes_.Reshape(outer_num_, channels, height, width);
-//  bot_exponentiated_.Reshape(outer_num_, channels, height, width);
-//  denom_sums_.Reshape(outer_num_, num_softmaxes_, height, width);
-
-//  InitBlob(maxes_);
-//  InitBlob(bot_minus_maxes_);
-//  InitBlob(bot_exponentiated_);
-//  InitBlob(denom_sums_);
-
-  // We need to subtract the max to avoid numerical issues, compute the exp,
-  // and then normalize.
-  // compute max
   // NOLINT_NEXT_LINE(whitespace/operators)
-//  scale_data = scale_.mutable_gpu_data();
-//  top_data = top[0]->mutable_gpu_data();
   kernel_channel_max_sma<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
       CAFFE_CUDA_NUM_THREADS>>>(  outer_num_,
                                   channels,
@@ -198,30 +191,17 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                   num_softmaxes_,
                                   top_data,
                                   scale_data);
-//  maxes_.CopyFrom(scale_,false,false);
-
   // subtract
   // NOLINT_NEXT_LINE(whitespace/operators)
-//  scale_data = scale_.mutable_gpu_data();
-//  top_data = top[0]->mutable_gpu_data();
   kernel_channel_subtract_sma<Dtype><<<CAFFE_GET_BLOCKS(input_count),
       CAFFE_CUDA_NUM_THREADS>>>(input_count, softmax_size_, inner_num_,
       scale_data, top_data);
 
-//  bot_minus_maxes_.CopyFrom(*top[0], false,false);
-  // exponentiate
   // NOLINT_NEXT_LINE(whitespace/operators)
-//  top_data = top[0]->mutable_gpu_data();
   kernel_exp_sma<Dtype><<<CAFFE_GET_BLOCKS(input_count), CAFFE_CUDA_NUM_THREADS>>>(
       input_count, top_data, top_data);
 
-//  bot_exponentiated_.CopyFrom(*top[0], false, false);
-
-  // sum after exp
   // NOLINT_NEXT_LINE(whitespace/operators)
-//  scale_data = scale_.mutable_gpu_data();
-//  top_data = top[0]->mutable_gpu_data();
-
   kernel_channel_sum_sma<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
       CAFFE_CUDA_NUM_THREADS>>>(outer_num_,
                                 channels,
@@ -230,16 +210,16 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 num_softmaxes_,
                                 top_data,
                                 scale_data);
-//  denom_sums_.CopyFrom(scale_,false,false);
 
   Blob<Dtype> top_before_div;
   top_before_div.ReshapeLike(*(top[0]));
   top_before_div.CopyFrom(*(top[0]));
-  // divide
-  // NOLINT_NEXT_LINE(whitespace/operators)
-//  scale_data = scale_.mutable_gpu_data();
-//  top_data = top[0]->mutable_gpu_data();
 
+
+  Dtype* output_probs_buffer = WinnerTakeAll() ?
+        this->output_probs_.mutable_gpu_data() : 0;
+
+  // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_channel_div_sma<Dtype><<<CAFFE_GET_BLOCKS(outer_num_*inner_num_),
       CAFFE_CUDA_NUM_THREADS>>>(outer_num_,
                                 channels,
@@ -247,16 +227,19 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 softmax_size_,
                                 num_softmaxes_,
                                 scale_data,
-                                top_data);
-
-  //PrintNanVals<Dtype>( *(top[0]), top_before_div, scale_ );
+                                top_data,
+                                WinnerTakeAll(),
+                                output_probs_buffer);
 }
 
 template <typename Dtype>
 void SoftmaximaLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   const Dtype* top_diff = top[0]->gpu_diff();
-  const Dtype* top_data = top[0]->gpu_data();
+
+  // Use mean-field activations for the backprop if WinnerTakeAll.
+  const Dtype* top_data = WinnerTakeAll() ? output_probs_.gpu_data() :
+                                            top[0]->gpu_data();
   Dtype* bottom_diff = bottom[0]->mutable_gpu_diff();
   Dtype* scale_data = scale_.mutable_gpu_data();
   int count = top[0]->count();

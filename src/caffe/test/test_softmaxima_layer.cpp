@@ -18,7 +18,7 @@
 namespace caffe {
 
 template <typename Dtype>
-void PrintBlob( const std::string& nam, Blob<Dtype>& blob )
+void PrintBlob( const std::string& nam, Blob<Dtype>& blob, bool diffs_not_data = false )
 {
   std::cout << "Blob: " << nam << std::endl;
   int num = blob.num();
@@ -32,7 +32,7 @@ void PrintBlob( const std::string& nam, Blob<Dtype>& blob )
     for( int c = 0; c < chans; ++c) {
       for( int h = 0; h < height; ++h) {
         for( int w=0; w < width; ++w) {
-          Dtype val = blob.data_at(n,c,h,w);
+          Dtype val = diffs_not_data ? blob.diff_at(n,c,h,w) : blob.data_at(n,c,h,w);
           std::cout << "data(" << n << "," << c << "," << h << "," << w << ")"
                        << "=" << val << std::endl;
         }
@@ -225,7 +225,12 @@ private:
 template <typename Dtype>
 struct NaiveNonGPUSoftmaximaLayer {
   NaiveNonGPUSoftmaximaLayer(int softmax_size) :
-    softmax_size_(softmax_size) {}
+    softmax_size_(softmax_size),
+    winner_take_all_(false) {}
+
+  void SetWinnerTakeAll() {
+    winner_take_all_ = true;
+  }
 
   Blob<Dtype>& GetMaxes() {
     return maxes_;
@@ -346,15 +351,23 @@ struct NaiveNonGPUSoftmaximaLayer {
 //    kernel_channel_div<Dtype><<<CAFFE_GET_BLOCKS(count),
 //        CAFFE_CUDA_NUM_THREADS>>>(count, outer_num_, channels, inner_num_,
 //        scale_data, top_data);
+
+    if ( winner_take_all_ ) {
+      out_probs_.Reshape(result->shape());
+    }
     top_data = result->mutable_cpu_data();
     scale_data = scale.mutable_cpu_data();
+    Dtype* out_probs_data = winner_take_all_ ? out_probs_.mutable_cpu_data():
+                                               0;
     kernel_channel_div(outer_num_,
                        channels,
                        inner_num_,
                        softmax_size_,
                        num_softmaxes_,
                        scale_data,
-                       top_data);
+                       top_data,
+                       winner_take_all_,
+                       out_probs_data);
 
 //    PrintBlob("NonGPU softmax div by sum", top_data);
 
@@ -420,7 +433,9 @@ private:
                            const int softmax_size,
                            const int num_softmaxes,
                            const Dtype* sums,
-                           Dtype* out) {
+                           Dtype* out,
+                           bool winner_take_all,
+                           Dtype* out_probs) {
 
     for( int index = 0; index < num * spatial_dim; ++index)  {
       int n = index / spatial_dim;
@@ -429,13 +444,45 @@ private:
       for( int smi = 0; smi < num_softmaxes; ++smi) {
         int sum_index = s + (n * num_softmaxes + smi) * spatial_dim ; //index*num_softmaxes + smi;
         Dtype sum = sums[sum_index];
+
+        Dtype largest_prob = -1.0;
+        int largest_prob_index = -1;
+
         // For each channel within this softmax.
         for (int c_off = 0; c_off < softmax_size; ++c_off) {
           int c = smi * softmax_size + c_off;
           int data_index = (n * channels + c) * spatial_dim + s;
-          out[data_index] = out[data_index] / sum;
+          Dtype val = out[data_index] / sum;
+          if ( winner_take_all) {
+            if ( val > largest_prob)
+            {
+              largest_prob = val;
+              largest_prob_index = data_index;
+            }
+            out_probs[data_index] = val;
+          } else {
+            out[data_index] = val;
+          }
         }
-        //int out_index = index*num_softmaxes + smi;
+
+        if (winner_take_all)
+        {
+          for (int c_off = 0; c_off < softmax_size; ++c_off)
+          {
+            int c = smi * softmax_size + c_off;
+            int data_index = (n * channels + c) * spatial_dim + s;
+            out[data_index] = ((data_index == largest_prob_index) ?
+                  1 : 0 );
+          }
+        }
+
+//        // For each channel within this softmax.
+//        for (int c_off = 0; c_off < softmax_size; ++c_off) {
+//          int c = smi * softmax_size + c_off;
+//          int data_index = (n * channels + c) * spatial_dim + s;
+//          out[data_index] = out[data_index] / sum;
+//        }
+//        //int out_index = index*num_softmaxes + smi;
       }
     }
   }
@@ -478,6 +525,10 @@ private:
   // The sum of the exponentiated inputs that are summed for the softmax.
   // N * num_softmaxes * h * w
   Blob<Dtype> denom_sums_;
+  // The output of the softmax as probabilities in the case where
+  // winner_take_all_ == true. Otherwise ignored.
+  Blob<Dtype> out_probs_;
+  bool winner_take_all_;
 
 };
 
@@ -493,7 +544,7 @@ void FillBottomBlob(Blob<Dtype>* blob, Dtype offset) {
       for( int h = 0; h < height; ++h ) {
         for( int w = 0; w < width; ++w ) {
           bdata[ blob->offset(n, c,h, w)] =
-              n* 2.0  + c * 1.0 - ( w * 2.0 - 1.0) * h + offset;
+              n* 2.0  - c * 1.0 - ( w * w/blob->width() * 2.0 - 1.0) * h + offset;
         }
       }
     }
@@ -537,7 +588,6 @@ class SoftmaximaLayerTest : public MultiDeviceTest<TypeParam> {
 
   shared_ptr<Blob<Dtype> > ForwardPropThroughTwoSoftmaxes( int softmax_size,
                                                            Blob<Dtype>* bottom) {
-
     std::stringstream ss;
     ss <<    "name: 'TestNetwork' ";
     ss <<    "input: 'data' ";
@@ -657,10 +707,12 @@ TYPED_TEST(SoftmaximaLayerTest, TestForward_NaiveNonGpuImplementation) {
   typedef typename TypeParam::Dtype Dtype;
 
   NaiveSoftmaximaLayer<Dtype> layer(5);
-  shared_ptr<Blob<Dtype> > expected_result = layer.Forward(*(this->blob_bottom_vec_[0]));
+  shared_ptr<Blob<Dtype> > expected_result =
+      layer.Forward(*(this->blob_bottom_vec_[0]));
 
   NaiveNonGPUSoftmaximaLayer<Dtype> nongpulayer(5);
-  shared_ptr<Blob<Dtype> > result = nongpulayer.Forward(*(this->blob_bottom_vec_[0]));
+  shared_ptr<Blob<Dtype> > result =
+      nongpulayer.Forward(*(this->blob_bottom_vec_[0]));
 
   EXPECT_EQ((expected_result->shape()), (result->shape()));
 
@@ -841,14 +893,6 @@ TYPED_TEST(SoftmaximaLayerTest, TestForwardNonGpuIdenticalToNaive) {
 
   // Forward prop once.
   {
-//    vector<Blob<Dtype>*> bottom_blob_vec;
-//    bottom_blob_vec.push_back(this->blob_bottom1_);
-
-//    Blob<Dtype> top_blob;
-//    vector<Blob<Dtype>*> top_blob_vec;
-//    top_blob_vec.push_back(&top_blob);
-//    layer.SetUp(bottom_blob_vec, top_blob_vec);
-//    layer.Forward(bottom_blob_vec, top_blob_vec);
     shared_ptr<Blob<Dtype> > result_ptr = nglayer.Forward(*this->blob_bottom1_);
     Blob<Dtype>& result = *result_ptr;
 
@@ -917,6 +961,129 @@ TYPED_TEST(SoftmaximaLayerTest, TestForwardNonGpuIdenticalToNaive) {
   }
 }
 
+TYPED_TEST(SoftmaximaLayerTest, TestNaiveNonGpu_WinnerTakeAllForward) {
+  typedef typename TypeParam::Dtype Dtype;
+  const int SOFTMAX_SIZE = 8;
+//  LayerParameter layer_param;
+//  std::string proto = "softmaxima_param { softmax_size: 8 winner_take_all: true }";
+//  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
+//  SoftmaximaLayer<Dtype> layer(layer_param);
+
+  NaiveNonGPUSoftmaximaLayer<Dtype> nglayer(8);
+  nglayer.SetWinnerTakeAll();
+  // Forward prop once.
+  shared_ptr<Blob<Dtype> > result_ptr = nglayer.Forward(*this->blob_bottom1_);
+  Blob<Dtype>& result = *result_ptr;
+
+//  vector<Blob<Dtype>*> bottom_blob_vec;
+//  bottom_blob_vec.push_back(this->blob_bottom1_);
+
+//  layer.SetUp(bottom_blob_vec, this->blob_top_vec_);
+//  layer.Forward(bottom_blob_vec, this->blob_top_vec_);
+//  Blob<Dtype>& result = *(this->blob_top_vec_[0]);
+
+  NaiveSoftmaximaLayer<Dtype> naivelayer(SOFTMAX_SIZE);
+  shared_ptr<Blob<Dtype> > expected_probs = naivelayer.Forward(*this->blob_bottom1_);
+
+  int num_channels = this->blob_bottom1_->channels();
+  int num_softmaxes = num_channels / SOFTMAX_SIZE;
+
+  // Test that results are the same.
+  for (int n = 0; n < this->blob_bottom1_->num(); ++n) {
+    for (int h = 0; h < this->blob_bottom1_->height(); ++h) {
+      for (int w = 0; w < this->blob_bottom1_->width(); ++w) {
+//  int n=1; {
+//    int h = 1; {
+//      int w = 1; {
+        for(int sm_index = 0; sm_index < num_softmaxes; ++sm_index )
+        {
+          Dtype largest_prob = -1.0;
+          int largest_prob_channel = -1;
+
+          for(int smi = 0; smi < SOFTMAX_SIZE; ++smi)
+          {
+            int chan = sm_index*SOFTMAX_SIZE + smi;
+            Dtype val = expected_probs->data_at(n,chan,h,w);
+            if (val > largest_prob)
+            {
+              largest_prob = val;
+              largest_prob_channel = chan;
+            }
+          }
+
+          // The one with the highest prob should be 1; others all zero.
+          for(int smi = 0; smi < SOFTMAX_SIZE; ++smi)
+          {
+            int chan = sm_index*SOFTMAX_SIZE + smi;
+            Dtype expected_val = (chan == largest_prob_channel) ? 1 : 0;
+            Dtype actual_val = result.data_at(n,chan,h,w);
+//            std::cout << "chan=" << chan << ", expected_val=" << expected_val <<
+//                         ", actual_val==" << actual_val
+//                      << ", prob=" << expected_probs->data_at(n,chan,h,w) << std::endl;
+            ASSERT_NEAR( expected_val, actual_val, 0.00001);
+          }
+        }
+      }
+    }
+  }
+}
+
+TYPED_TEST(SoftmaximaLayerTest, TestWinnerTakeAllForward) {
+  typedef typename TypeParam::Dtype Dtype;
+  const int SOFTMAX_SIZE = 8;
+  LayerParameter layer_param;
+  std::string proto = "softmaxima_param { softmax_size: 8 winner_take_all: true }";
+  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
+  SoftmaximaLayer<Dtype> layer(layer_param);
+
+  vector<Blob<Dtype>*> bottom_blob_vec;
+  bottom_blob_vec.push_back(this->blob_bottom1_);
+
+  vector<Blob<Dtype>*> top_blob_vec;
+  top_blob_vec.push_back(this->blob_top_);
+
+  layer.SetUp(bottom_blob_vec, top_blob_vec);
+  layer.Forward(bottom_blob_vec, top_blob_vec);
+
+  NaiveSoftmaximaLayer<Dtype> naivelayer(SOFTMAX_SIZE);
+  shared_ptr<Blob<Dtype> > expected_probs = naivelayer.Forward(*this->blob_bottom1_);
+
+  int num_channels = this->blob_bottom1_->channels();
+  int num_softmaxes = num_channels / SOFTMAX_SIZE;
+
+  // Test that results are the same.
+  for (int n = 0; n < this->blob_bottom1_->num(); ++n) {
+    for (int h = 0; h < this->blob_bottom1_->height(); ++h) {
+      for (int w = 0; w < this->blob_bottom1_->width(); ++w) {
+        for(int sm_index = 0; sm_index < num_softmaxes; ++sm_index )
+        {
+          Dtype largest_prob = -1.0;
+          int largest_prob_channel = -1;
+
+          for(int smi = 0; smi < SOFTMAX_SIZE; ++smi)
+          {
+            int chan = sm_index*SOFTMAX_SIZE + smi;
+            Dtype val = expected_probs->data_at(n,chan,h,w);
+            if (val > largest_prob)
+            {
+              largest_prob = val;
+              largest_prob_channel = chan;
+            }
+          }
+
+          // The one with the highest prob should be 1; others all zero.
+          for(int smi = 0; smi < SOFTMAX_SIZE; ++smi)
+          {
+            int chan = sm_index*SOFTMAX_SIZE + smi;
+            Dtype expected_val = (chan == largest_prob_channel) ? 1 : 0;
+            Dtype actual_val = top_blob_vec[0]->data_at(n,chan,h,w);
+            ASSERT_NEAR( expected_val, actual_val, 0.00001);
+          }
+        }
+      }
+    }
+  }
+}
 
 
 TYPED_TEST(SoftmaximaLayerTest, TestForwardNonNan) {
@@ -940,15 +1107,11 @@ TYPED_TEST(SoftmaximaLayerTest, TestForwardNonNan) {
     layer.Forward(bottom_blob_vec, top_blob_vec);
     Blob<Dtype>& result = *(top_blob_vec[0]);
 
-//    NaiveSoftmaximaLayer<Dtype> layer(8);
-//    shared_ptr<Blob<Dtype> > expected_result = layer.Forward(*(bottom_blob_vec[0]));
-
     // Test that results are the same.
     for (int i = 0; i < this->blob_bottom1_->num(); ++i) {
       for (int k = 0; k < this->blob_bottom1_->height(); ++k) {
         for (int l = 0; l < this->blob_bottom1_->width(); ++l) {
           for (int j = 0; j < this->blob_bottom1_->channels(); ++j) {
-//            Dtype expected_val = expected_result->data_at(i,j,k,l);
             Dtype actual_val = result.data_at(i, j, k, l);
             ASSERT_FALSE( std::isnan(actual_val) );
           }
@@ -968,9 +1131,6 @@ TYPED_TEST(SoftmaximaLayerTest, TestForwardNonNan) {
     layer.Forward(bottom_blob_vec, top_blob_vec);
     Blob<Dtype>& result = *(top_blob_vec[0]);
 
-//    NaiveSoftmaximaLayer<Dtype> layer(8);
-//    shared_ptr<Blob<Dtype> > expected_result = layer.Forward(*(bottom_blob_vec[0]));
-
     int nan_ctr = 0;
     int nonnan_ctr = 0;
     // Test that results are the same.
@@ -978,7 +1138,6 @@ TYPED_TEST(SoftmaximaLayerTest, TestForwardNonNan) {
       for (int k = 0; k < this->blob_bottom1_->height(); ++k) {
         for (int l = 0; l < this->blob_bottom1_->width(); ++l) {
           for (int j = 0; j < this->blob_bottom1_->channels(); ++j) {
-//            Dtype expected_val = expected_result->data_at(i,j,k,l);
             Dtype actual_val = result.data_at(i, j, k, l);
             EXPECT_FALSE( std::isnan(actual_val) );
             if( std::isnan(actual_val)) {
@@ -1047,6 +1206,117 @@ TYPED_TEST(SoftmaximaLayerTest, TestNonGpuForwardNonNan) {
     EXPECT_EQ(nan_ctr, 0);
     EXPECT_GT(nonnan_ctr, 0);
   }
+}
+
+// Assign some arbitrary diffs to a blob.
+template <typename Dtype>
+void SetTopBlobDiff(Blob<Dtype>& blob)
+{
+  int count = blob.count();
+  Dtype val = -1.0;
+  Dtype delta = 2.0/count;
+  Dtype* buffer = blob.mutable_cpu_diff();
+  for(int n = 0; n < blob.num(); ++n) {
+    for(int c = 0; c < blob.channels(); ++c ) {
+      for(int h=0; h < blob.height(); ++h ) {
+        for(int w=0; w < blob.width(); ++w) {
+          buffer[blob.offset(n,c,h,w)] = val;
+          val+=delta;
+        }
+      }
+    }
+  }
+}
+
+template <typename Dtype>
+void AssertBlobDiffsEqual(const Blob<Dtype>& b1, const Blob<Dtype>& b2) {
+  ASSERT_EQ( b1.count(), b2.count());
+  int count = b1.count();
+  for(int index = 0; index < count; ++index) {
+    Dtype val1 = b1.cpu_diff()[index];
+    Dtype val2 = b2.cpu_diff()[index];
+    if (val1 != 0.0 || val2 != 0.0 )
+    {
+      ASSERT_NEAR(val1, val2, 0.00001);
+    } else {
+      ASSERT_NEAR(val1, val2, 0.00001);
+    }
+  }
+}
+
+// When we binarize the output in forward propagation, we want the backward
+// to behave the same as when we're not binarized.
+TYPED_TEST(SoftmaximaLayerTest, TestBackward_WinnerTakeAllSameAsNot) {
+  typedef typename TypeParam::Dtype Dtype;
+
+  Blob<Dtype> binarized_bottom_blob;
+
+  //Forward and backward prop through the binarizing layer.
+  {
+    Blob<Dtype> binarized_top_blob;
+    binarized_top_blob.ReshapeLike(*this->blob_top_);
+    binarized_bottom_blob.ReshapeLike(*this->blob_bottom1_);
+    binarized_bottom_blob.CopyFrom(*this->blob_bottom1_);
+
+    LayerParameter layer_param;
+    std::string proto = "softmaxima_param { softmax_size: 8 winner_take_all: true }";
+    CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
+    SoftmaximaLayer<Dtype> layer(layer_param);
+
+    vector<Blob<Dtype>*> bottom_blob_vec;
+    bottom_blob_vec.push_back(&binarized_bottom_blob);
+
+    vector<Blob<Dtype>*> top_blob_vec;
+    top_blob_vec.push_back(&binarized_top_blob);
+
+    layer.SetUp(bottom_blob_vec, top_blob_vec);
+    layer.Forward(bottom_blob_vec, top_blob_vec);
+
+    //Set the top blob's diff.
+    SetTopBlobDiff(binarized_top_blob);
+
+    // prop_down is ignored by SoftmaximaLayer::Backward*. So just pass
+    // empty to pacify the compiler.
+    std::vector<bool> prop_down;
+//    PrintBlob("top diffs", *top_blob_vec[0], true);
+
+    layer.Backward(top_blob_vec, prop_down, bottom_blob_vec);
+  }
+
+  Blob<Dtype> nonbinarized_bottom_blob;
+
+  // Forward and backward prop through the non-binarizing layer.
+  {
+    Blob<Dtype> nonbinarized_top_blob;
+    nonbinarized_top_blob.ReshapeLike(*this->blob_top_);
+    nonbinarized_bottom_blob.ReshapeLike(*this->blob_bottom1_);
+    nonbinarized_bottom_blob.CopyFrom(*this->blob_bottom1_);
+
+    LayerParameter layer_param;
+    std::string proto = "softmaxima_param { softmax_size: 8 }";
+    CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
+    SoftmaximaLayer<Dtype> layer(layer_param);
+
+    vector<Blob<Dtype>*> bottom_blob_vec;
+    bottom_blob_vec.push_back(&nonbinarized_bottom_blob);
+
+    vector<Blob<Dtype>*> top_blob_vec;
+    top_blob_vec.push_back(&nonbinarized_top_blob);
+
+    layer.SetUp(bottom_blob_vec, top_blob_vec);
+    layer.Forward(bottom_blob_vec, top_blob_vec);
+
+    //Set the top blob's diff.
+    SetTopBlobDiff(nonbinarized_top_blob);
+
+    // prop_down is ignored by SoftmaximaLayer::Backward*. So just pass
+    // empty to pacify the compiler.
+    std::vector<bool> prop_down;
+    layer.Backward(top_blob_vec, prop_down, bottom_blob_vec);
+  }
+
+  // Diffs of binarized and nonbinarized softmaxima layers should be the same.
+  AssertBlobDiffsEqual(nonbinarized_bottom_blob, binarized_bottom_blob);
 }
 
 }  // namespace caffe
