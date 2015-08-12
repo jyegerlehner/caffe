@@ -816,6 +816,9 @@ message SoftmaximaParameter {
 
   // Each individual Softmax within the layer is of this size.
   optional int32 softmax_size = 2 [default = 2];
+
+  // Indicate if output should be binarized (winner take all).
+  optional bool winner_take_all = 3 [default = false];
 }
 
 // Message that stores parameters used by TanHLayer
