@@ -28,34 +28,34 @@ bool InternalThread::must_stop() {
 }
 
 void InternalThread::StartInternalThread() {
-  // TODO switch to failing once Caffe prefetch thread is persistent.
-  // Threads should not be started and stopped repeatedly.
-  // CHECK(!is_started());
-  StopInternalThread();
+  CHECK(!is_started()) << "Threads should persist and not be restarted.";
 
+  int device = 0;
 #ifndef CPU_ONLY
-  CUDA_CHECK(cudaGetDevice(&device_));
+  CUDA_CHECK(cudaGetDevice(&device));
 #endif
-  mode_ = Caffe::mode();
-  rand_seed_ = caffe_rng_rand();
-  solver_count_ = Caffe::solver_count();
-  root_solver_ = Caffe::root_solver();
+  Caffe::Brew mode = Caffe::mode();
+  int rand_seed = caffe_rng_rand();
+  int solver_count = Caffe::solver_count();
+  bool root_solver = Caffe::root_solver();
 
   try {
-    thread_.reset(new boost::thread(&InternalThread::entry, this));
+    thread_.reset(new boost::thread(&InternalThread::entry, this, device, mode,
+          rand_seed, solver_count, root_solver));
   } catch (std::exception& e) {
-    CHECK(false) << e.what();
+    LOG(FATAL) << "Thread exception: " << e.what();
   }
 }
 
-void InternalThread::entry() {
+void InternalThread::entry(int device, Caffe::Brew mode, int rand_seed,
+    int solver_count, bool root_solver) {
 #ifndef CPU_ONLY
-  CUDA_CHECK(cudaSetDevice(device_));
+  CUDA_CHECK(cudaSetDevice(device));
 #endif
-  Caffe::set_mode(mode_);
-  Caffe::set_random_seed(rand_seed_);
-  Caffe::set_solver_count(solver_count_);
-  Caffe::set_root_solver(root_solver_);
+  Caffe::set_mode(mode);
+  Caffe::set_random_seed(rand_seed);
+  Caffe::set_solver_count(solver_count);
+  Caffe::set_root_solver(root_solver);
 
   InternalThreadEntry();
 }
@@ -67,7 +67,7 @@ void InternalThread::StopInternalThread() {
       thread_->join();
     } catch (boost::thread_interrupted&) {
     } catch (std::exception& e) {
-      CHECK(false) << e.what();
+      LOG(FATAL) << "Thread exception: " << e.what();
     }
   }
 }

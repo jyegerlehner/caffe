@@ -1,3 +1,8 @@
+#ifdef WITH_PYTHON_LAYER
+#include "boost/python.hpp"
+namespace bp = boost::python;
+#endif
+
 #include <glog/logging.h>
 
 #include <cstring>
@@ -185,9 +190,7 @@ int train() {
         GetRequestedAction(FLAGS_sigint_effect),
         GetRequestedAction(FLAGS_sighup_effect));
 
-  LOG(INFO) << "Starting Optimization";
-  shared_ptr<caffe::Solver<float> >
-    solver(caffe::GetSolver<float>(solver_param));
+  shared_ptr<Solver<float> > solver(caffe::GetSolver<float>(solver_param));
 
   solver->SetActionFunction(signal_handler.GetActionFunction());
 
@@ -382,7 +385,16 @@ int main(int argc, char** argv) {
   // Run tool or show usage.
   caffe::GlobalInit(&argc, &argv);
   if (argc == 2) {
-    return GetBrewFunction(caffe::string(argv[1]))();
+#ifdef WITH_PYTHON_LAYER
+    try {
+#endif
+      return GetBrewFunction(caffe::string(argv[1]))();
+#ifdef WITH_PYTHON_LAYER
+    } catch (bp::error_already_set) {
+      PyErr_Print();
+      return 1;
+    }
+#endif
   } else {
     gflags::ShowUsageWithFlagsRestrict(argv[0], "tools/caffe");
   }
