@@ -13,6 +13,12 @@ void DiffMagnitudeMonitoringLayer<Dtype>::LayerSetUp(
   CHECK(bottom.size() == top.size()) << this->layer_param_.name() << " requires"
                                      << " Number of top and bottom blobs must "
                                      << " be the same.";
+  if( this->layer_param_.propagate_down_size() > 0)
+  {
+    CHECK_EQ(this->layer_param_.propagate_down_size(), bottom.size())
+        << this->layer_param_.name() << " requires a "
+        << "propagate_down bool for each bottom blob.";
+  }
 }
 
 template <typename Dtype>
