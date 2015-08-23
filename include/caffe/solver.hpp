@@ -10,9 +10,26 @@
 namespace caffe {
 
 /**
+  * @brief Enumeration of actions that a client of the Solver may request by
+  * implementing the Solver's action request function, which a
+  * a client may optionally provide in order to request early termination
+  * or saving a snapshot without exiting. In the executable caffe, this
+  * mechanism is used to allow the snapshot to be saved when stopping
+  * execution with a SIGINT (Ctrl-C).
+  */
+  namespace SolverAction {
+    enum Enum {
+      NONE = 0,  // Take no special action.
+      STOP = 1,  // Stop training. snapshot_after_train controls whether a
+                 // snapshot is created.
+      SNAPSHOT = 2  // Take a snapshot, and keep training.
+    };
+  }
+
+/**
  * @brief Type of a function that returns a Solver Action enumeration.
  */
-typedef boost::function<SolverParameter_Action()> ActionCallback;
+typedef boost::function<SolverAction::Enum()> ActionCallback;
 
 /**
  * @brief An interface for classes that perform optimization on Net%s.
@@ -34,7 +51,7 @@ class Solver {
   // that the solver uses to see what action it should take (e.g. snapshot or
   // exit training early).
   void SetActionFunction(ActionCallback func);
-  SolverParameter_Action GetRequestedAction();
+  SolverAction::Enum GetRequestedAction();
   // The main entry of the solver function. In default, iter will be zero. Pass
   // in a non-zero iter number to resume training for a pre-trained net.
   virtual void Solve(const char* resume_file = NULL);
@@ -94,16 +111,16 @@ class Solver {
   vector<shared_ptr<Net<Dtype> > > test_nets_;
   vector<Callback*> callbacks_;
 
+  // The root solver that holds root nets (actually containing shared layers)
+  // in data parallelism
+  const Solver* const root_solver_;
+
   // A function that can be set by a client of the Solver to provide indication
   // that it wants a snapshot saved and/or to exit early.
   ActionCallback action_request_function_;
 
   // True iff a request to stop early was received.
   bool requested_early_exit_;
-
-  // The root solver that holds root nets (actually containing shared layers)
-  // in data parallelism
-  const Solver* const root_solver_;
 
   DISABLE_COPY_AND_ASSIGN(Solver);
 };

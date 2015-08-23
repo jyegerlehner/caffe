@@ -23,23 +23,25 @@ void Solver<Dtype>::SetActionFunction(ActionCallback func) {
 }
 
 template<typename Dtype>
-SolverParameter_Action Solver<Dtype>::GetRequestedAction() {
+SolverAction::Enum Solver<Dtype>::GetRequestedAction() {
   if (action_request_function_) {
     // If the external request function has been set, call it.
     return action_request_function_();
   }
-  return SolverParameter_Action_NONE;
+  return SolverAction::NONE;
 }
 
 template <typename Dtype>
 Solver<Dtype>::Solver(const SolverParameter& param, const Solver* root_solver)
-    : net_(), callbacks_(), requested_early_exit_(false), root_solver_(root_solver) {
+    : net_(), callbacks_(), root_solver_(root_solver),
+      requested_early_exit_(false) {
   Init(param);
 }
 
 template <typename Dtype>
 Solver<Dtype>::Solver(const string& param_file, const Solver* root_solver)
-    : net_(), callbacks_(), requested_early_exit_(false), root_solver_(root_solver) {
+    : net_(), callbacks_(), root_solver_(root_solver),
+      requested_early_exit_(false) {
   SolverParameter param;
   ReadProtoFromTextFileOrDie(param_file, &param);
   Init(param);
@@ -268,15 +270,16 @@ void Solver<Dtype>::Step(int iters) {
     // the number of times the weights have been updated.
     ++iter_;
 
-    SolverParameter_Action request = GetRequestedAction();
+    SolverAction::Enum request = GetRequestedAction();
 
     // Save a snapshot if needed.
-    if ( ( (param_.snapshot() && iter_ % param_.snapshot() == 0) ||
-         (request == SolverParameter_Action_SNAPSHOT) ) &&
-         Caffe::root_solver() ) {
+    if ((param_.snapshot()
+         && iter_ % param_.snapshot() == 0
+         && Caffe::root_solver()) ||
+         (request == SolverAction::SNAPSHOT)) {
       Snapshot();
     }
-    if (SolverParameter_Action_STOP == request) {
+    if (SolverAction::STOP == request) {
       requested_early_exit_ = true;
       // Break out of training loop.
       break;
@@ -350,12 +353,12 @@ void Solver<Dtype>::Test(const int test_net_id) {
   const shared_ptr<Net<Dtype> >& test_net = test_nets_[test_net_id];
   Dtype loss = 0;
   for (int i = 0; i < param_.test_iter(test_net_id); ++i) {
-    SolverParameter_Action request = GetRequestedAction();
+    SolverAction::Enum request = GetRequestedAction();
     // Check to see if stoppage of testing/training has been requested.
-    while (request != SolverParameter_Action_NONE) {
-        if (SolverParameter_Action_SNAPSHOT == request) {
+    while (request != SolverAction::NONE) {
+        if (SolverAction::SNAPSHOT == request) {
           Snapshot();
-        } else if (SolverParameter_Action_STOP == request) {
+        } else if (SolverAction::STOP == request) {
           requested_early_exit_ = true;
         }
         request = GetRequestedAction();

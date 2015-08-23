@@ -133,16 +133,18 @@ void CopyLayers(caffe::Solver<float>* solver, const std::string& model_list) {
   }
 }
 
-caffe::SolverParameter_Action GetRequestedAction(
-                              const std::string& flag_value) {
+// Translate the signal effect the user specified on the command-line to the
+// corresponding enumeration.
+caffe::SolverAction::Enum GetRequestedAction(
+    const std::string& flag_value) {
   if (flag_value == "stop") {
-    return caffe::SolverParameter_Action_STOP;
+    return caffe::SolverAction::STOP;
   }
   if (flag_value == "snapshot") {
-    return caffe::SolverParameter_Action_SNAPSHOT;
+    return caffe::SolverAction::SNAPSHOT;
   }
   if (flag_value == "none") {
-    return caffe::SolverParameter_Action_NONE;
+    return caffe::SolverAction::NONE;
   }
   LOG(FATAL) << "Invalid signal effect \""<< flag_value << "\" was specified";
 }
@@ -190,7 +192,10 @@ int train() {
         GetRequestedAction(FLAGS_sigint_effect),
         GetRequestedAction(FLAGS_sighup_effect));
 
-  shared_ptr<Solver<float> > solver(caffe::GetSolver<float>(solver_param));
+  shared_ptr<caffe::Solver<float> >
+    solver(caffe::GetSolver<float>(solver_param));
+
+  solver->SetActionFunction(signal_handler.GetActionFunction());
 
   solver->SetActionFunction(signal_handler.GetActionFunction());
 
