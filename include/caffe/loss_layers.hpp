@@ -895,6 +895,56 @@ class XCovLossLayer : public LossLayer<Dtype> {
 };
 
 /**
+ * @brief Covariance loss layer.
+ *
+ * TODO(dox): thorough documentation for Forward, Backward, and proto params.
+ */
+template <typename Dtype>
+class CovLossLayer : public LossLayer<Dtype> {
+ public:
+  explicit CovLossLayer(const LayerParameter& param)
+      : LossLayer<Dtype>(param) {}
+  virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline const char* type() const { return "CovLoss"; }
+
+  virtual inline int ExactNumBottomBlobs() const { return 1; }
+  virtual inline int ExactNumTopBlobs() const { return 1; }
+  void ShowMeans()
+  {
+    std::cout << "CovLossLayer mean:" << std::endl;
+    caffe::Show<Dtype>(this->mean_);
+  }
+
+  Blob<Dtype>* GetMean() {
+    return &mean_;
+  }
+
+ protected:
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+
+  Blob<Dtype> mean_;
+  Blob<Dtype> temp_;
+  Blob<Dtype> cov_;
+  int axis_dim_;
+  Blob<Dtype> shuffled_bottom_;
+
+  /// sum_multiplier is used to carry out sum using BLAS
+  Blob<Dtype> batch_sum_multiplier_;
+};
+
+
+/**
  * @brief Cross-Covariance loss layer #2.
  *
  * TODO(dox): documentation for Forward, Backward, and proto params.
