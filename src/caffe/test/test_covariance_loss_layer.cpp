@@ -105,20 +105,23 @@ struct NaiveCovLossLayer
       for( int chan1 = 0; chan1 < dim; ++chan1 )
       {
         float accumulator = 0.0f;
-        // Compute (x-ux)(y-uy) across all examples and spatial locations.
-        for(int n = 0; n < num; ++n )
+        if (chan0 != chan1)
         {
-          for(int h=0; h < height; ++h)
+          // Compute (x-ux)(y-uy) across all examples and spatial locations.
+          for(int n = 0; n < num; ++n )
           {
-            for(int w=0; w < width; ++w)
+            for(int h=0; h < height; ++h)
             {
-              int b0_index = bottom_blob.offset(n,chan0,h,w);
-              int b1_index = bottom_blob.offset(n,chan1,h,w);
-              float mean0 = mean_.cpu_data()[chan0];
-              float mean1 = mean_.cpu_data()[chan1];
-              float val0 = bottom_blob.cpu_data()[b0_index];
-              float val1 = bottom_blob.cpu_data()[b1_index];
-              accumulator += (val0 - mean0)*(val1 - mean1) / N;
+              for(int w=0; w < width; ++w)
+              {
+                int b0_index = bottom_blob.offset(n,chan0,h,w);
+                int b1_index = bottom_blob.offset(n,chan1,h,w);
+                float mean0 = mean_.cpu_data()[chan0];
+                float mean1 = mean_.cpu_data()[chan1];
+                float val0 = bottom_blob.cpu_data()[b0_index];
+                float val1 = bottom_blob.cpu_data()[b1_index];
+                accumulator += (val0 - mean0)*(val1 - mean1) / N;
+              }
             }
           }
         }

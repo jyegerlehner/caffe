@@ -101,6 +101,15 @@ void CovLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       0.,
       cov_.mutable_cpu_data());
 
+  // Zero out the diagonal terms. We wish to penalize covariance, but not
+  // variance.
+  Dtype* cov_data = cov_.mutable_cpu_data();
+  for(int index = 0; index < axis_dim_; ++index)
+  {
+    int offset = cov_.offset(index,index,0,0);
+    cov_data[offset] = 0.0;
+  }
+
   // square terms in xcov
   Dtype dot = caffe_cpu_dot<Dtype>(cov_.count(), cov_.cpu_data(),
                                    cov_.cpu_data());

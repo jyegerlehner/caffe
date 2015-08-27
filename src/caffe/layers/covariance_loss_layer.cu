@@ -67,6 +67,15 @@ __global__ void ComputeXminusMean(
   }
 }
 
+template<typename Dtype>
+__global__ void ZeroDiagonal(Dtype* cov_data, int dim)
+{
+  CUDA_KERNEL_LOOP(index,dim) {
+    int offset = index + index*dim;
+    cov_data[offset] = 0.0;
+  }
+}
+
 template <typename Dtype>
 void CovLossLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
@@ -107,6 +116,11 @@ void CovLossLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       0.,
       cov_.mutable_gpu_data());
 
+  // We want to penalize covariance, but not variance. So zero out the
+  // diagonal terms.
+  ZeroDiagonal<Dtype><<<CAFFE_GET_BLOCKS(axis_dim_),
+      CAFFE_CUDA_NUM_THREADS >>>(cov_.mutable_gpu_data(), axis_dim_);
+
   // square terms in xcov
   Dtype dot;
   caffe_gpu_dot<Dtype>(cov_.count(), cov_.gpu_data(), cov_.gpu_data(), &dot);
@@ -133,7 +147,6 @@ void CovLossLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
       0.,
       bottom_diff);
 }
-
 
 INSTANTIATE_LAYER_GPU_FUNCS(CovLossLayer);
 
