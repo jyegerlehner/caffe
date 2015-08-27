@@ -282,50 +282,6 @@ void ExpectEqual(const Blob<Dtype>& blob1, const Blob<Dtype>& blob2 )
   }
 }
 
-//TYPED_TEST(XCovLossLayer2Test, TestInnerToOuterIdempotence) {
-//  typedef typename TypeParam::Dtype Dtype;
-
-//  Blob<Dtype> bottom(2, 3, 2, 4);
-//  FillerParameter filler_param;
-//  CountFiller<Dtype> filler(filler_param);
-//  filler.Fill(&bottom);
-
-//  Blob<Dtype> orig_blob;
-//  orig_blob.CopyFrom(bottom, true, true);
-//  orig_blob.CopyFrom(bottom);
-//  Blob<Dtype> expected_result;
-//  expected_result.CopyFrom(orig_blob, true, true);
-//  expected_result.CopyFrom(orig_blob);
-
-//  Blob<Dtype> outerized_blob;
-//  outerized_blob.Reshape( orig_blob.num()*
-//                          orig_blob.height()*
-//                          orig_blob.width(),
-//                          orig_blob.channels(),
-//                          1,1);
-
-//  InnerToOuter<Dtype>(orig_blob.cpu_data(),
-//                      outerized_blob.mutable_cpu_data(),
-//                      orig_blob.num(),
-//                      orig_blob.channels(),
-//                      orig_blob.height(),
-//                      orig_blob.width(),
-//                      1);
-
-//  Blob<Dtype> result_blob;
-//  result_blob.ReshapeLike(orig_blob);
-
-//  OuterToInner<Dtype>(result_blob.mutable_cpu_data(),
-//               outerized_blob.cpu_data(),
-//               orig_blob.num(),
-//               orig_blob.channels(),
-//               orig_blob.height(),
-//               orig_blob.width(),
-//               1);
-
-//  ExpectEqual(result_blob, expected_result);
-//}
-
 //TYPED_TEST(CovLossLayerTest, TestForwardSimple) {
 //  typedef typename TypeParam::Dtype Dtype;
 //  LayerParameter layer_param;
@@ -374,41 +330,6 @@ TYPED_TEST(CovLossLayerTest, TestForwardVsNaive) {
   const Dtype kErrorMargin = 1e-5;
   EXPECT_NEAR(top_blob.cpu_data()[0], naive_value, kErrorMargin);
 }
-
-//TYPED_TEST(XCovLossLayer2Test, TestNchwFromIndex) {
-//  typedef typename TypeParam::Dtype Dtype;
-//  Blob<Dtype> bottom(2, 3, 5, 4);
-//  FillerParameter filler_param;
-//  CountFiller<Dtype> filler(filler_param);
-//  filler.Fill(&bottom);
-
-//  for(int expected_n = 0; expected_n < bottom.num(); ++expected_n)
-//    for(int expected_c = 0; expected_c < bottom.channels(); ++expected_c)
-//      for(int expected_h = 0; expected_h < bottom.height(); ++expected_h)
-//        for(int expected_w = 0; expected_w < bottom.width(); ++expected_w)
-//        {
-//          int offset = bottom.offset(expected_n,
-//                                     expected_c,
-//                                     expected_h,
-//                                     expected_w);
-//          int n = -1;
-//          int c = -1;
-//          int h = -1;
-//          int w = -1;
-
-//          NchwFromIndex( offset,
-//                            bottom.channels(),
-//                            bottom.num(),
-//                            bottom.height(),
-//                            bottom.width(),
-//                            n, c, h, w);
-//          ASSERT_EQ(n, expected_n);
-//          ASSERT_EQ(c, expected_c);
-//          ASSERT_EQ(h, expected_h);
-//          ASSERT_EQ(w, expected_w);
-//        }
-
-//}
 
 // Test the case where the canonical axis is 1 (channels), and the inner axis
 // dimensions (height and width) are greater than 1.
