@@ -43,7 +43,7 @@ int feature_extraction_pipeline(int argc, char** argv) {
     "  [CPU/GPU] [DEVICE_ID=0] [DB_BATCH_SIZE=100]\n"
     "where db_type must be 'leveldb' or 'lmdb'.\n\n"
     "Note: you can extract multiple features in one pass by specifying"
-    " multiple feature blob names and dataset names seperated by ','."
+    " multiple feature blob names and dataset names separated by ','."
     " The names cannot contain white space characters and the number of blobs"
     " and datasets must be equal.";
     return 1;
