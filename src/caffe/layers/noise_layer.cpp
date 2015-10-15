@@ -4,6 +4,7 @@
 
 #include "caffe/filler.hpp"
 #include "caffe/layer.hpp"
+#include "caffe/util/math_functions.hpp"
 #include "caffe/vision_layers.hpp"
 
 namespace caffe {
@@ -20,7 +21,6 @@ void NoiseLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype> *> &bottom,
       "No noise parameter specified for NoiseLayer.";
   CHECK(this->NoiseParam().has_filler_param()) <<
       "No filler specified for NoiseLayer noise_param.";
-  NoiseParameter noise_param = this->layer_param().noise_param();
   CHECK(NoiseType() == GAUSSIAN || NoiseType() == UNIFORM) <<
       "NoiseLayer only supports normally- or uniformly-distributed noise.";
 }
@@ -37,6 +37,19 @@ void NoiseLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   }
 }
 
+template<typename Dtype>
+bool NoiseLayer<Dtype>::PhaseIsNoised() const {
+  const NoiseParameter& noise_param = this->layer_param().noise_param();
+  int phase_count = noise_param.noise_phase_size();
+  for(int i = 0; i < phase_count; ++i) {
+    Phase phase = noise_param.noise_phase(i);
+    if (phase == this->phase_) {
+      return true;
+    }
+  }
+  return false;
+}
+
 template <typename Dtype>
 void NoiseLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
@@ -49,18 +62,27 @@ void NoiseLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   // buffer. Otherwise, put it directly into the top blob.
   Dtype* noise_buffer = Inplace() ? inplace_noise_.mutable_cpu_data() :
                                     top_data;
-  if (NoiseType() == GAUSSIAN) {
-    caffe_rng_gaussian<Dtype>(count,
-        Dtype(FillerParam().mean()),
-        Dtype(FillerParam().std()),
-        noise_buffer);
-  } else if (NoiseType() == UNIFORM) {
-    caffe_rng_uniform(count,
-        Dtype(FillerParam().min()),
-        Dtype(FillerParam().max()),
-        noise_buffer);
-  } else {
-    LOG(FATAL) << "Unexpected noise type in NoiseLayer.";
+  if (PhaseIsNoised())
+  {
+    if (NoiseType() == GAUSSIAN) {
+      caffe_rng_gaussian<Dtype>(count,
+          Dtype(FillerParam().mean()),
+          Dtype(FillerParam().std()),
+          noise_buffer);
+    } else if (NoiseType() == UNIFORM) {
+      caffe_rng_uniform(count,
+          Dtype(FillerParam().min()),
+          Dtype(FillerParam().max()),
+          noise_buffer);
+    } else {
+      LOG(FATAL) << "Unexpected noise type in NoiseLayer.";
+    }
+  }
+  else
+  {
+    // We don't add noise in this phase. So fill noise buffer with zeroes.
+    const int count = top[0]->count();
+    caffe_set(count, (Dtype) 0.0, noise_buffer);
   }
   // Add the noise to the bottom blob to produce the top blob.
   caffe_add(count, bottom_data, noise_buffer, top_data);

@@ -18,18 +18,28 @@ void NoiseLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   // buffer. Otherwise, put it directly into the top blob.
   Dtype* noise_buffer = Inplace() ? inplace_noise_.mutable_gpu_data() :
                                     top_data;
-  if (NoiseType() == GAUSSIAN) {
-    caffe_gpu_rng_gaussian<Dtype>(count,
-        Dtype(FillerParam().mean()),
-        Dtype(FillerParam().std()),
-        noise_buffer);
-  } else if (NoiseType() == UNIFORM) {
-    caffe_gpu_rng_uniform(count,
-        Dtype(FillerParam().min()),
-        Dtype(FillerParam().max()),
-        noise_buffer);
-  } else {
-    LOG(FATAL) << "Unexpected noise type in NoiseLayer.";
+  if (PhaseIsNoised())
+  {
+    if (NoiseType() == GAUSSIAN) {
+      caffe_gpu_rng_gaussian<Dtype>(count,
+          Dtype(FillerParam().mean()),
+          Dtype(FillerParam().std()),
+          noise_buffer);
+    } else if (NoiseType() == UNIFORM) {
+      caffe_gpu_rng_uniform(count,
+          Dtype(FillerParam().min()),
+          Dtype(FillerParam().max()),
+          noise_buffer);
+    } else {
+      LOG(FATAL) << "Unexpected noise type in NoiseLayer.";
+    }
+  }
+  else
+  {
+    const int count = top[0]->count();
+    // We are not adding any noise in this phase. So fill noise buffer with
+    // zeroes.
+    caffe_gpu_set(count, (Dtype) 0.0, noise_buffer);
   }
   caffe_gpu_add(count, bottom_data, noise_buffer, top_data);
 }

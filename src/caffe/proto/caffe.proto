@@ -749,6 +749,9 @@ message NoiseParameter {
   // This parameter must be set to specify the kind of noise to be generated.
   // Gaussian and Uniform noise are the only supported types.
   optional FillerParameter filler_param = 1;
+  // Specify the phases in which noise is to be added. All other phases will
+  // add no noise.
+  repeated Phase noise_phase = 2;
 }
 
 message PoolingParameter {

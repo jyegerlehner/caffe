@@ -80,7 +80,8 @@ class NoiseLayerTest : public MultiDeviceTest<TypeParam> {
     LayerParameter layer_param;
     std::stringstream ss;
     ss << "noise_param { filler_param { type: 'gaussian' mean: "
-       << NOISE_MEAN << " std:" << NOISE_STD_DEV << "} }";
+       << NOISE_MEAN << " std:" << NOISE_STD_DEV << "} noise_phase: TRAIN " <<
+          " noise_phase: TEST }";
     bool in_place = false;
     this->RunBackwardTest(ss.str(), in_place);
   }
@@ -92,7 +93,8 @@ class NoiseLayerTest : public MultiDeviceTest<TypeParam> {
     LayerParameter layer_param;
     std::stringstream ss;
     ss << "noise_param { filler_param { type: 'uniform' min: " << NOISE_MIN <<
-          " max:" << NOISE_MAX << "} }";
+          " max:" << NOISE_MAX << "} noise_phase: TRAIN " <<
+          " noise_phase: TEST }";
     bool in_place = false;
     this->RunBackwardTest(ss.str(), in_place);
   }
@@ -114,7 +116,8 @@ TYPED_TEST(NoiseLayerTest, TestForwardGaussian) {
   LayerParameter layer_param;
   std::stringstream ss;
   ss << "noise_param{ filler_param { type: 'gaussian' mean: " << NOISE_MEAN <<
-        " std:" << NOISE_STD_DEV << "} }";
+        " std:" << NOISE_STD_DEV << "} noise_phase: TRAIN " <<
+        " noise_phase: TEST }";
   CHECK(google::protobuf::TextFormat::ParseFromString(ss.str(), &layer_param));
   NoiseLayer<Dtype> layer(layer_param);
   layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
@@ -163,7 +166,8 @@ TYPED_TEST(NoiseLayerTest, TestForwardUniform) {
   LayerParameter layer_param;
   std::stringstream ss;
   ss << "noise_param{ filler_param { type: 'uniform' min: "
-     << NOISE_MIN << " max:" << NOISE_MAX << "} }";
+     << NOISE_MIN << " max:" << NOISE_MAX << "} noise_phase: TRAIN " <<
+        " noise_phase: TEST }";
   CHECK(google::protobuf::TextFormat::ParseFromString(ss.str(), &layer_param));
   NoiseLayer<Dtype> layer(layer_param);
   layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
@@ -228,7 +232,8 @@ TYPED_TEST(NoiseLayerTest, TestForwardGaussianInplace) {
   LayerParameter layer_param;
   std::stringstream ss;
   ss << "noise_param{ filler_param { type: 'gaussian' mean: " << NOISE_MEAN <<
-        " std:" << NOISE_STD_DEV << "} }";
+        " std:" << NOISE_STD_DEV << "} noise_phase: TRAIN " <<
+        " noise_phase: TEST }";
   CHECK(google::protobuf::TextFormat::ParseFromString(ss.str(), &layer_param));
   NoiseLayer<Dtype> layer(layer_param);
   layer.SetUp(this->blob_bottom_vec_, this->blob_inplace_top_vec_);
@@ -280,7 +285,8 @@ TYPED_TEST(NoiseLayerTest, TestForwardUniformInplace) {
   LayerParameter layer_param;
   std::stringstream ss;
   ss << "noise_param{ filler_param { type: 'uniform' min: "
-     << NOISE_MIN << " max:" << NOISE_MAX << "} }";
+     << NOISE_MIN << " max:" << NOISE_MAX << "} noise_phase: TRAIN "
+        << " noise_phase: TEST }";
   CHECK(google::protobuf::TextFormat::ParseFromString(ss.str(), &layer_param));
   NoiseLayer<Dtype> layer(layer_param);
   layer.SetUp(this->blob_bottom_vec_, this->blob_inplace_top_vec_);

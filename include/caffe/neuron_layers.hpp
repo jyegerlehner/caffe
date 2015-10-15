@@ -509,6 +509,12 @@ class NoiseLayer : public NeuronLayer<Dtype> {
       const vector<Blob<Dtype>*>& top);
 
   /**
+   * @brief PhaseIsNoised
+   * @return  true iff noise is allowed to be added in the current phase.
+   */
+  bool PhaseIsNoised() const;
+
+  /**
    * @brief Computes the error gradient w.r.t. the inputs.
    *
    * @param top output Blob vector (length 1), providing the error gradient with
