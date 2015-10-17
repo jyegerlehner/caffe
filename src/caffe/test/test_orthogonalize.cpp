@@ -4,12 +4,14 @@
 #include "caffe/filler.hpp"
 #include "gtest/gtest.h"
 #include "caffe/test/test_caffe_main.hpp"
+#include "caffe/util/orthogonal.hpp"
 
 namespace caffe {
 
 template <typename Dtype>
 class OrthogonalizerTest : public ::testing::Test {
 protected:
+  typedef Eigen::Matrix<Dtype, Eigen::Dynamic, Eigen::Dynamic> Matrix;
   OrthogonalizerTest()
     : filler_param_() {
     filler_param_.set_mean(0.2);
@@ -21,7 +23,7 @@ protected:
   FillerParameter filler_param_;
   shared_ptr<GaussianFiller<Dtype> > filler_;
 
-  Eigen::MatrixXf BlobToMat(const Blob<Dtype>& blob )
+  std::pair<int,int> FlatShape(const Blob<Dtype>& blob)
   {
     std::vector<int> shape = blob.shape();
     int rows = shape[0];
@@ -30,20 +32,42 @@ protected:
     {
       cols *= shape[i];
     }
+    return std::pair<int,int>( rows, cols );
+  }
 
-    Eigen::MatrixXf m(rows, cols);
-    const Dtype* blob_data = blob.cpu_data();
-    for(int col = 0; col < cols; ++col)
-    {
-      for(int row = 0; row < rows; ++row)
-      {
-        m(row,col) = *blob_data++;
-      }
-    }
+  Eigen::Map<const Matrix> BlobToMat( const Blob<Dtype>& blob )
+  {
+    std::pair<int,int> shape = FlatShape(blob);
+
+    int rows = shape.first;
+    int cols = shape.second;
+
+    Eigen::Map<const Matrix> m( blob.cpu_data(), rows, cols );
     return m;
   }
 
-  void MatToBlob( const Eigen::MatrixXf& mat, Blob<Dtype>& blob )
+//  Matrix BlobToMat(const Blob<Dtype>& blob )
+//  {
+//    std::pair<int,int> shape = FlatShape(blob);
+
+//    int rows = shape.first;
+//    int cols = shape.second;
+
+//    Eigen::Map<const Matrix> m( blob.cpu_data(), rows, cols );
+
+//    Matrix copy(m.rows(), m.cols());
+//    for(int col = 0; col < cols; ++col)
+//    {
+//      for(int row = 0; row < rows; ++row)
+//      {
+//        copy(row,col) = m(row,col);
+//      }
+//    }
+
+//    return copy;
+//  }
+
+  void MatToBlob( const Matrix& mat, Blob<Dtype>& blob )
   {
     std::vector<int> blob_shape = blob.shape();
     int blob_cols = 1;
@@ -72,7 +96,33 @@ protected:
     }
   }
 
-  void AssertNearIdentity( const Eigen::MatrixXf& mat)
+  void AssertNear(const Blob<Dtype>& blob1,
+                 const Blob<Dtype>& blob2) {
+
+    const Dtype TOL = static_cast<Dtype>(0.00001);
+    ASSERT_EQ(blob1.count(), blob2.count());
+    for(int i = 0; i < blob1.count(); ++i) {
+      ASSERT_NEAR(blob1.cpu_data()[i], blob2.cpu_data()[i], TOL);
+    }
+  }
+
+  void AssertNear(const Matrix& mat1,
+                  const Matrix& mat2)
+  {
+    const Dtype TOL = static_cast<Dtype>(0.00001);
+    ASSERT_GT(mat1.rows(), 0);
+    ASSERT_GT(mat1.cols(), 0);
+    ASSERT_EQ(mat1.rows(), mat2.rows() );
+    ASSERT_EQ(mat1.rows(), mat2.rows() );
+
+    for(int row = 0; row < mat1.rows(); ++row) {
+      for(int col = 0; col < mat1.cols(); ++col) {
+        ASSERT_NEAR(mat1(row,col), mat2(row,col), TOL);
+      }
+    }
+  }
+
+  void AssertNearIdentity( const Matrix& mat)
   {
     const float TOL = 0.0001;
     ASSERT_EQ(mat.rows(), mat.cols() );
@@ -84,20 +134,27 @@ protected:
     }
   }
 
+//  void Invert( const Blob<Dtype>& blob )
+//  {
+//    Eigen::Map<const Matrix> m( blob.cpu_data(), rows, cols );
+
+//  }
+
   void Orthogonalize( const Blob<Dtype>& blob )
   {
-    using namespace Eigen;
-    MatrixXf m = BlobToMat(blob);
+//    using namespace Eigen;
+    Eigen::Map<const Matrix> m = BlobToMat(blob);
     std::cout << std::endl << "original matrix:" << std::endl;
     std::cout << m;
 
     unsigned int options = Eigen::ComputeThinU | Eigen::ComputeThinV;
 
-    Eigen::JacobiSVD<MatrixXf> svd(m, options);
-    std::cout << std::endl << std::endl << "u matrix:" << svd.matrixU() << std::endl;
-    const MatrixXf& u = svd.matrixU();
+    Eigen::JacobiSVD<Matrix> svd(m, options);
+    std::cout << std::endl << std::endl << "u matrix:"
+              << svd.matrixU() << std::endl;
+    const Matrix& u = svd.matrixU();
     std::cout << std::endl << "v matrix:" << svd.matrixV() << std::endl;
-    const MatrixXf& v = svd.matrixV();
+    const Matrix& v = svd.matrixV();
 
     bool use_u = (u.rows() == m.rows() && u.cols() == m.cols());
     bool use_v = (v.rows() == m.cols() && v.cols() == m.rows());
@@ -115,20 +172,20 @@ protected:
       ASSERT_TRUE(false);
     }
 
-    MatrixXf orthog_mat = this->BlobToMat(orthog_blob);
+    Eigen::Map<const Matrix> orthog_mat = this->BlobToMat(orthog_blob);
     std::cout << std::endl << "Orthogonalized blob:" << std::endl;
     std::cout << orthog_mat;
 
     if ( orthog_mat.rows() < orthog_mat.cols() )
     {
-      MatrixXf should_be_identity = orthog_mat * orthog_mat.transpose();
+      Matrix should_be_identity = orthog_mat * orthog_mat.transpose();
       std::cout << std::endl << "identity? : " << std::endl;
       std::cout << should_be_identity << std::endl;
       AssertNearIdentity(should_be_identity);
     }
     else
     {
-      MatrixXf should_be_identity = orthog_mat.transpose() * orthog_mat;
+      Matrix should_be_identity = orthog_mat.transpose() * orthog_mat;
       std::cout << std::endl << "identity? : " << std::endl;
       std::cout << should_be_identity << std::endl;
       AssertNearIdentity(should_be_identity);
@@ -136,24 +193,30 @@ protected:
 
   }
 
-  void OrthogonalizeMinFrobNorm( const Blob<Dtype>& blob )
+  Matrix OrthogonalizeMinFrobNorm( const Blob<Dtype>& blob )
   {
     using namespace Eigen;
-    MatrixXf m = BlobToMat(blob);
+    Eigen::Map<const Matrix> m = BlobToMat(blob);
     std::cout << std::endl << "original matrix:" << std::endl;
     std::cout << m;
 
+//    unsigned int options = m.cols() > m.rows() ?
+//          Eigen::ComputeThinU | Eigen::ComputeFullV :
+//          Eigen::ComputeFullU | Eigen::ComputeThinV;
+
+//    unsigned int options = Eigen::ComputeThinU | Eigen::ComputeThinV;
+
     unsigned int options = m.cols() > m.rows() ?
           Eigen::ComputeThinU | Eigen::ComputeFullV :
-          Eigen::ComputeFullU | Eigen::ComputeThinV;
+          Eigen::ComputeThinU | Eigen::ComputeThinV;
 
-    Eigen::JacobiSVD<MatrixXf> svd(m, options);
+    Eigen::JacobiSVD<Matrix> svd(m, options);
     std::cout << std::endl << "u matrix:" << std::endl << svd.matrixU() << std::endl;
-    const MatrixXf& u = svd.matrixU();
+    const Matrix& u = svd.matrixU();
     std::cout << std::endl << "v matrix:" << std::endl << svd.matrixV() << std::endl;
-    const MatrixXf& v = svd.matrixV();
+    const Matrix& v = svd.matrixV();
 
-    Eigen::MatrixXf s = Eigen::MatrixXf::Zero(u.cols(), v.rows());
+    Matrix s = Matrix::Zero(u.cols(), v.rows());
     int min_dim = s.rows() < s.cols() ?  s.rows() : s.cols();
     for(int i = 0; i < min_dim; ++i)
     {
@@ -161,7 +224,7 @@ protected:
     }
     std::cout << "s matrix:" << std::endl << s  << std::endl;
 
-    Eigen::MatrixXf orthog_mat = u * s * v;
+    Matrix orthog_mat = u * s * v;
     Blob<Dtype> orthog_blob(blob.shape());
 
 //    this->MatToBlob(orthog_mat, orthog_blob);
@@ -171,21 +234,72 @@ protected:
 
     if ( orthog_mat.rows() < orthog_mat.cols() )
     {
-      MatrixXf should_be_identity = orthog_mat * orthog_mat.transpose();
+      Matrix should_be_identity = orthog_mat * orthog_mat.transpose();
       std::cout << std::endl << "identity? : " << std::endl;
       std::cout << should_be_identity << std::endl;
       AssertNearIdentity(should_be_identity);
     }
     else
     {
-      MatrixXf should_be_identity = orthog_mat.transpose() * orthog_mat;
+      Matrix should_be_identity = orthog_mat.transpose() * orthog_mat;
       std::cout << std::endl << "identity? : " << std::endl;
       std::cout << should_be_identity << std::endl;
       AssertNearIdentity(should_be_identity);
     }
+    return orthog_mat;
   }
 
-  void CompareBlobAndMat( const Blob<Dtype>& blob, const Eigen::MatrixXf& mat)
+  Matrix OrthogonalizeMinFrobNormFullUV( const Blob<Dtype>& blob )
+  {
+    using namespace Eigen;
+    Eigen::Map<const Matrix> m = BlobToMat(blob);
+    std::cout << std::endl << "original matrix:" << std::endl;
+    std::cout << m;
+
+    unsigned int options = Eigen::ComputeFullU | Eigen::ComputeFullV;
+
+    Eigen::JacobiSVD<Matrix> svd(m, options);
+    std::cout << std::endl << "u matrix:" << std::endl << svd.matrixU() << std::endl;
+    const Matrix& u = svd.matrixU();
+    std::cout << std::endl << "v matrix:" << std::endl << svd.matrixV() << std::endl;
+    const Matrix& v = svd.matrixV();
+
+    Matrix s = Matrix::Zero(u.cols(), v.rows());
+    int min_dim = s.rows() < s.cols() ?  s.rows() : s.cols();
+    for(int i = 0; i < min_dim; ++i)
+    {
+      s(i,i) = 1.0;
+    }
+    std::cout << "s matrix:" << std::endl << s  << std::endl;
+
+    Matrix orthog_mat = u * s * v;
+    Blob<Dtype> orthog_blob(blob.shape());
+
+//    this->MatToBlob(orthog_mat, orthog_blob);
+
+    std::cout << std::endl << "Orthogonalized blob:" << std::endl;
+    std::cout << orthog_mat;
+
+    if ( orthog_mat.rows() < orthog_mat.cols() )
+    {
+      Matrix should_be_identity = orthog_mat * orthog_mat.transpose();
+      std::cout << std::endl << "identity? : " << std::endl;
+      std::cout << should_be_identity << std::endl;
+      AssertNearIdentity(should_be_identity);
+    }
+    else
+    {
+      Matrix should_be_identity = orthog_mat.transpose() * orthog_mat;
+      std::cout << std::endl << "identity? : " << std::endl;
+      std::cout << should_be_identity << std::endl;
+      AssertNearIdentity(should_be_identity);
+    }
+
+    return orthog_mat;
+  }
+
+
+  void CompareBlobAndMat( const Blob<Dtype>& blob, const Matrix& mat)
   {
     std::vector<int> blob_shape = blob.shape();
     int blob_cols = 1;
@@ -226,19 +340,21 @@ TYPED_TEST_CASE(OrthogonalizerTest, TestDtypes);
 
 TYPED_TEST(OrthogonalizerTest, BlobToMatPreservesShapeAndIdentity) {
   typedef TypeParam Dtype;
+  typedef typename OrthogonalizerTest<Dtype>::Matrix Matrix;
   Blob<Dtype> blob(4,2,2,3);
   this->filler_->Fill(&blob);
 
-  Eigen::MatrixXf mat = this->BlobToMat(blob);
+  Matrix mat = this->BlobToMat(blob);
   this->CompareBlobAndMat(blob, mat);
 }
 
 TYPED_TEST(OrthogonalizerTest, MatToBlobPreservesShapeAndIdentity) {
   typedef TypeParam Dtype;
+  typedef typename OrthogonalizerTest<Dtype>::Matrix Matrix;
   Blob<Dtype> blob(4,2,2,3);
   this->filler_->Fill(&blob);
 
-  Eigen::MatrixXf mat = this->BlobToMat(blob);
+  Matrix mat = this->BlobToMat(blob);
 
   Blob<TypeParam> new_blob( blob.shape());
   this->MatToBlob(mat, new_blob);
@@ -293,7 +409,77 @@ TYPED_TEST(OrthogonalizerTest, TestSimple6) {
   this->OrthogonalizeMinFrobNorm(blob);
 }
 
+TYPED_TEST(OrthogonalizerTest, TestFullUVFromNormMin)
+{
+  typedef TypeParam Dtype;
+  Blob<Dtype> blob(5,10,1,1);
+  this->filler_->Fill(&blob);
 
+  (void) this->OrthogonalizeMinFrobNormFullUV(blob);
+}
 
+TYPED_TEST(OrthogonalizerTest, TestFullAndThinAreSame)
+{
+  typedef TypeParam Dtype;
+  typedef typename OrthogonalizerTest<Dtype>::Matrix Matrix;
+  Blob<Dtype> blob(5,10,1,1);
+  this->filler_->Fill(&blob);
+
+  Matrix mat_thin = this->OrthogonalizeMinFrobNorm(blob);
+  Matrix mat_full = this->OrthogonalizeMinFrobNormFullUV(blob);
+
+  this->AssertNear(mat_thin, mat_full);
+}
+
+TYPED_TEST(OrthogonalizerTest, TestFullAndThinAreSame2)
+{
+  typedef TypeParam Dtype;
+  typedef typename OrthogonalizerTest<Dtype>::Matrix Matrix;
+  Blob<Dtype> blob(10,5,1,1);
+  this->filler_->Fill(&blob);
+
+  Matrix mat_thin = this->OrthogonalizeMinFrobNorm(blob);
+  Matrix mat_full = this->OrthogonalizeMinFrobNormFullUV(blob);
+
+  this->AssertNear(mat_thin, mat_full);
+}
+
+TYPED_TEST(OrthogonalizerTest, MatBlobRoundTrip)
+{
+  typedef TypeParam Dtype;
+  typedef typename caffe::Orthogonalizer<Dtype>::Matrix Matrix;
+  Blob<Dtype> orig_blob(100, 50, 2, 3);
+  this->filler_->Fill(&orig_blob);
+
+  Matrix mat = Orthogonalizer<Dtype>::BlobToMat(orig_blob);
+
+  Blob<Dtype> new_blob(100, 50, 2, 3);
+
+  Orthogonalizer<Dtype>::MatToBlob(mat, new_blob);
+
+  this->AssertNear(orig_blob, new_blob);
+}
+
+TYPED_TEST(OrthogonalizerTest, TestOrthogonal) {
+  typedef TypeParam Dtype;
+  typedef typename caffe::Orthogonalizer<Dtype>::Matrix Matrix;
+  Blob<Dtype> blob(100, 50, 2, 3);
+  this->filler_->Fill(&blob);
+
+  Orthogonalizer<Dtype>::Fast(blob);
+
+  Matrix mat = Orthogonalizer<Dtype>::BlobToMat(blob);
+
+  if (mat.rows() < mat.cols() )
+  {
+    this->AssertNear(mat * mat.transpose(),
+                     Matrix::Identity(mat.rows(),mat.rows()));
+  }
+  else
+  {
+    this->AssertNear(mat.transpose()*mat,
+                     Matrix::Identity(mat.cols(), mat.cols()));
+  }
+}
 
 }
