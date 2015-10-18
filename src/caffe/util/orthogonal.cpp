@@ -81,7 +81,6 @@ void Orthogonalizer<Dtype>::Fast(Blob<Dtype>& blob) {
   {
     m = v.transpose();
   }
-
 }
 
 // Assign the blob its nearest orthogonal matrix.
