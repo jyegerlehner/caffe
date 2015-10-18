@@ -5,6 +5,7 @@
 #include "caffe/filler.hpp"
 
 #include "caffe/test/test_caffe_main.hpp"
+#include "caffe/util/orthogonal.hpp"
 
 namespace caffe {
 
@@ -62,6 +63,28 @@ TYPED_TEST(UniformFillerTest, TestFill) {
   for (int i = 0; i < count; ++i) {
     EXPECT_GE(data[i], this->filler_param_.min());
     EXPECT_LE(data[i], this->filler_param_.max());
+  }
+}
+
+TYPED_TEST(UniformFillerTest, TestFillAndOrthogonalization) {
+  typedef TypeParam Dtype;
+  typedef typename Orthogonalizer<Dtype>::Matrix Matrix;
+  this->filler_param_.set_orthog(FillerParameter_Orthogonalization_FASTER);
+  this->filler_.reset(new UniformFiller<Dtype>(this->filler_param_));
+  this->filler_->Fill(this->blob_);
+
+  const Dtype TOL = static_cast<Dtype>(0.0001);
+  Matrix mat = Orthogonalizer<Dtype>::BlobToMat(*this->blob_);
+  Matrix test_mat = mat * mat.transpose();
+  ASSERT_EQ(test_mat.rows(), test_mat.cols());
+
+  // Blob as matrix multiplied by transpose should yield identity matrix.
+  for( int row=0; row < test_mat.rows(); ++row ) {
+    for( int col = 0; col < test_mat.cols(); ++col ) {
+      Dtype expected_val = (row == col) ? static_cast<Dtype>(1.0):
+                                        static_cast<Dtype>(0.0);
+      ASSERT_NEAR( test_mat(row,col), expected_val, TOL );
+    }
   }
 }
 

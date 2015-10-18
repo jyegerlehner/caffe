@@ -59,6 +59,18 @@ message FillerParameter {
     AVERAGE = 2;
   }
   optional VarianceNorm variance_norm = 8 [default = FAN_IN];
+  // Kind of orthogonalization to choose. NEAREST means find the orthogonal
+  // matrix nearest (in the sense of minimizing the frobenius norm) to the
+  // original (un-orthogonalized) blob matrix. FASTER uses either the left or
+  // right thin singular vector matrix after using singular value decomposition
+  // of the original matrix. NONE means don't orthogonalize the blob after
+  // filling it.
+  enum Orthogonalization {
+    NONE = 0;
+    FASTER = 1;
+    NEAREST = 2;
+  }
+  optional Orthogonalization orthog = 9 [default = NONE];
 }
 
 message NetParameter {

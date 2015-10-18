@@ -12,6 +12,7 @@
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/syncedmem.hpp"
 #include "caffe/util/math_functions.hpp"
+#include "caffe/util/orthogonal.hpp"
 
 namespace caffe {
 
@@ -21,7 +22,36 @@ class Filler {
  public:
   explicit Filler(const FillerParameter& param) : filler_param_(param) {}
   virtual ~Filler() {}
-  virtual void Fill(Blob<Dtype>* blob) = 0;
+  void Orthogonalize(Blob<Dtype>& blob) {
+    switch(filler_param_.orthog()) {
+      case FillerParameter_Orthogonalization_NONE:
+      {
+        // Don't orthogonalize.
+        return;
+      }
+      case FillerParameter_Orthogonalization_FASTER:
+      {
+        Orthogonalizer<Dtype>::Fast(blob);
+        break;
+      }
+      case FillerParameter_Orthogonalization_NEAREST:
+      {
+        Orthogonalizer<Dtype>::Nearest(blob);
+        break;
+      }
+      default:
+      {
+        LOG(FATAL) << "Unexpected orthogonalization enum.";
+      }
+    }
+  }
+
+  void Fill(Blob<Dtype>* blob) {
+    CHECK(blob != NULL) << "Why is this a pointer? In any case it is null.";
+    DoFill(blob);
+    Orthogonalize(*blob);
+  }
+  virtual void DoFill(Blob<Dtype>* blob) = 0;
  protected:
   FillerParameter filler_param_;
 };  // class Filler
@@ -33,7 +63,7 @@ class ConstantFiller : public Filler<Dtype> {
  public:
   explicit ConstantFiller(const FillerParameter& param)
       : Filler<Dtype>(param) {}
-  virtual void Fill(Blob<Dtype>* blob) {
+  virtual void DoFill(Blob<Dtype>* blob) {
     Dtype* data = blob->mutable_cpu_data();
     const int count = blob->count();
     const Dtype value = this->filler_param_.value();
@@ -52,7 +82,7 @@ class UniformFiller : public Filler<Dtype> {
  public:
   explicit UniformFiller(const FillerParameter& param)
       : Filler<Dtype>(param) {}
-  virtual void Fill(Blob<Dtype>* blob) {
+  virtual void DoFill(Blob<Dtype>* blob) {
     CHECK(blob->count());
     caffe_rng_uniform<Dtype>(blob->count(), Dtype(this->filler_param_.min()),
         Dtype(this->filler_param_.max()), blob->mutable_cpu_data());
@@ -67,7 +97,7 @@ class GaussianFiller : public Filler<Dtype> {
  public:
   explicit GaussianFiller(const FillerParameter& param)
       : Filler<Dtype>(param) {}
-  virtual void Fill(Blob<Dtype>* blob) {
+  virtual void DoFill(Blob<Dtype>* blob) {
     Dtype* data = blob->mutable_cpu_data();
     CHECK(blob->count());
     caffe_rng_gaussian<Dtype>(blob->count(), Dtype(this->filler_param_.mean()),
@@ -103,7 +133,7 @@ class PositiveUnitballFiller : public Filler<Dtype> {
  public:
   explicit PositiveUnitballFiller(const FillerParameter& param)
       : Filler<Dtype>(param) {}
-  virtual void Fill(Blob<Dtype>* blob) {
+  virtual void DoFill(Blob<Dtype>* blob) {
     Dtype* data = blob->mutable_cpu_data();
     DCHECK(blob->count());
     caffe_rng_uniform<Dtype>(blob->count(), 0, 1, blob->mutable_cpu_data());
@@ -146,7 +176,7 @@ class XavierFiller : public Filler<Dtype> {
  public:
   explicit XavierFiller(const FillerParameter& param)
       : Filler<Dtype>(param) {}
-  virtual void Fill(Blob<Dtype>* blob) {
+  virtual void DoFill(Blob<Dtype>* blob) {
     CHECK(blob->count());
     int fan_in = blob->count() / blob->num();
     int fan_out = blob->count() / blob->channels();
@@ -188,7 +218,7 @@ class MSRAFiller : public Filler<Dtype> {
  public:
   explicit MSRAFiller(const FillerParameter& param)
       : Filler<Dtype>(param) {}
-  virtual void Fill(Blob<Dtype>* blob) {
+  virtual void DoFill(Blob<Dtype>* blob) {
     CHECK(blob->count());
     int fan_in = blob->count() / blob->num();
     int fan_out = blob->count() / blob->channels();
@@ -246,7 +276,7 @@ class BilinearFiller : public Filler<Dtype> {
  public:
   explicit BilinearFiller(const FillerParameter& param)
       : Filler<Dtype>(param) {}
-  virtual void Fill(Blob<Dtype>* blob) {
+  virtual void DoFill(Blob<Dtype>* blob) {
     CHECK_EQ(blob->num_axes(), 4) << "Blob must be 4 dim.";
     CHECK_EQ(blob->width(), blob->height()) << "Filter must be square";
     Dtype* data = blob->mutable_cpu_data();
