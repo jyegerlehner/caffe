@@ -59,16 +59,26 @@ message FillerParameter {
     AVERAGE = 2;
   }
   optional VarianceNorm variance_norm = 8 [default = FAN_IN];
-  // Kind of orthogonalization to choose. NEAREST means find the orthogonal
-  // matrix nearest (in the sense of minimizing the frobenius norm) to the
-  // original (un-orthogonalized) blob matrix. FASTER uses either the left or
-  // right thin singular vector matrix after using singular value decomposition
-  // of the original matrix. NONE means don't orthogonalize the blob after
-  // filling it.
+  // Kind of orthogonalization to choose.  SIMPLE uses either the left or
+  // right thin singular vector matrix.
+  //
+  // PRESERVE_TRACE_NORM preserves the sum of the singular values of the
+  // un-orthogonalized matrix. PRESERVE_1_NORM preserves the largest of the
+  // singular values of the unorthogonalized matrix. PRESERVE_FROB_NORM
+  // preserves the Frobenius norm of the unorthogonalized matrix.
+  //
+  // The three PRESERVE_* options do not produce a strictly orthogonal matrix:
+  // the orthogonalized matrix when multiplied by its transpose will produce
+  // a diagonal matrix with every non-zero element having the same value. But
+  // that value will not be 1 in general.
+  //
+  // NONE means don't orthogonalize the blob after filling it.
   enum Orthogonalization {
     NONE = 0;
-    FASTER = 1;
-    NEAREST = 2;
+    SIMPLE = 1;
+    PRESERVE_TRACE_NORM = 2;
+    PRESERVE_FROB_NORM = 3;
+    PRESERVE_1_NORM = 4;
   }
   optional Orthogonalization orthog = 9 [default = NONE];
 }

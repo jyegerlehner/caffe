@@ -24,27 +24,10 @@ class Filler {
   virtual ~Filler() {}
 #ifdef USE_EIGEN
   void Orthogonalize(Blob<Dtype>& blob) {
-    switch(filler_param_.orthog()) {
-      case FillerParameter_Orthogonalization_NONE:
-      {
-        // Don't orthogonalize.
-        return;
-      }
-      case FillerParameter_Orthogonalization_FASTER:
-      {
-        Orthogonalizer<Dtype>::Fast(blob);
-        break;
-      }
-      case FillerParameter_Orthogonalization_NEAREST:
-      {
-        Orthogonalizer<Dtype>::Nearest(blob);
-        break;
-      }
-      default:
-      {
-        LOG(FATAL) << "Unexpected orthogonalization enum.";
-      }
+    if (filler_param_.orthog() == FillerParameter_Orthogonalization_NONE) {
+      return;
     }
+    Orthogonalizer<Dtype>::Execute(blob, filler_param_.orthog());
   }
 #else
   void Orthogonalize(Blob<Dtype>& blob) {

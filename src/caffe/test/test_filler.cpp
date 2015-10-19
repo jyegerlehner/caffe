@@ -70,7 +70,7 @@ TYPED_TEST(UniformFillerTest, TestFill) {
 TYPED_TEST(UniformFillerTest, TestFillAndOrthogonalization) {
   typedef TypeParam Dtype;
   typedef typename Orthogonalizer<Dtype>::Matrix Matrix;
-  this->filler_param_.set_orthog(FillerParameter_Orthogonalization_FASTER);
+  this->filler_param_.set_orthog(FillerParameter_Orthogonalization_SIMPLE);
   this->filler_.reset(new UniformFiller<Dtype>(this->filler_param_));
   // The Fill method will run the orthogonalizer.
   this->filler_->Fill(this->blob_);

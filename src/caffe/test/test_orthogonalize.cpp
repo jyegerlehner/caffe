@@ -56,7 +56,8 @@ protected:
     // Fill blob.
     this->filler_->Fill(&blob);
     // Orthogonalize.
-    Orthogonalizer<Dtype>::Fast(blob);
+    Orthogonalizer<Dtype>::Execute(blob,
+      FillerParameter_Orthogonalization_SIMPLE);
 
     // Get blob as a matrix, so it is easy to multiply it by
     // its transpose.
@@ -76,13 +77,14 @@ protected:
     }
   }
 
-  void TestOrthogonalization_Nearest(Blob<Dtype>& blob) {
+  void TestOrthogonalization_Preserve(Blob<Dtype>& blob,
+      FillerParameter_Orthogonalization orthog) {
     typedef typename caffe::Orthogonalizer<Dtype>::Matrix Matrix;
 
     // Fill blob.
     this->filler_->Fill(&blob);
     // Orthogonalize.
-    Orthogonalizer<Dtype>::Nearest(blob);
+    Orthogonalizer<Dtype>::Execute(blob, orthog);
 
     // Get blob as a matrix, so it is easy to multiply it by
     // its transpose.
@@ -92,13 +94,17 @@ protected:
     // transpose, which should yield identity matrix.
     if (mat.rows() < mat.cols() )
     {
-      this->AssertNear(mat*mat.transpose(),
-                       Matrix::Identity(mat.rows(),mat.rows()));
+      Matrix prod = mat*mat.transpose();
+      std::cout << std::endl << prod << std::endl;
+      this->AssertNear(prod,
+                       prod(0,0)*Matrix::Identity(mat.rows(),mat.rows()));
     }
     else
     {
-      this->AssertNear(mat.transpose()*mat,
-                       Matrix::Identity(mat.cols(), mat.cols()));
+      Matrix prod = mat.transpose()*mat;
+      std::cout << std::endl << prod << std::endl;
+      this->AssertNear(prod,
+                       prod(0,0)*Matrix::Identity(mat.cols(), mat.cols()));
     }
   }
 
@@ -195,29 +201,72 @@ TYPED_TEST(OrthogonalizerTest, TestOrthogonal_100x10x2x3) {
   this->TestOrthogonalization(blob);
 }
 
-TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Nearest_50x20) {
+TYPED_TEST(OrthogonalizerTest, TestOrthogonal_PreserveTraceNorm_5x4) {
   typedef TypeParam Dtype;
-  Blob<Dtype> blob(50, 20, 1, 1);
-  this->TestOrthogonalization_Nearest(blob);
+  Blob<Dtype> blob(5, 4, 1, 1);
+  this->TestOrthogonalization_Preserve(blob,
+      FillerParameter_Orthogonalization_PRESERVE_TRACE_NORM);
 }
 
-TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Nearest_20x50) {
+TYPED_TEST(OrthogonalizerTest, TestOrthogonal_PreserveTraceNorm_4x5) {
   typedef TypeParam Dtype;
-  Blob<Dtype> blob(20, 50, 1, 1);
-  this->TestOrthogonalization_Nearest(blob);
+  Blob<Dtype> blob(4, 5, 1, 1);
+  this->TestOrthogonalization_Preserve(blob,
+      FillerParameter_Orthogonalization_PRESERVE_TRACE_NORM);
 }
 
-TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Nearest_50x20x2x3) {
+TYPED_TEST(OrthogonalizerTest, TestOrthogonal_PreserveFrobNorm_5x4) {
   typedef TypeParam Dtype;
-  Blob<Dtype> blob(50, 20, 2, 3);
-  this->TestOrthogonalization_Nearest(blob);
+  Blob<Dtype> blob(5, 4, 1, 1);
+  this->TestOrthogonalization_Preserve(blob,
+      FillerParameter_Orthogonalization_PRESERVE_FROB_NORM);
 }
 
-TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Nearest_100x10x2x3) {
+TYPED_TEST(OrthogonalizerTest, TestOrthogonal_PreserveFrobNorm_4x5) {
   typedef TypeParam Dtype;
-  Blob<Dtype> blob(100, 10, 2, 3);
-  this->TestOrthogonalization_Nearest(blob);
+  Blob<Dtype> blob(4, 5, 1, 1);
+  this->TestOrthogonalization_Preserve(blob,
+      FillerParameter_Orthogonalization_PRESERVE_FROB_NORM);
 }
+
+TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Preserve1Norm_5x4) {
+  typedef TypeParam Dtype;
+  Blob<Dtype> blob(5, 4, 1, 1);
+  this->TestOrthogonalization_Preserve(blob,
+      FillerParameter_Orthogonalization_PRESERVE_1_NORM);
+}
+
+TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Preserve1Norm_4x5) {
+  typedef TypeParam Dtype;
+  Blob<Dtype> blob(4, 5, 1, 1);
+  this->TestOrthogonalization_Preserve(blob,
+      FillerParameter_Orthogonalization_PRESERVE_1_NORM);
+}
+
+
+//TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Nearest_50x20) {
+//  typedef TypeParam Dtype;
+//  Blob<Dtype> blob(50, 20, 1, 1);
+//  this->TestOrthogonalization_Nearest(blob);
+//}
+
+//TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Nearest_20x50) {
+//  typedef TypeParam Dtype;
+//  Blob<Dtype> blob(20, 50, 1, 1);
+//  this->TestOrthogonalization_Nearest(blob);
+//}
+
+//TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Nearest_50x20x2x3) {
+//  typedef TypeParam Dtype;
+//  Blob<Dtype> blob(50, 20, 2, 3);
+//  this->TestOrthogonalization_Nearest(blob);
+//}
+
+//TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Nearest_100x10x2x3) {
+//  typedef TypeParam Dtype;
+//  Blob<Dtype> blob(100, 10, 2, 3);
+//  this->TestOrthogonalization_Nearest(blob);
+//}
 
 }
 #endif  // USE_EIGEN
