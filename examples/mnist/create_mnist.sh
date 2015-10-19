@@ -4,7 +4,7 @@
 
 EXAMPLE=examples/mnist
 DATA=data/mnist
-BUILD=build/examples/mnist
+BUILD=../../build/caffe_debug/examples/mnist
 
 BACKEND="lmdb"
 

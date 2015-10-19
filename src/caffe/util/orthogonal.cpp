@@ -1,3 +1,4 @@
+#ifdef USE_EIGEN
 #include "caffe/util/orthogonal.hpp"
 
 namespace caffe {
@@ -29,6 +30,7 @@ typename Orthogonalizer<Dtype>::MatrixMap Orthogonalizer<Dtype>::BlobToMat(
   return MatrixMap( blob.mutable_cpu_data(), rows, cols );
 }
 
+// Version of BlobToMat taking a const blob.
 template<typename Dtype>
 typename Orthogonalizer<Dtype>::ConstMatrixMap Orthogonalizer<Dtype>::BlobToMat(
     const Blob<Dtype>& blob )
@@ -45,20 +47,6 @@ void Orthogonalizer<Dtype>::MatToBlob(const Matrix& m, Blob<Dtype>& blob) {
   CHECK_EQ(blob_as_mat.cols(), m.cols());
   CHECK_EQ(blob_as_mat.rows(), m.rows());
   blob_as_mat = m;
-//  std::pair<int,int> flat_shape = FlatShape(blob);
-//  int blob_rows = flat_shape.first;
-//  int blob_cols = flat_shape.second;
-//  CHECK_EQ(blob_cols, mat.cols());
-//  CHECK_EQ(blob_rows, mat.rows());
-
-//  Dtype* blob_data = blob.mutable_cpu_data();
-//  for(int col = 0; col < mat.cols(); ++col)
-//  {
-//    for(int row = 0; row < mat.rows(); ++row)
-//    {
-//      *blob_data++ = mat(row,col);
-//    }
-//  }
 }
 
 // Assign the blob an orthogonal matrix created from the blob.
@@ -75,10 +63,14 @@ void Orthogonalizer<Dtype>::Fast(Blob<Dtype>& blob) {
   bool use_v = (v.cols() == m.rows() && v.rows() == m.cols());
   CHECK(use_u || use_v) << "Orthogonalize error: bad matrix dimensions.";
   if (use_u) {
+    // This assignment modifies the underlying blob through its mutable_cpu_data
+    // pointer, since m is a MatrixMap.
     m = u;
   }
   else
   {
+    // This assignment modifies the underlying blob through its mutable_cpu_data
+    // pointer, since m is a MatrixMap.
     m = v.transpose();
   }
 }
@@ -103,6 +95,8 @@ void Orthogonalizer<Dtype>::Nearest(Blob<Dtype>& blob) {
     s(i,i) = 1.0;
   }
 
+  // This assignment modifies the underlying blob through its mutable_cpu_data
+  // pointer, since m is a MatrixMap.
   m = u*s*v;
 }
 
@@ -111,3 +105,4 @@ template class Orthogonalizer<float>;
 template class Orthogonalizer<double>;
 
 }  // namespace caffe
+#endif  // USE_EIGEN

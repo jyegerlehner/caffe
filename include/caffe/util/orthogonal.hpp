@@ -1,3 +1,4 @@
+#ifdef USE_EIGEN
 #ifndef ORTHOGONAL_HPP
 #define ORTHOGONAL_HPP
 
@@ -38,4 +39,5 @@ protected:
 
 } // namespace caffe
 
-#endif // ORTHOGONAL_HPP
+#endif  // ORTHOGONAL_HPP
+#endif  // USE_EIGEN

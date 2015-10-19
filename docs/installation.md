@@ -96,6 +96,7 @@ Now that you have the prerequisites, edit your `Makefile.config` to change the p
 
 - For cuDNN acceleration, you should uncomment the `USE_CUDNN := 1` switch in `Makefile.config`.
 - For CPU-only Caffe, uncomment `CPU_ONLY := 1` in `Makefile.config`.
+- To enable orthogonalization of weights, uncomment `USE_EIGEN := 1` switch in `Makefile.config`.
 
 To compile the Python and MATLAB wrappers do `make pycaffe` and `make matcaffe` respectively.
 Be sure to set your MATLAB and Python paths in `Makefile.config` first!

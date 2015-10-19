@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 
-./build/tools/caffe train \
+../../build/caffe_debug/tools/caffe train \
   --solver=examples/mnist/mnist_autoencoder_solver.prototxt

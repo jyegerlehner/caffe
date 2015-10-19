@@ -51,6 +51,11 @@ if(USE_LEVELDB)
   list(APPEND Caffe_LINKER_LIBS ${Snappy_LIBRARIES})
 endif()
 
+# ---[ Eigen3
+if(USE_EIGEN)
+  add_definitions(-DUSE_EIGEN)
+endif()
+
 # ---[ CUDA
 include(cmake/Cuda.cmake)
 if(NOT HAVE_CUDA)

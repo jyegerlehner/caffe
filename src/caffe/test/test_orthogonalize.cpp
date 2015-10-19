@@ -1,3 +1,4 @@
+#if defined(USE_EIGEN)
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/SVD>
 #include "caffe/blob.hpp"
@@ -219,3 +220,4 @@ TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Nearest_100x10x2x3) {
 }
 
 }
+#endif  // USE_EIGEN

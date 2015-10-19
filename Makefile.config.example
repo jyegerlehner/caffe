@@ -7,6 +7,9 @@
 # CPU-only switch (uncomment to build without GPU support).
 # CPU_ONLY := 1
 
+# Enable orthogonalization of weights.
+# USE_EIGEN := 1
+
 # uncomment to disable IO dependencies and corresponding data layers
 # USE_LEVELDB := 0
 # USE_LMDB := 0

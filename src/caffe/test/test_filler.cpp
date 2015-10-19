@@ -66,13 +66,16 @@ TYPED_TEST(UniformFillerTest, TestFill) {
   }
 }
 
+#if defined(USE_EIGEN)
 TYPED_TEST(UniformFillerTest, TestFillAndOrthogonalization) {
   typedef TypeParam Dtype;
   typedef typename Orthogonalizer<Dtype>::Matrix Matrix;
   this->filler_param_.set_orthog(FillerParameter_Orthogonalization_FASTER);
   this->filler_.reset(new UniformFiller<Dtype>(this->filler_param_));
+  // The Fill method will run the orthogonalizer.
   this->filler_->Fill(this->blob_);
 
+  // Now get the blob's value, and check that it is an orthogonal matrix.
   const Dtype TOL = static_cast<Dtype>(0.0001);
   Matrix mat = Orthogonalizer<Dtype>::BlobToMat(*this->blob_);
   Matrix test_mat = mat * mat.transpose();
@@ -87,6 +90,7 @@ TYPED_TEST(UniformFillerTest, TestFillAndOrthogonalization) {
     }
   }
 }
+#endif
 
 template <typename Dtype>
 class PositiveUnitballFillerTest : public ::testing::Test {

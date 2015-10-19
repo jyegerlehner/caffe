@@ -74,6 +74,7 @@ layer {
       type: "gaussian"
       std: 1
       sparse: 15
+      orthog: NEAREST
     }
     bias_filler {
       type: "constant"
@@ -106,6 +107,7 @@ layer {
       type: "gaussian"
       std: 1
       sparse: 15
+      orthog: NEAREST
     }
     bias_filler {
       type: "constant"
@@ -138,6 +140,7 @@ layer {
       type: "gaussian"
       std: 1
       sparse: 15
+      orthog: NEAREST
     }
     bias_filler {
       type: "constant"
@@ -170,6 +173,7 @@ layer {
       type: "gaussian"
       std: 1
       sparse: 15
+      orthog: NEAREST
     }
     bias_filler {
       type: "constant"
@@ -196,6 +200,7 @@ layer {
       type: "gaussian"
       std: 1
       sparse: 15
+      orthog: NEAREST
     }
     bias_filler {
       type: "constant"
@@ -228,6 +233,7 @@ layer {
       type: "gaussian"
       std: 1
       sparse: 15
+      orthog: NEAREST
     }
     bias_filler {
       type: "constant"
@@ -260,6 +266,7 @@ layer {
       type: "gaussian"
       std: 1
       sparse: 15
+      orthog: NEAREST
     }
     bias_filler {
       type: "constant"
@@ -292,6 +299,7 @@ layer {
       type: "gaussian"
       std: 1
       sparse: 15
+      orthog: NEAREST
     }
     bias_filler {
       type: "constant"

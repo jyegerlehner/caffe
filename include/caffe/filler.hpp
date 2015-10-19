@@ -22,6 +22,7 @@ class Filler {
  public:
   explicit Filler(const FillerParameter& param) : filler_param_(param) {}
   virtual ~Filler() {}
+#ifdef USE_EIGEN
   void Orthogonalize(Blob<Dtype>& blob) {
     switch(filler_param_.orthog()) {
       case FillerParameter_Orthogonalization_NONE:
@@ -45,7 +46,16 @@ class Filler {
       }
     }
   }
+#else
+  void Orthogonalize(Blob<Dtype>& blob) {
+    if (filler_param_.orthog() == FillerParameter_Orthogonalization_NONE)
+    {
+      return;
+    }
 
+    LOG(FATAL) << "Orthogonalization is not supported in this build.";
+  }
+#endif
   void Fill(Blob<Dtype>* blob) {
     CHECK(blob != NULL) << "Why is this a pointer? In any case it is null.";
     DoFill(blob);

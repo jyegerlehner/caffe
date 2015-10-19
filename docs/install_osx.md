@@ -15,7 +15,7 @@ In other `ENV` settings, things may not work as expected.
 
 **General dependencies**
 
-    brew install -vd snappy leveldb gflags glog szip lmdb
+    brew install -vd snappy leveldb gflags glog szip lmdb eigen
     # need the homebrew science source for OpenCV and hdf5
     brew tap homebrew/science
     brew install hdf5 opencv

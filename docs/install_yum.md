@@ -6,7 +6,7 @@ title: Installation: RHEL / Fedora / CentOS
 
 **General dependencies**
 
-    sudo yum install protobuf-devel leveldb-devel snappy-devel opencv-devel boost-devel hdf5-devel
+    sudo yum install protobuf-devel leveldb-devel snappy-devel opencv-devel boost-devel hdf5-devel eigen3-devel
 
 **Remaining dependencies, recent OS**
 

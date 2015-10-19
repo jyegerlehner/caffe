@@ -314,6 +314,9 @@ endif
 ifeq ($(USE_LMDB), 1)
 	COMMON_FLAGS += -DUSE_LMDB
 endif
+ifeq ($(USE_EIGEN), 1)
+	COMMON_FLAGS += -DUSE_EIGEN
+endif
 
 # CPU-only configuration
 ifeq ($(CPU_ONLY), 1)
