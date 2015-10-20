@@ -78,13 +78,11 @@ void Orthogonalizer<Dtype>::Simple(MatrixMap& blob_mat) {
 // preserve it in the orthogonalized matrix (PRESERVE_TRACE_NORM).
 template<typename Dtype>
 Dtype Orthogonalizer<Dtype>::SVAverage(const Matrix& S) {
-  int min_dim = S.rows() < S.cols() ? S.rows() : S.cols();
-
   Dtype avg = 0.0;
-  for(int i=0; i < min_dim; ++i) {
-    avg += S(i,i);
+  for(int i=0; i < S.rows(); ++i) {
+    avg += S(i,0);
   }
-  avg /= min_dim;
+  avg /= S.rows();
   return avg;
 }
 
@@ -92,26 +90,22 @@ Dtype Orthogonalizer<Dtype>::SVAverage(const Matrix& S) {
 // matrix's singular values, so we can preserve it (PRESERVE_FROB_NORM).
 template<typename Dtype>
 Dtype Orthogonalizer<Dtype>::FrobNormSV(const Matrix& S) {
-  int min_dim = S.rows() < S.cols() ? S.rows() : S.cols();
-
   Dtype accum = 0.0;
-  for(int i=0; i < min_dim; ++i) {
-    Dtype entry = S(i,i);
+  for(int i=0; i < S.rows(); ++i) {
+    Dtype entry = S(i,0);
     accum += entry*entry;
   }
   accum = std::sqrt(accum);
-  accum /= min_dim;
+  accum /= S.rows();
   return accum;
 }
 
 // Find the largest singular value so we can preserve it (PRESERVE_1_NORM).
 template<typename Dtype>
 Dtype Orthogonalizer<Dtype>::LargestSV(const Matrix& S) {
-  int min_dim = S.rows() < S.cols() ? S.rows() : S.cols();
-
   Dtype largest = 0.0;
-  for(int i=0; i < min_dim; ++i) {
-    Dtype entry = S(i,i);
+  for(int i=0; i < S.rows(); ++i) {
+    Dtype entry = S(i,0);
     if (entry > largest) {
       largest = entry;
     }
@@ -127,21 +121,25 @@ void Orthogonalizer<Dtype>::SetSingularVals(
     Matrix& s,
     FillerParameter_Orthogonalization orthog) {
 
+  const Matrix& singular_vals = svd.singularValues();
+  CHECK(singular_vals.cols() == 1)
+      << "Singular values matrix should be Nx1 col vect";
+
   Dtype s_val;
   switch(orthog) {
     case(FillerParameter_Orthogonalization_PRESERVE_TRACE_NORM):
     {
-      s_val = SVAverage(svd.singularValues());
+      s_val = SVAverage(singular_vals);
       break;
     }
     case(FillerParameter_Orthogonalization_PRESERVE_FROB_NORM):
     {
-      s_val =FrobNormSV(svd.singularValues());
+      s_val = FrobNormSV(singular_vals);
       break;
     }
     case(FillerParameter_Orthogonalization_PRESERVE_1_NORM):
     {
-      s_val = LargestSV(svd.singularValues());
+      s_val = LargestSV(singular_vals);
       break;
     }
     default:
@@ -155,7 +153,6 @@ void Orthogonalizer<Dtype>::SetSingularVals(
     s(i,i) = s_val;
   }
 }
-
 
 // Assign the blob its nearest orthogonal matrix.
 template<typename Dtype>
@@ -188,6 +185,34 @@ void Orthogonalizer<Dtype>::Execute(Blob<Dtype>& blob,
   } else {
     PreserveNorm(m, orthog);
   }
+}
+
+template<typename Dtype>
+void Orthogonalizer<Dtype>::Invert(const Matrix& source, Matrix& target)
+{
+  unsigned int options = Eigen::ComputeThinU | Eigen::ComputeThinV;
+  Eigen::JacobiSVD<Matrix> svd(source, options);
+  const Matrix& u = svd.matrixU();
+  const Matrix& v = svd.matrixV();
+  const Matrix& sing_vals = svd.singularValues();
+
+  Matrix sprime = Matrix::Zero(v.cols(), u.rows());
+
+  const Dtype EPSILON = 0.000001;
+  for(int i=0; i < sing_vals.rows(); ++i)
+  {
+    Dtype val = sing_vals(i,0);
+    if (val > EPSILON)
+    {
+      sprime(i,i) = static_cast<Dtype>(1)/val;
+    }
+    else
+    {
+      sprime(i,i) = 0.0;
+    }
+  }
+
+  target = v * sprime * u.transpose();
 }
 
 // explicit instantiation

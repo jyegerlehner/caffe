@@ -31,6 +31,8 @@ public:
   // matrix.
   static void Execute(Blob<Dtype>& blob,
                        FillerParameter_Orthogonalization orthog);
+
+  static void Invert(const Matrix& source, Matrix& target);
 protected:
   // Create the shape of the matrix corresponding to the blob. Returned
   // rows and columns.

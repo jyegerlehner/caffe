@@ -1,4 +1,5 @@
 #if defined(USE_EIGEN)
+#include <cstdlib>
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/SVD>
 #include "caffe/blob.hpp"
@@ -6,6 +7,7 @@
 #include "gtest/gtest.h"
 #include "caffe/test/test_caffe_main.hpp"
 #include "caffe/util/orthogonal.hpp"
+#include "caffe/proto/caffe.pb.h"
 
 namespace caffe {
 
@@ -242,6 +244,106 @@ TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Preserve1Norm_4x5) {
   this->TestOrthogonalization_Preserve(blob,
       FillerParameter_Orthogonalization_PRESERVE_1_NORM);
 }
+
+//TYPED_TEST(OrthogonalizerTest, TestOrthogonalConvolutionDeconv) {
+//  // Create a deconvolution layer.
+//  typedef typename TypeParam::Dtype Dtype;
+//  LayerParameter layer_param;
+//  ConvolutionParameter* convolution_param =
+//      layer_param.mutable_convolution_param();
+//  convolution_param->add_kernel_size(3);
+//  convolution_param->add_stride(1);
+//  convolution_param->set_num_output(128);
+//  convolution_param->mutable_weight_filler()->set_type("gaussian");
+//  convolution_param->set_bias_term(false);
+//  shared_ptr<Layer<Dtype> > layer(
+//      new DeconvolutionLayer<Dtype>(layer_param));
+//  layer->SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
+
+//  // Create a convolution layer, which we intend to be the inverse of
+//  // the deconv layer.
+
+
+//  layer->Forward(this->blob_bottom_vec_, this->blob_top_vec_);
+
+
+//}
+
+TYPED_TEST(OrthogonalizerTest, TestInvertMat) {
+  typedef TypeParam Dtype;
+  typedef typename OrthogonalizerTest<Dtype>::Matrix Matrix;
+
+  Matrix m1(4,10);
+  Matrix m2(10,4);
+
+  int ctr = 0;
+  for(int row=0; row < m1.rows(); ++row)
+  {
+    for(int col=0; col < m1.cols(); ++col)
+    {
+      m1(row,col) = (rand() %100 - 50) / 10.0f;
+      ctr++;
+    }
+  }
+
+  Orthogonalizer<Dtype>::Invert(m1,m2);
+
+  Matrix prod = m1*m2;
+  this->AssertNear(prod, Matrix::Identity(m1.rows(), m2.cols()));
+}
+
+
+//TYPED_TEST(OrthogonalizerTest, TestInvertBlob) {
+//  using namespace caffe;
+
+//  Blob<Dtype> bottom_blob(2,4,1,1);
+//  Blob<Dtype> middle_blob();
+//  Blob<Dtype> top_blob();
+
+
+//  std::vector<Blob<Dtype> > first_bott_vec;
+//  std::vector<Blob<Dtype> > first_top_vec;
+//  std::vector<Blob<Dtype> > second_bott_vec;
+//  std::vector<Blob<Dtype> > second_top_vec;
+
+//  first_bott_vec.push_back(&bottom_blob);
+//  first_top_vec.push_back(&middle_blob);
+
+//  second_bott_vec.push_back(&middle_blob);
+//  second_top_vec.push_back(&top_blob);
+
+//  // Create an inner product layer.
+//  typedef typename TypeParam::Dtype Dtype;
+//  LayerParameter layer_param;
+//  InnerProductParameter* innerprod_param =
+//      layer_param.mutable_inner_product_param();
+//  innerprod_param->set_num_output(16);
+//  innerprod_param->mutable_weight_filler()->set_type("gaussian");
+//  innerprod_param->set_bias_term(false);
+//  shared_ptr<InnerProductLayer<Dtype> > layer(
+//      new InnerProductLayer<Dtype>(layer_param));
+//  layer->SetUp(first_bott_vec, first_top_vec);
+
+//  // Create an inner product layer meant to be the inverse.
+//  LayerParameter layer_param2;
+//  InnerProductParameter* innerprod_param2 =
+//      layer_param2.mutable_inner_product_param();
+//  innerprod_param2->set_num_output(BOTTOM_CHANS);
+//  innerprod_param2->mutable_weight_filler()->set_type("gaussian");
+//  innerprod_param2->set_bias_term(false);
+//  shared_ptr<InnerProductLayer<Dtype> > layer2(
+//        new InnerProductLayer(layer_param2));
+//  layer2->SetUp(second_bott_vec, second_top_vec);
+//   //layer2->blobs()[0]
+
+//  Orthogonalizer<Dtype>::Invert(*layer->blobs()[0],
+//      *layer2->blobs()[0]);
+
+//  layer1->Forward(first_bott_vec, first_top_vec);
+//  layer2->Forward(second_bott_vec, second_top_vec);
+
+//  AssertNear(bottom_blob, top_blob);
+//}
 
 
 //TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Nearest_50x20) {
