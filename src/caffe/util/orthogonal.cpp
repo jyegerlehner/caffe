@@ -190,7 +190,7 @@ void Orthogonalizer<Dtype>::Execute(Blob<Dtype>& blob,
 template<typename Dtype>
 void Orthogonalizer<Dtype>::Invert(const Matrix& source, Matrix& target)
 {
-  unsigned int options = Eigen::ComputeFullU | Eigen::ComputeFullV;
+  unsigned int options = Eigen::ComputeFullU | Eigen::ComputeThinV;
   Eigen::JacobiSVD<Matrix> svd(source, options);
   const Matrix& u = svd.matrixU();
   const Matrix& v = svd.matrixV();
