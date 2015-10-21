@@ -5,6 +5,8 @@
 #include "caffe/blob.hpp"
 #include "caffe/filler.hpp"
 #include "gtest/gtest.h"
+#include "caffe/neuron_layers.hpp"
+#include "caffe/common_layers.hpp"
 #include "caffe/test/test_caffe_main.hpp"
 #include "caffe/util/orthogonal.hpp"
 #include "caffe/proto/caffe.pb.h"
@@ -14,12 +16,12 @@ namespace caffe {
 template <typename Dtype>
 class OrthogonalizerTest : public ::testing::Test {
 protected:
-  typedef Eigen::Matrix<Dtype, Eigen::Dynamic, Eigen::Dynamic> Matrix;
+  typedef typename Orthogonalizer<Dtype>::Matrix Matrix;
   OrthogonalizerTest()
     : filler_param_() {
     filler_param_.set_mean(0.2);
-    filler_param_.set_std(0.25);
-    filler_param_.set_sparse(3);
+    filler_param_.set_std(2.0);
+    filler_param_.set_sparse(3.0);
     filler_.reset( new GaussianFiller<Dtype>(filler_param_));
   }
 
@@ -97,14 +99,12 @@ protected:
     if (mat.rows() < mat.cols() )
     {
       Matrix prod = mat*mat.transpose();
-      std::cout << std::endl << prod << std::endl;
       this->AssertNear(prod,
                        prod(0,0)*Matrix::Identity(mat.rows(),mat.rows()));
     }
     else
     {
       Matrix prod = mat.transpose()*mat;
-      std::cout << std::endl << prod << std::endl;
       this->AssertNear(prod,
                        prod(0,0)*Matrix::Identity(mat.cols(), mat.cols()));
     }
@@ -119,30 +119,64 @@ protected:
       blob_cols *= blob_shape[i];
     }
     int blob_rows = blob_shape[0];
-
     ASSERT_EQ(mat.rows(), blob_rows);
-    int cols = 1;
-    for(int i = 1; i < blob.shape().size(); ++i)
-    {
-      cols *= blob.shape()[i];
-    }
+    ASSERT_EQ(mat.cols(), blob_cols);
 
-    ASSERT_EQ(mat.rows(), blob_rows);
-    ASSERT_EQ(mat.cols(), cols);
-
-    const Dtype TOL = (Dtype) 0.0001;
     const Dtype* blob_data = blob.cpu_data();
-    for(int col = 0; col < mat.cols(); ++col)
+    for(int row = 0; row < mat.rows(); ++row)
     {
-      for(int row = 0; row < mat.rows(); ++row)
+      for(int col = 0; col < mat.cols(); ++col)
       {
-        ASSERT_NEAR( (Dtype) mat(row,col), *blob_data++, TOL);
+        Dtype val = *blob_data++;
+        ASSERT_NEAR( mat(row,col), val, TOL);
       }
     }
   }
+
+
+  void AssertFlatBlobAndMatNear( const Blob<Dtype>& blob, const Matrix& mat)
+  {
+    std::vector<int> blob_shape = blob.shape();
+
+    int blob_rows = blob_shape[0];
+    int blob_cols = blob_shape[1];
+
+    ASSERT_EQ(mat.rows(), blob_rows);
+    ASSERT_EQ(mat.cols(), blob_cols);
+
+    const Dtype TOL = (Dtype) 0.00001;
+    for(int row = 0; row < mat.rows(); ++row)
+    {
+      for(int col = 0; col < mat.cols(); ++col)
+      {
+        int offset = blob.offset(row,col,0,0);
+        Dtype val = blob.cpu_data()[offset];
+        ASSERT_NEAR( mat(row,col), val, TOL);
+      }
+    }
+  }
+
 };
 
 TYPED_TEST_CASE(OrthogonalizerTest, TestDtypes);
+
+TYPED_TEST(OrthogonalizerTest, MatAndFlatBlobSame_5x10) {
+  typedef TypeParam Dtype;
+  typedef typename OrthogonalizerTest<Dtype>::Matrix Matrix;
+  Blob<Dtype> blob(5,10,1,1);
+  this->filler_->Fill(&blob);
+  Matrix mat = Orthogonalizer<Dtype>::BlobToMat(blob);
+  this->AssertFlatBlobAndMatNear(blob,mat);
+}
+
+TYPED_TEST(OrthogonalizerTest, MatAndFlatBlobSame_10x5) {
+  typedef TypeParam Dtype;
+  typedef typename OrthogonalizerTest<Dtype>::Matrix Matrix;
+  Blob<Dtype> blob(10,5,1,1);
+  this->filler_->Fill(&blob);
+  Matrix mat = Orthogonalizer<Dtype>::BlobToMat(blob);
+  this->AssertFlatBlobAndMatNear(blob,mat);
+}
 
 TYPED_TEST(OrthogonalizerTest, BlobToMatPreservesShapeAndIdentity) {
   typedef TypeParam Dtype;
@@ -292,58 +326,104 @@ TYPED_TEST(OrthogonalizerTest, TestInvertMat) {
   this->AssertNear(prod, Matrix::Identity(m1.rows(), m2.cols()));
 }
 
+TYPED_TEST(OrthogonalizerTest, TestInvertBlob_4x10) {
+  typedef TypeParam Dtype;
+  typedef typename OrthogonalizerTest<Dtype>::Matrix Matrix;
 
-//TYPED_TEST(OrthogonalizerTest, TestInvertBlob) {
-//  using namespace caffe;
+  Blob<Dtype> blob(4,10,1,1);
+  Blob<Dtype> inverted_blob(10,4,1,1);
 
-//  Blob<Dtype> bottom_blob(2,4,1,1);
-//  Blob<Dtype> middle_blob();
-//  Blob<Dtype> top_blob();
+  this->filler_->Fill(&blob);
 
+  Orthogonalizer<Dtype>::Invert(blob, inverted_blob);
 
-//  std::vector<Blob<Dtype> > first_bott_vec;
-//  std::vector<Blob<Dtype> > first_top_vec;
-//  std::vector<Blob<Dtype> > second_bott_vec;
-//  std::vector<Blob<Dtype> > second_top_vec;
+  Matrix m = Orthogonalizer<Dtype>::BlobToMat(blob);
+  Matrix m_inverted = Orthogonalizer<Dtype>::BlobToMat(inverted_blob);
 
-//  first_bott_vec.push_back(&bottom_blob);
-//  first_top_vec.push_back(&middle_blob);
+  Matrix prod = m*m_inverted;
+  this->AssertNear(prod, Matrix::Identity(m.rows(), m_inverted.cols()));
+}
 
-//  second_bott_vec.push_back(&middle_blob);
-//  second_top_vec.push_back(&top_blob);
+TYPED_TEST(OrthogonalizerTest, TestInvertBlob_20x40) {
+  typedef TypeParam Dtype;
+  typedef typename OrthogonalizerTest<Dtype>::Matrix Matrix;
 
-//  // Create an inner product layer.
-//  typedef typename TypeParam::Dtype Dtype;
-//  LayerParameter layer_param;
-//  InnerProductParameter* innerprod_param =
-//      layer_param.mutable_inner_product_param();
-//  innerprod_param->set_num_output(16);
-//  innerprod_param->mutable_weight_filler()->set_type("gaussian");
-//  innerprod_param->set_bias_term(false);
-//  shared_ptr<InnerProductLayer<Dtype> > layer(
-//      new InnerProductLayer<Dtype>(layer_param));
-//  layer->SetUp(first_bott_vec, first_top_vec);
+  Blob<Dtype> blob(5,40,1,1);
+  Blob<Dtype> inverted_blob(40,5,1,1);
 
-//  // Create an inner product layer meant to be the inverse.
-//  LayerParameter layer_param2;
-//  InnerProductParameter* innerprod_param2 =
-//      layer_param2.mutable_inner_product_param();
-//  innerprod_param2->set_num_output(BOTTOM_CHANS);
-//  innerprod_param2->mutable_weight_filler()->set_type("gaussian");
-//  innerprod_param2->set_bias_term(false);
-//  shared_ptr<InnerProductLayer<Dtype> > layer2(
-//        new InnerProductLayer(layer_param2));
-//  layer2->SetUp(second_bott_vec, second_top_vec);
-//   //layer2->blobs()[0]
+  this->filler_->Fill(&blob);
 
-//  Orthogonalizer<Dtype>::Invert(*layer->blobs()[0],
-//      *layer2->blobs()[0]);
+  Orthogonalizer<Dtype>::Invert(blob, inverted_blob);
 
-//  layer1->Forward(first_bott_vec, first_top_vec);
-//  layer2->Forward(second_bott_vec, second_top_vec);
+  Matrix m = Orthogonalizer<Dtype>::BlobToMat(blob);
+  Matrix m_inverted = Orthogonalizer<Dtype>::BlobToMat(inverted_blob);
 
-//  AssertNear(bottom_blob, top_blob);
-//}
+  Matrix prod = m*m_inverted;
+  this->AssertNear(prod, Matrix::Identity(m.rows(), m_inverted.cols()));
+}
+
+TYPED_TEST(OrthogonalizerTest, TestInvertInnerProductLayer) {
+  using namespace caffe;
+  typedef TypeParam Dtype;
+  typedef typename OrthogonalizerTest<Dtype>::Matrix Matrix;
+
+  const int MIDDLE_CHANS = 10;
+  const int IN_OUT_CHANS = 4;
+  Blob<Dtype> bottom_blob(3,IN_OUT_CHANS,1,1);
+  this->filler_->Fill(&bottom_blob);
+  Blob<Dtype> middle_blob;
+  Blob<Dtype> top_blob;
+
+  std::vector<Blob<Dtype>* > first_bott_vec;
+  std::vector<Blob<Dtype>* > first_top_vec;
+  std::vector<Blob<Dtype>* > second_bott_vec;
+  std::vector<Blob<Dtype>* > second_top_vec;
+
+  first_bott_vec.push_back(&bottom_blob);
+  first_top_vec.push_back(&middle_blob);
+
+  second_bott_vec.push_back(&middle_blob);
+  second_top_vec.push_back(&top_blob);
+
+  // Create an inner product layer.
+  LayerParameter layer_param;
+  InnerProductParameter* innerprod_param =
+      layer_param.mutable_inner_product_param();
+  innerprod_param->set_num_output(MIDDLE_CHANS);
+  innerprod_param->mutable_weight_filler()->set_type("gaussian");
+  innerprod_param->set_bias_term(false);
+  shared_ptr<InnerProductLayer<Dtype> > layer1(
+      new InnerProductLayer<Dtype>(layer_param));
+  layer1->SetUp(first_bott_vec, first_top_vec);
+
+  // Create an inner product layer meant to be the inverse.
+  LayerParameter layer_param2;
+  InnerProductParameter* innerprod_param2 =
+      layer_param2.mutable_inner_product_param();
+  innerprod_param2->set_num_output(IN_OUT_CHANS);
+  innerprod_param2->mutable_weight_filler()->set_type("gaussian");
+  innerprod_param2->set_bias_term(false);
+  shared_ptr<InnerProductLayer<Dtype> > layer2(
+        new InnerProductLayer<Dtype>(layer_param2));
+  layer2->SetUp(second_bott_vec, second_top_vec);
+   //layer2->blobs()[0]
+
+  Orthogonalizer<Dtype>::Invert(*layer1->blobs()[0],
+      *layer2->blobs()[0]);
+
+  Matrix layer1_wts = Orthogonalizer<Dtype>::BlobToMat(*layer1->blobs()[0]);
+  Matrix layer2_wts = Orthogonalizer<Dtype>::BlobToMat(*layer2->blobs()[0]);
+
+  this->AssertNear(layer2_wts*layer1_wts, Matrix::Identity(layer2_wts.rows(),
+                                                     layer1_wts.cols()));
+
+  layer1->Forward(first_bott_vec, first_top_vec);
+  layer2->Forward(second_bott_vec, second_top_vec);
+
+  Matrix m_bot = Orthogonalizer<Dtype>::BlobToMat(bottom_blob);
+  Matrix m_top = Orthogonalizer<Dtype>::BlobToMat(top_blob);
+  this->AssertNear(m_bot, m_top);
+}
 
 
 //TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Nearest_50x20) {

@@ -190,7 +190,7 @@ void Orthogonalizer<Dtype>::Execute(Blob<Dtype>& blob,
 template<typename Dtype>
 void Orthogonalizer<Dtype>::Invert(const Matrix& source, Matrix& target)
 {
-  unsigned int options = Eigen::ComputeThinU | Eigen::ComputeThinV;
+  unsigned int options = Eigen::ComputeFullU | Eigen::ComputeFullV;
   Eigen::JacobiSVD<Matrix> svd(source, options);
   const Matrix& u = svd.matrixU();
   const Matrix& v = svd.matrixV();
@@ -214,6 +214,36 @@ void Orthogonalizer<Dtype>::Invert(const Matrix& source, Matrix& target)
 
   target = v * sprime * u.transpose();
 }
+
+template<typename Dtype>
+void Orthogonalizer<Dtype>::Invert(const Blob<Dtype>& source,
+                                          Blob<Dtype>& target) {
+//  std::cout << "Blob source shape:";
+//  for(int i=0; i < source.shape().size(); ++i)
+//    std::cout << source.shape()[i] << ",";
+//  std::cout << std::endl;
+
+//  std::cout << "Blob target shape:";
+//  for(int i=0; i < target.shape().size(); ++i)
+//    std::cout << target.shape()[i] << ",";
+//  std::cout << std::endl;
+
+  ConstMatrixMap m_source = BlobToMat(source);
+//  bool transpose = m_source.rows() > m_source.cols();
+//  if ( transpose)
+//  {
+//    Matrix m_target = BlobToMat(target).transpose();
+//    Invert(m_source.transpose(), m_target);
+//    MatToBlob(m_target.transpose(), target);
+//  }
+//  else
+//  {
+    Matrix m_target = BlobToMat(target);
+    Invert(m_source, m_target);
+    MatToBlob(m_target, target);
+//  }
+}
+
 
 // explicit instantiation
 template class Orthogonalizer<float>;

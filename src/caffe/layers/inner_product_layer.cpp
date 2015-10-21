@@ -38,9 +38,7 @@ void InnerProductLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     // fill the weights
     shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
         this->layer_param_.inner_product_param().weight_filler()));
-    std::cout << "Filling layer :" << this->layer_param_.name() << std::endl;
     weight_filler->Fill(this->blobs_[0].get());
-    std::cout << "Done filling layer." << std::endl;
     // If necessary, intiialize and fill the bias term
     if (bias_term_) {
       vector<int> bias_shape(1, N_);

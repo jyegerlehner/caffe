@@ -13,7 +13,7 @@ namespace caffe {
 template<typename Dtype>
 class Orthogonalizer {
 public:
-  typedef Eigen::Matrix<Dtype, Eigen::Dynamic, Eigen::Dynamic> Matrix;
+  typedef Eigen::Matrix<Dtype, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Matrix;
   typedef Eigen::Map<const Matrix> ConstMatrixMap;
   typedef Eigen::Map<Matrix> MatrixMap;
 
@@ -33,6 +33,7 @@ public:
                        FillerParameter_Orthogonalization orthog);
 
   static void Invert(const Matrix& source, Matrix& target);
+  static void Invert(const Blob<Dtype>& source, Blob<Dtype>& target);
 protected:
   // Create the shape of the matrix corresponding to the blob. Returned
   // rows and columns.
