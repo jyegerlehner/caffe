@@ -34,6 +34,7 @@ public:
 
   static void Invert(const Matrix& source, Matrix& target);
   static void Invert(const Blob<Dtype>& source, Blob<Dtype>& target);
+  static void InvertDeconv(const Blob<Dtype>& source, Blob<Dtype>& target);
 protected:
   // Create the shape of the matrix corresponding to the blob. Returned
   // rows and columns.

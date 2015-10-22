@@ -4,12 +4,14 @@
 #include <eigen3/Eigen/SVD>
 #include "caffe/blob.hpp"
 #include "caffe/filler.hpp"
-#include "gtest/gtest.h"
 #include "caffe/neuron_layers.hpp"
 #include "caffe/common_layers.hpp"
+#include "caffe/vision_layers.hpp"
 #include "caffe/test/test_caffe_main.hpp"
 #include "caffe/util/orthogonal.hpp"
 #include "caffe/proto/caffe.pb.h"
+#include "google/protobuf/text_format.h"
+#include "gtest/gtest.h"
 
 namespace caffe {
 
@@ -37,6 +39,95 @@ protected:
     for(int i = 0; i < blob1.count(); ++i) {
       ASSERT_NEAR(blob1.cpu_data()[i], blob2.cpu_data()[i], TOL);
     }
+  }
+
+  std::string MakeConvolutionParam(int kernel_size, int num_output) {
+    std::stringstream ss;
+    ss << "convolution_param {" << std::endl;
+    ss << "  kernel_size: " <<kernel_size << std::endl;
+    ss << "  bias_term: false" << std::endl;
+    ss << "  num_output: " << num_output << std::endl;
+    ss << "  weight_filler { " << std::endl;
+    ss << "    type: 'uniform'" << std::endl;
+    ss << "    min: -1.0" << std::endl;
+    ss << "    max: 1.0" << std::endl;
+    ss << "  }" << std::endl;
+    ss << "}" << std::endl;
+    return ss.str();
+  }
+
+  Dtype TestConvDeconv( int kernel_size, int in_out_chans, int bottom_size, int middle_channels ) {
+    using namespace caffe;
+    typedef typename OrthogonalizerTest<Dtype>::Matrix Matrix;
+
+    const int NUM_INSTANCES = 4;
+//    const int MIDDLE_CHANS = 100;
+//    const int IN_OUT_CHANS = 10;
+//    const int IN_OUT_HEIGHT_WIDTH = 12;
+//    const int KERNEL_SIZE = 3;
+
+    Blob<Dtype> bottom_blob(NUM_INSTANCES, in_out_chans, bottom_size, bottom_size);
+    this->filler_->Fill(&bottom_blob);
+    Blob<Dtype> middle_blob;
+    Blob<Dtype> top_blob;
+
+    std::vector<Blob<Dtype>* > first_bott_vec;
+    std::vector<Blob<Dtype>* > first_top_vec;
+    std::vector<Blob<Dtype>* > second_bott_vec;
+    std::vector<Blob<Dtype>* > second_top_vec;
+
+    first_bott_vec.push_back(&bottom_blob);
+    first_top_vec.push_back(&middle_blob);
+
+    second_bott_vec.push_back(&middle_blob);
+    second_top_vec.push_back(&top_blob);
+
+    // Create a deconvolution layer.
+    std::string param_str = MakeConvolutionParam(kernel_size, middle_channels);
+    LayerParameter layer_param;
+    CHECK(google::protobuf::TextFormat::ParseFromString(param_str, &layer_param));
+    shared_ptr<DeconvolutionLayer<Dtype> > layer1(
+        new DeconvolutionLayer<Dtype>(layer_param));
+    layer1->SetUp(first_bott_vec, first_top_vec);
+
+    // Create a convolution layer meant to be the inverse.
+    LayerParameter layer_param2;
+    param_str = MakeConvolutionParam(kernel_size, in_out_chans);
+    CHECK(google::protobuf::TextFormat::ParseFromString(param_str, &layer_param2));
+    shared_ptr<ConvolutionLayer<Dtype> > layer2(
+          new ConvolutionLayer<Dtype>(layer_param2));
+    layer2->SetUp(second_bott_vec, second_top_vec);
+
+    Orthogonalizer<Dtype>::InvertDeconv(*layer1->blobs()[0],
+        *layer2->blobs()[0]);
+
+    Matrix layer1_wts = Orthogonalizer<Dtype>::BlobToMat(*layer1->blobs()[0]);
+    Matrix layer2_wts = Orthogonalizer<Dtype>::BlobToMat(*layer2->blobs()[0]);
+
+    Matrix wt_prod = layer2_wts*layer1_wts.transpose();
+    std::cout << "wt_prod:" << std::endl << wt_prod << std::endl;
+    this->AssertNear(wt_prod, Matrix::Identity(wt_prod.rows(), wt_prod.rows()));
+
+    layer1->Forward(first_bott_vec, first_top_vec);
+    layer2->Forward(second_bott_vec, second_top_vec);
+
+    Matrix m_bot = Orthogonalizer<Dtype>::BlobToMat(bottom_blob);
+    Matrix m_middle = Orthogonalizer<Dtype>::BlobToMat(middle_blob);
+    Matrix m_top = Orthogonalizer<Dtype>::BlobToMat(top_blob);
+
+    std::cout << "bot mat rows,cols = " << m_bot.rows() << "," << m_bot.cols() << std::endl;
+    std::cout << "mid mat rows,cols = " << m_middle.rows() << "," << m_middle.cols() << std::endl;
+    std::cout << "top mat rows,cols = " << m_top.rows() << "," << m_top.cols() << std::endl;
+
+  //  std::cout << "m_bot':" << std::endl << m_bot.transpose() << std::endl;
+  //  std::cout << "m_top':" << std::endl << m_top.transpose() << std::endl;
+
+    Matrix diff = m_bot - m_top;
+    Dtype diff_norm = diff.norm();
+    Dtype bot_norm = m_bot.norm();
+    Dtype diff_ratio = diff_norm / bot_norm;
+    std::cout << "Diff-to-Bottom norm ratio:" << diff_ratio << std::endl;
+    return diff_ratio;
   }
 
   void AssertNear(const Matrix& mat1,
@@ -279,30 +370,6 @@ TYPED_TEST(OrthogonalizerTest, TestOrthogonal_Preserve1Norm_4x5) {
       FillerParameter_Orthogonalization_PRESERVE_1_NORM);
 }
 
-//TYPED_TEST(OrthogonalizerTest, TestOrthogonalConvolutionDeconv) {
-//  // Create a deconvolution layer.
-//  typedef typename TypeParam::Dtype Dtype;
-//  LayerParameter layer_param;
-//  ConvolutionParameter* convolution_param =
-//      layer_param.mutable_convolution_param();
-//  convolution_param->add_kernel_size(3);
-//  convolution_param->add_stride(1);
-//  convolution_param->set_num_output(128);
-//  convolution_param->mutable_weight_filler()->set_type("gaussian");
-//  convolution_param->set_bias_term(false);
-//  shared_ptr<Layer<Dtype> > layer(
-//      new DeconvolutionLayer<Dtype>(layer_param));
-//  layer->SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
-
-//  // Create a convolution layer, which we intend to be the inverse of
-//  // the deconv layer.
-
-
-//  layer->Forward(this->blob_bottom_vec_, this->blob_top_vec_);
-
-
-//}
-
 TYPED_TEST(OrthogonalizerTest, TestInvertMat) {
   typedef TypeParam Dtype;
   typedef typename OrthogonalizerTest<Dtype>::Matrix Matrix;
@@ -423,6 +490,39 @@ TYPED_TEST(OrthogonalizerTest, TestInvertInnerProductLayer) {
   Matrix m_bot = Orthogonalizer<Dtype>::BlobToMat(bottom_blob);
   Matrix m_top = Orthogonalizer<Dtype>::BlobToMat(top_blob);
   this->AssertNear(m_bot, m_top);
+}
+
+TYPED_TEST(OrthogonalizerTest, TestConvolutionDeconv) {
+  typedef TypeParam Dtype;
+  const int KERNEL_SIZE = 3;
+  const int IN_OUT_CHANNELS = 10;
+  const int BOTTOM_SIZE = 12;
+  const int MIDDLE_CHANNELS = 100;
+  Dtype diff_norm_ratio = this->TestConvDeconv( KERNEL_SIZE, IN_OUT_CHANNELS, BOTTOM_SIZE, MIDDLE_CHANNELS );
+  ASSERT_LT(diff_norm_ratio, static_cast<Dtype>(0.3));
+  //this->AssertNear(m_bot, m_top);
+}
+
+TYPED_TEST(OrthogonalizerTest, TestConvolutionDeconv_1x1) {
+  typedef TypeParam Dtype;
+  const int KERNEL_SIZE = 1;
+  const int IN_OUT_CHANNELS = 10;
+  const int BOTTOM_SIZE = 12;
+  const int MIDDLE_CHANNELS = 10;
+  Dtype diff_norm_ratio = this->TestConvDeconv( KERNEL_SIZE, IN_OUT_CHANNELS, BOTTOM_SIZE, MIDDLE_CHANNELS );
+  ASSERT_LT(diff_norm_ratio, static_cast<Dtype>(0.001));
+  //this->AssertNear(m_bot, m_top);
+}
+
+TYPED_TEST(OrthogonalizerTest, TestConvolutionDeconv_9x9) {
+  typedef TypeParam Dtype;
+  const int KERNEL_SIZE = 5;
+  const int IN_OUT_CHANNELS = 5;
+  const int BOTTOM_SIZE = 12;
+  const int MIDDLE_CHANNELS = 50;
+  Dtype diff_norm_ratio = this->TestConvDeconv( KERNEL_SIZE, IN_OUT_CHANNELS, BOTTOM_SIZE, MIDDLE_CHANNELS );
+  ASSERT_LT(diff_norm_ratio, static_cast<Dtype>(0.3));
+  //this->AssertNear(m_bot, m_top);
 }
 
 
