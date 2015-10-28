@@ -103,6 +103,21 @@ int main( int argc, char** argv )
   }
 
   shared_ptr<Net<float> > net( new Net<float>( net_proto, TEST ) );
+
+  int channel_flag;
+  // Get input blob and check its shape.
+  {
+    const std::vector<Blob<float>*>& blobs = net->ForwardPrefilled();
+    CHECK(blobs.size() == 1) << "Net input should have one blob.";
+
+    int channels = blobs[0]->channels();
+    CHECK(channels == 1 || channels == 3) << "Bad number of channels.";
+    if ( channels == 1)
+      channel_flag = CV_LOAD_IMAGE_GRAYSCALE;
+    else if ( channels == 3)
+      channel_flag = CV_LOAD_IMAGE_COLOR;
+  }
+
   {
     std::vector<std::string> model_names;
     boost::split(model_names, model_weights, boost::is_any_of(",") );
@@ -127,7 +142,7 @@ int main( int argc, char** argv )
        ++ file_iter )
   {
     std::string input_file_str = file_iter->path().string();
-    cv::Mat patch = cv::imread( input_file_str, CV_LOAD_IMAGE_COLOR );
+    cv::Mat patch = cv::imread( input_file_str, channel_flag );
     if ( !patch.data )
     {
       LOG(ERROR) << "Could not open or find file " << input_file_str;
