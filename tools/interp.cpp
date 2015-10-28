@@ -251,7 +251,7 @@ int main( int argc, char** argv )
   std::string model_weights( argv[2] );
   path input1_file(argv[3]);
   path input2_file(argv[4]);
-  std::string blob_name(argv[5]);
+  std::string blob_names_arg(argv[5]);
   path output_dir( argv[6]);
   if ( argc == 8) {
     int gpu = atoi(argv[7]);
@@ -273,6 +273,9 @@ int main( int argc, char** argv )
     }
   }
 
+  std::vector<std::string> blob_names;
+  boost::split(blob_names, blob_names_arg, boost::is_any_of(","));
+
 //  path input_path( input_dir );
 //  directory_iterator end_iter;
 //  for( directory_iterator file_iter( input_path );
@@ -282,29 +285,46 @@ int main( int argc, char** argv )
 
   Blob<float> activations1;
   Blob<float> activations2;
-  GetHiddenActivations(net, input1_file, blob_name, activations1);
-  GetHiddenActivations(net, input2_file, blob_name, activations2);
+  std::vector<Blob<float>* > activations1_vect;
+  std::vector<Blob<float>* > activations2_vect;
+  for(int i = 0; i < blob_names.size(); ++i)
+  {
+    Blob<float>* activations1 = new Blob<float>();
+    GetHiddenActivations(net, input1_file, blob_names[i], *activations1);
+    Blob<float>* activations2 = new Blob<float>();
+    GetHiddenActivations(net, input2_file, blob_names[i], *activations2);
+    activations1_vect.push_back(activations1);
+    activations2_vect.push_back(activations2);
+  }
 
   // Now interpolate between the two activations, and forward prop from each
   // interpolated hidden activation.
   const int NUM_INTERPOLATIONS = 10;
   for(int i = 0; i <= NUM_INTERPOLATIONS; ++i)
   {
-    float ratio = i / static_cast<float>(NUM_INTERPOLATIONS);
-    Blob<float> interpolated_blob;
-    interpolated_blob.ReshapeLike(activations1);
 
-    Interpolate( interpolated_blob, activations1, activations2, ratio);
+    for( int blob_inx = 0; blob_inx < blob_names.size(); ++blob_inx)
+    {
+      float ratio = i / static_cast<float>(NUM_INTERPOLATIONS);
+      Blob<float> interpolated_blob;
+      interpolated_blob.ReshapeLike(*activations1_vect[blob_inx]);
+
+      Interpolate( interpolated_blob,
+                   *activations1_vect[blob_inx],
+                   *activations2_vect[blob_inx],
+                   ratio);
+
+      //Assign interpolated blob.
+      shared_ptr<Blob<float> > target_blob =
+          net->blob_by_name(blob_names[blob_inx]);
+      CHECK( target_blob->shape() == interpolated_blob.shape() );
+      target_blob->CopyFrom(interpolated_blob);
+    }
 
     // Forward prop from interpolated blob.
     {
-      ;
-      //Assign interpolated blob.
-      shared_ptr<Blob<float> > target_blob = net->blob_by_name(blob_name);
-      CHECK( target_blob->shape() == interpolated_blob.shape() );
-      target_blob->CopyFrom(interpolated_blob);
-
-      int start_forward = FindEarliestLayerWithBottomBlob(*net, blob_name);
+      // Use the first blob name to find the layer where we start forward prop.
+      int start_forward = FindEarliestLayerWithBottomBlob(*net, blob_names[0]);
       net->ForwardFrom(start_forward);
       const std::vector<Blob<float>*>& output = net->output_blobs();
       CHECK(output.size() == 1 ) << "Wrong size output of net.";
