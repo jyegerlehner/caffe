@@ -67,6 +67,18 @@ void InitBlob( Blob<Dtype>& blob )
   }
 }
 
+void AssignDims(const std::vector<int>& shape, int& num, int& channels,
+                int& height, int& width)
+{
+  CHECK(shape.size() >= 2) << "Softmaxima bottom is does not have "
+                              << "at least 2 dimensions.";
+  CHECK(shape.size() <= 4) << "Softmaxima bottom has more than 4 dimensions.";
+  num = shape[0];
+  channels = shape[1];
+  height = shape.size() >= 3 ? shape[2] : 1;
+  width = shape.size() >= 4 ? shape[3] : 1;
+}
+
 template <typename Dtype>
 void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
@@ -81,12 +93,11 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   }
 
   Blob<Dtype>& result = WinnerTakeAll() ? output_probs_ : *top[0];
-  std::vector<int> shape = bottom[0]->shape();
-  int cardinality = shape[0];
-  int channels = shape[1];
-  int height = shape[2];
-  int width = shape[3];
-
+  int cardinality;
+  int channels;
+  int height;
+  int width;
+  AssignDims(bottom[0]->shape(), cardinality, channels, height, width);
   // The number of canonical axis input channels must be an integer multiple
   // of the softmax size of the softmaxima layer.
   if (channels % softmax_size_ != 0) {
@@ -103,15 +114,18 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
              ++softmax_index) {
 
           // Find the max of each channel that participates in this softmax.
-          float max = -10000.0;
+          float max;
           // For each scalar that participates in this softmax, compute its
           // exponentiation.
           for( int inner_index = 0; inner_index < softmax_size_;
                ++inner_index ) {
             int channel = softmax_index * softmax_size_ + inner_index;
             float val = input.data_at(instance, channel, h, w);
-            //expons.push_back(std::exp(val));
-            if ( val > max)
+            if (inner_index == 0)
+            {
+              max = val;
+            }
+            else if (val > max)
             {
               max = val;
             }
@@ -216,47 +230,76 @@ void SoftmaximaLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<Blob<Dtype>*>& bottom) {
 
   const Dtype* top_diff = top[0]->cpu_diff();
+  Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
   bool winner_take_all = WinnerTakeAll();
   const Dtype* top_data = winner_take_all ? output_probs_.cpu_data() :
                                             top[0]->cpu_data();
-  Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
-  caffe_copy(top[0]->count(), top_diff, bottom_diff);
+  if (this->layer_param_.softmaxima_param().cross_entropy_backprop())
+  {
+    // Bottom diff will now hold the imputed target output =
+    //  top_data - top_diff.
+    caffe_sub(top[0]->count(), top_data, top_diff, bottom_diff);
 
-  std::vector<int> shape = bottom[0]->shape();
-  int cardinality = shape[0];
-  int height = shape[2];
-  int width = shape[3];
+    for(int i =0; i < top[0]->count(); ++i)
+    {
+      // Constrain the imputed target to be between 0.0 and 1.0.
+      if (bottom_diff[i] < 0.0)
+      {
+        bottom_diff[i] = 0.0;
+      }
+      else if (bottom_diff[i] > 1.0)
+      {
+        bottom_diff[i] = 1.0;
+      }
+    }
 
-  for( int instance = 0; instance < cardinality; ++instance) {
-    for(int h = 0; h < height; ++h ) {
-      for(int w = 0; w < width; ++w ) {
-        for( int softmax_index = 0; softmax_index < num_softmaxes_;
-             ++softmax_index) {
+    // Now compute bottom diff as actual - imputed target activations.
+    caffe_sub(top[0]->count(), top_data, bottom_diff, bottom_diff);
+  }
+  else
+  {
+    caffe_copy(top[0]->count(), top_diff, bottom_diff);
 
-            Dtype dot_prod = 0.0;
-            // Compute each softmax's dot product of diffs and activations.
-            for( int index = 0; index < softmax_size_; ++index) {
-              int channel = softmax_index*softmax_size_ + index;
-              int offset = top[0]->offset(instance, channel, h, w);
+    int cardinality;
+    int dummy_channels;
+    int height;
+    int width;
+    AssignDims(bottom[0]->shape(), cardinality, dummy_channels,
+                    height, width);
+    CHECK_EQ(dummy_channels, softmax_size_*num_softmaxes_) <<
+          "Inconsistent channels and softmax size and number of softmaxes.";
 
-              Dtype diff_val = top_diff[offset];
-              Dtype data_val = top_data[offset];
-              dot_prod += diff_val * data_val;
-            }
+    for( int instance = 0; instance < cardinality; ++instance) {
+      for(int h = 0; h < height; ++h ) {
+        for(int w = 0; w < width; ++w ) {
+          for( int softmax_index = 0; softmax_index < num_softmaxes_;
+               ++softmax_index) {
 
-            // Compute each softmax's dot product of diffs and activations.
-            for( int index = 0; index < softmax_size_; ++index) {
-              int channel = softmax_index*softmax_size_ + index;
-              int offset = top[0]->offset(instance, channel, h, w);
-              // Subtract dot prod from each element of the softmax.
-              Dtype diff_val = bottom_diff[offset];
-              diff_val -= dot_prod;
+              Dtype dot_prod = 0.0;
+              // Compute each softmax's dot product of diffs and activations.
+              for( int index = 0; index < softmax_size_; ++index) {
+                int channel = softmax_index*softmax_size_ + index;
+                int offset = top[0]->offset(instance, channel, h, w);
 
-              Dtype data_val = top_data[offset];
-              // multiply activation times previous result.
-              diff_val *= data_val;
-              bottom_diff[offset] = diff_val;
-            }
+                Dtype diff_val = top_diff[offset];
+                Dtype data_val = top_data[offset];
+                dot_prod += diff_val * data_val;
+              }
+
+              // Compute each softmax's dot product of diffs and activations.
+              for( int index = 0; index < softmax_size_; ++index) {
+                int channel = softmax_index*softmax_size_ + index;
+                int offset = top[0]->offset(instance, channel, h, w);
+                // Subtract dot prod from each element of the softmax.
+                Dtype diff_val = bottom_diff[offset];
+                diff_val -= dot_prod;
+
+                Dtype data_val = top_data[offset];
+                // multiply activation times previous result.
+                diff_val *= data_val;
+                bottom_diff[offset] = diff_val;
+              }
+          }
         }
       }
     }

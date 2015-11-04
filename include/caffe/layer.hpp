@@ -20,6 +20,41 @@ namespace boost { class mutex; }
 
 namespace caffe {
 
+template <typename Dtype>
+void PrintBlob( const std::string& nam, const Blob<Dtype>& blob,
+                bool diffs_not_data = false )
+{
+  std::cout << "Blob: " << nam << std::endl;
+  int num = blob.num();
+  int chans = blob.channels();
+  int height;
+  int width;
+  if (blob.shape().size() > 2)
+  {
+    height = blob.height();
+    width = blob.width();
+  }
+  else
+  {
+    height = 1;
+    width = 1;
+  }
+
+  std::cout << "shape=(" << num << "," << chans << "," << height << ","
+            << width << ")" << std::endl;
+  for( int n = 0; n < num; ++n) {
+    for( int c = 0; c < chans; ++c) {
+      for( int h = 0; h < height; ++h) {
+        for( int w=0; w < width; ++w) {
+          Dtype val = diffs_not_data ? blob.diff_at(n,c,h,w) : blob.data_at(n,c,h,w);
+          std::cout << "data(" << n << "," << c << "," << h << "," << w << ")"
+                       << "=" << val << std::endl;
+        }
+      }
+    }
+  }
+}
+
 /**
  * @brief An interface for the units of computation which can be composed into a
  *        Net.

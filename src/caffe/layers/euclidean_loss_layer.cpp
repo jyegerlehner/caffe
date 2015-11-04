@@ -20,6 +20,8 @@ template <typename Dtype>
 void EuclideanLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   int count = bottom[0]->count();
+//  PrintBlob<Dtype>("eucloss, bot0", *bottom[0], false);
+//  PrintBlob<Dtype>("eucloss, bot1", *bottom[1], false);
   caffe_sub(
       count,
       bottom[0]->cpu_data(),
@@ -28,6 +30,7 @@ void EuclideanLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   Dtype dot = caffe_cpu_dot(count, diff_.cpu_data(), diff_.cpu_data());
   Dtype loss = dot / bottom[0]->num() / Dtype(2);
   top[0]->mutable_cpu_data()[0] = loss;
+
 }
 
 template <typename Dtype>

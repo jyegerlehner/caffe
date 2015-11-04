@@ -964,6 +964,9 @@ message SoftmaximaParameter {
 
   // Indicate if output should be binarized (winner take all).
   optional bool winner_take_all = 3 [default = false];
+
+  // Indicate if errors should be back-propped cross entropy style.
+  optional bool cross_entropy_backprop = 4 [default = false];
 }
 
 // Message that stores parameters used by TanHLayer
