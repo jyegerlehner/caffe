@@ -191,15 +191,21 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                   num_softmaxes_,
                                   top_data,
                                   scale_data);
+  CheckForNan("softmaxima1", "scale_data", this->scale_);
+
   // subtract
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_channel_subtract_sma<Dtype><<<CAFFE_GET_BLOCKS(input_count),
       CAFFE_CUDA_NUM_THREADS>>>(input_count, softmax_size_, inner_num_,
       scale_data, top_data);
 
+  CheckForNan("softmaxima2", "X", *top[0]);
+
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_exp_sma<Dtype><<<CAFFE_GET_BLOCKS(input_count), CAFFE_CUDA_NUM_THREADS>>>(
       input_count, top_data, top_data);
+
+  CheckForNan("softmaxima3", "X", *top[0]);
 
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_channel_sum_sma<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
@@ -211,9 +217,11 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 top_data,
                                 scale_data);
 
-  Blob<Dtype> top_before_div;
-  top_before_div.ReshapeLike(*(top[0]));
-  top_before_div.CopyFrom(*(top[0]));
+  CheckForNan("softmaxima4", "scale_data", this->scale_);
+
+//  Blob<Dtype> top_before_div;
+//  top_before_div.ReshapeLike(*(top[0]));
+//  top_before_div.CopyFrom(*(top[0]));
 
 
   Dtype* output_probs_buffer = WinnerTakeAll() ?
@@ -230,6 +238,9 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 top_data,
                                 WinnerTakeAll(),
                                 output_probs_buffer);
+
+  CheckForNan("softmaxima5", "top", *top[0]);
+  CheckForNan("softmaxima6", "output_probs", this->output_probs_);
 }
 
 template <typename Dtype>
