@@ -10,6 +10,34 @@
 
 namespace caffe {
 
+template<typename Dtype>
+__global__ void FindNaN( const Dtype* blob_data, int blob_size,
+                  bool& nan_found, int& index )
+{
+  CUDA_KERNEL_LOOP(bi, blob_size)
+  {
+    if ( ::isnan(blob_data[bi]) )
+    {
+      nan_found = true;
+      index = bi;
+    }
+  }
+}
+
+template<typename Dtype>
+void CheckForNanGPU( const std::string& name,
+                  const std::string& description,
+                  const Blob<Dtype>& blob)
+{
+  bool nan_found = false;
+  int index = -1;
+
+  FindNaN<Dtype><<<CAFFE_GET_BLOCKS(blob.count()),CAFFE_CUDA_NUM_THREADS>>>(
+      blob.gpu_data(), blob.count(), nan_found, index);
+  CHECK(!nan_found) << "Blob from " << name << ", " << description
+                  << ", countains NaN at index " << index;
+}
+
 template <typename Dtype>
 __global__ void kernel_channel_max_sma(const int num,
                                    const int channels,
@@ -191,7 +219,7 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                   num_softmaxes_,
                                   top_data,
                                   scale_data);
-  CheckForNan("softmaxima1", "scale_data", this->scale_);
+  CheckForNanGPU("softmaxima1", "scale_data", this->scale_);
 
   // subtract
   // NOLINT_NEXT_LINE(whitespace/operators)
@@ -199,13 +227,13 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       CAFFE_CUDA_NUM_THREADS>>>(input_count, softmax_size_, inner_num_,
       scale_data, top_data);
 
-  CheckForNan("softmaxima2", "X", *top[0]);
+  CheckForNanGPU("softmaxima2", "X", *top[0]);
 
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_exp_sma<Dtype><<<CAFFE_GET_BLOCKS(input_count), CAFFE_CUDA_NUM_THREADS>>>(
       input_count, top_data, top_data);
 
-  CheckForNan("softmaxima3", "X", *top[0]);
+  CheckForNanGPU("softmaxima3", "X", *top[0]);
 
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_channel_sum_sma<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
@@ -217,7 +245,7 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 top_data,
                                 scale_data);
 
-  CheckForNan("softmaxima4", "scale_data", this->scale_);
+  CheckForNanGPU("softmaxima4", "scale_data", this->scale_);
 
 //  Blob<Dtype> top_before_div;
 //  top_before_div.ReshapeLike(*(top[0]));
@@ -239,8 +267,11 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 WinnerTakeAll(),
                                 output_probs_buffer);
 
-  CheckForNan("softmaxima5", "top", *top[0]);
-  CheckForNan("softmaxima6", "output_probs", this->output_probs_);
+  CheckForNanGPU("softmaxima5", "top", *top[0]);
+  if( WinnerTakeAll())
+  {
+    CheckForNanGPU("softmaxima6", "output_probs", this->output_probs_);
+  }
 }
 
 template <typename Dtype>
