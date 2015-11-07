@@ -269,6 +269,7 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                  << "," << debug_float_.cpu_data()[3] << ","
                     << debug_float_.cpu_data()[4] << ","
                        << debug_float_.cpu_data()[5] << std::endl;
+    LOG(FATAL) << "Encountered NaN." << std::endl;
   }
 
   // NOLINT_NEXT_LINE(whitespace/operators)
