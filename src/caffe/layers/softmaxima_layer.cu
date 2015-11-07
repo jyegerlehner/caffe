@@ -24,7 +24,7 @@ __global__ void FindNaN( const Dtype* blob_data, int blob_size,
 }
 
 template<typename Dtype>
-void CheckForNanGPU( const std::string& name,
+bool CheckForNanGPU( const std::string& name,
                   const std::string& description,
                   const Blob<Dtype>& blob)
 {
@@ -33,8 +33,9 @@ void CheckForNanGPU( const std::string& name,
   FindNaN<Dtype><<<CAFFE_GET_BLOCKS(blob.count()),CAFFE_CUDA_NUM_THREADS>>>(
       blob.gpu_data(), blob.count(), nan_found.mutable_gpu_data());
 
-  CHECK(!(*nan_found.cpu_data())) << "Blob from " << name << ", " << description
-                  << ", contains NaN";
+//  CHECK(!(*nan_found.cpu_data())) << "Blob from " << name << ", " << description
+//                  << ", contains NaN";
+  return *nan_found.cpu_data();
 }
 
 template <typename Dtype>
@@ -55,29 +56,58 @@ __global__ void kernel_channel_max_sma(const int num,
       for (int c_off = 0; c_off < softmax_size; ++c_off) {
         int c = smi * softmax_size + c_off;
         int data_index = (n * channels + c) * spatial_dim + s;
-        maxval = max(data[data_index], maxval);
+        if (c_off == 0)
+        {
+          maxval = data[data_index];
+        }
+        else
+        {
+          maxval = max(data[data_index], maxval);
+        }
       }
-      //int out_index = index*num_softmaxes + smi;
-      int out_index = s + (n * num_softmaxes + smi) * spatial_dim ; //index*num_softmaxes + smi;
+      int out_index = s + (n * num_softmaxes + smi) * spatial_dim ;
       out[out_index] = maxval;
     }
   }
 
 }
+//CUDA_CHECK(cudaMalloc(&gpu_ptr_, size_));
 
 template <typename Dtype>
 __global__ void kernel_channel_subtract_sma(const int count,
                                         const int softmax_size,
                                         const int spatial_dim,
                                         const Dtype* channel_max,
-                                        Dtype* data) {
+                                        Dtype* data,
+                                        int* debug_int,
+                                        Dtype* debug_float) {
   CUDA_KERNEL_LOOP(index, count) {
     int n = index / softmax_size / spatial_dim;
     int s = index % spatial_dim;
 
     int softmax_max_index = n * spatial_dim + s;
-    //int softmax_index = chanset*num_softmaxes
-    data[index] -= channel_max[softmax_max_index];
+    Dtype data_before = data[index];
+    Dtype channel_max_val = channel_max[softmax_max_index];
+    Dtype data_after = data_before - channel_max_val;
+//    data[index] -= channel_max[softmax_max_index];
+    if(::isnan(data_after))
+    {
+      debug_int[0] = softmax_max_index;
+      debug_float[0] = data_before;
+      debug_float[1] = channel_max_val;
+      debug_float[2] = data_after;
+    }
+    else
+    {
+      data[index] = data_after;
+      if(index == 0)
+      {
+        debug_int[1] = softmax_max_index;
+        debug_float[3] = data_before;
+        debug_float[4] = channel_max_val;
+        debug_float[5] = data_after;
+      }
+    }
   }
 }
 
@@ -218,21 +248,34 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                   num_softmaxes_,
                                   top_data,
                                   scale_data);
-  CheckForNanGPU("softmaxima1", "scale_data", this->scale_);
+//  CheckForNanGPU("softmaxima1", "scale_data", this->scale_);
+
+
 
   // subtract
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_channel_subtract_sma<Dtype><<<CAFFE_GET_BLOCKS(input_count),
       CAFFE_CUDA_NUM_THREADS>>>(input_count, softmax_size_, inner_num_,
-      scale_data, top_data);
+      scale_data, top_data, debug_int_.mutable_gpu_data(),
+                                debug_float_.mutable_gpu_data());
 
-  CheckForNanGPU("softmaxima2", "X", *top[0]);
+  if( CheckForNanGPU("softmaxima2", "X", *top[0]) )
+  {
+    std::cout << "NaN index, before, max, after = " << debug_int_.cpu_data()[0]
+                 << "," << debug_float_.cpu_data()[0] << ","
+                    << debug_float_.cpu_data()[1] << ","
+                       << debug_float_.cpu_data()[2] << std::endl;
+    std::cout << "Good index, before, max, after = " << debug_int_.cpu_data()[1]
+                 << "," << debug_float_.cpu_data()[3] << ","
+                    << debug_float_.cpu_data()[4] << ","
+                       << debug_float_.cpu_data()[5] << std::endl;
+  }
 
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_exp_sma<Dtype><<<CAFFE_GET_BLOCKS(input_count), CAFFE_CUDA_NUM_THREADS>>>(
       input_count, top_data, top_data);
 
-  CheckForNanGPU("softmaxima3", "X", *top[0]);
+//  CheckForNanGPU("softmaxima3", "X", *top[0]);
 
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_channel_sum_sma<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
@@ -244,7 +287,7 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 top_data,
                                 scale_data);
 
-  CheckForNanGPU("softmaxima4", "scale_data", this->scale_);
+//  CheckForNanGPU("softmaxima4", "scale_data", this->scale_);
 
   Dtype* output_probs_buffer = WinnerTakeAll() ?
         this->output_probs_.mutable_gpu_data() : 0;
@@ -261,11 +304,11 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 WinnerTakeAll(),
                                 output_probs_buffer);
 
-  CheckForNanGPU("softmaxima5", "top", *top[0]);
-  if( WinnerTakeAll())
-  {
-    CheckForNanGPU("softmaxima6", "output_probs", this->output_probs_);
-  }
+//  CheckForNanGPU("softmaxima5", "top", *top[0]);
+//  if( WinnerTakeAll())
+//  {
+//    CheckForNanGPU("softmaxima6", "output_probs", this->output_probs_);
+//  }
 }
 
 template <typename Dtype>
@@ -295,7 +338,8 @@ void SoftmaximaLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_channel_subtract_sma<Dtype><<<CAFFE_GET_BLOCKS(count),
       CAFFE_CUDA_NUM_THREADS>>>(count, softmax_size_, inner_num_,
-      scale_data, bottom_diff);
+      scale_data, bottom_diff, debug_int_.mutable_gpu_data(),
+                                debug_float_.mutable_gpu_data());
   // elementwise multiplication
   caffe_gpu_mul<Dtype>(top[0]->count(), bottom_diff, top_data, bottom_diff);
 }

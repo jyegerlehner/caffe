@@ -594,6 +594,16 @@ class SoftmaxLayer : public Layer<Dtype> {
   Blob<Dtype> scale_;
 };
 
+
+template<typename Dtype>
+struct DebugStruct
+{
+  int softmax_max_index;
+  Dtype data_before;
+  Dtype channel_max;
+  Dtype data_after;
+};
+
 /**
  * @brief Computes the softmaxima function.
  *
@@ -656,6 +666,9 @@ class SoftmaximaLayer : public Layer<Dtype> {
   int num_softmaxes_;
   // The size of each softmax.
   int softmax_size_;
+
+  Blob<int> debug_int_;
+  Blob<Dtype> debug_float_;
 
 //  // Debugging blobs.
 //  // The maxes of each softmax. N * num_softmaxes * h * w
