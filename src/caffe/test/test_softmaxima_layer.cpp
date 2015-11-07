@@ -956,14 +956,30 @@ TYPED_TEST(SoftmaximaLayerTest, TestForward_SoftmaximaLayer) {
   layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
   layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
   Blob<Dtype>& result = *(this->blob_top_vec_[0]);
+  std::vector<int> expected_shape = expected_result->shape();
 
-  EXPECT_EQ((expected_result->shape()), (result.shape()));
+  EXPECT_EQ(expected_shape, (result.shape()));
+  EXPECT_EQ(expected_shape.size(), 4);
+  EXPECT_EQ(result.num(), expected_shape[0]);
+  EXPECT_EQ(result.channels(), expected_shape[1]);
+  EXPECT_EQ(result.height(), expected_shape[2]);
+  EXPECT_EQ(result.width(), expected_shape[3]);
+
+  int bottom_blob_num = this->blob_bottom_->num();
+  int bottom_blob_channels = this->blob_bottom_->channels();
+  int bottom_blob_width = this->blob_bottom_->width();
+  int bottom_blob_height = this->blob_bottom_->height();
+
+  EXPECT_EQ(bottom_blob_num, expected_shape[0]);
+  EXPECT_EQ(bottom_blob_channels, expected_shape[1]);
+  EXPECT_EQ(bottom_blob_height, expected_shape[2]);
+  EXPECT_EQ(bottom_blob_width, expected_shape[3]);
 
   // Test that results are the same.
-  for (int i = 0; i < this->blob_bottom_->num(); ++i) {
-    for (int k = 0; k < this->blob_bottom_->height(); ++k) {
-      for (int l = 0; l < this->blob_bottom_->width(); ++l) {
-        for (int j = 0; j < this->blob_bottom_->channels(); ++j) {
+  for (int i = 0; i < bottom_blob_num; ++i) {
+    for (int k = 0; k < bottom_blob_height; ++k) {
+      for (int l = 0; l < bottom_blob_width; ++l) {
+        for (int j = 0; j < bottom_blob_channels; ++j) {
           Dtype expected_val = expected_result->data_at(i,j,k,l);
           Dtype actual_val = result.data_at(i, j, k, l);
           ASSERT_NEAR( expected_val, actual_val, 1e-3 );
@@ -987,7 +1003,6 @@ TYPED_TEST(SoftmaximaLayerTest, TestGradient) {
 template<typename Dtype>
 void CompareBlobs(const std::string& msg, Blob<Dtype>& b1, Blob<Dtype>& b2)
 {
-  std::cout << "Comparing " << msg << std::endl;
   ASSERT_EQ(b1.num(), b2.num());
   ASSERT_EQ(b1.channels(), b2.channels());
   ASSERT_EQ(b1.height(), b2.height());

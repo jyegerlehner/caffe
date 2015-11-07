@@ -12,14 +12,13 @@ namespace caffe {
 
 template<typename Dtype>
 __global__ void FindNaN( const Dtype* blob_data, int blob_size,
-                  bool& nan_found, int& index )
+                  int* nan_found)
 {
   CUDA_KERNEL_LOOP(bi, blob_size)
   {
     if ( ::isnan(blob_data[bi]) )
     {
-      nan_found = true;
-      index = bi;
+      *nan_found = true;
     }
   }
 }
@@ -29,13 +28,13 @@ void CheckForNanGPU( const std::string& name,
                   const std::string& description,
                   const Blob<Dtype>& blob)
 {
-  bool nan_found = false;
-  int index = -1;
-
+  Blob<int> nan_found(1,1,1,1);
+  *nan_found.mutable_cpu_data() = false;
   FindNaN<Dtype><<<CAFFE_GET_BLOCKS(blob.count()),CAFFE_CUDA_NUM_THREADS>>>(
-      blob.gpu_data(), blob.count(), nan_found, index);
-  CHECK(!nan_found) << "Blob from " << name << ", " << description
-                  << ", countains NaN at index " << index;
+      blob.gpu_data(), blob.count(), nan_found.mutable_gpu_data());
+
+  CHECK(!(*nan_found.cpu_data())) << "Blob from " << name << ", " << description
+                  << ", contains NaN";
 }
 
 template <typename Dtype>
@@ -246,11 +245,6 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 scale_data);
 
   CheckForNanGPU("softmaxima4", "scale_data", this->scale_);
-
-//  Blob<Dtype> top_before_div;
-//  top_before_div.ReshapeLike(*(top[0]));
-//  top_before_div.CopyFrom(*(top[0]));
-
 
   Dtype* output_probs_buffer = WinnerTakeAll() ?
         this->output_probs_.mutable_gpu_data() : 0;
