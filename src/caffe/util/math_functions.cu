@@ -396,7 +396,9 @@ __global__ void FindNaN( const Dtype* blob_data, int blob_size,
 {
   CUDA_KERNEL_LOOP(bi, blob_size)
   {
-    if ( ::isnan(static_cast<Dtype>(blob_data[bi])) )
+    Dtype val = blob_data[bi];
+    if ( ::isnan(val) ||
+         ::isinf(val) )
     {
       *nan_found = true;
     }
