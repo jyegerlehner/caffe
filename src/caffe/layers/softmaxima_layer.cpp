@@ -47,8 +47,8 @@ void SoftmaximaLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
     output_probs_.ReshapeLike(*top[0]);
   }
 
-  debug_int_.Reshape(2,1,1,1);
-  debug_float_.Reshape(6,1,1,1);
+  debug_int_.Reshape(1,1,1,1);
+  debug_float_.Reshape(3,1,1,1);
 }
 
 template<typename Dtype>
