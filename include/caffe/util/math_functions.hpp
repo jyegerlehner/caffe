@@ -5,7 +5,6 @@
 #include <cmath>  // for std::fabs and std::signbit
 
 #include "glog/logging.h"
-
 #include "caffe/common.hpp"
 #include "caffe/util/device_alternate.hpp"
 #include "caffe/util/mkl_alternate.hpp"
@@ -252,6 +251,9 @@ void caffe_gpu_fabs(const int n, const Dtype* x, Dtype* y);
 
 template <typename Dtype>
 void caffe_gpu_scale(const int n, const Dtype alpha, const Dtype *x, Dtype* y);
+
+template<typename Dtype>
+bool CheckForNanGPU(const int n, const Dtype* data);
 
 #define DEFINE_AND_INSTANTIATE_GPU_UNARY_FUNC(name, operation) \
 template<typename Dtype> \

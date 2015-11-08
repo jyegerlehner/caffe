@@ -500,15 +500,18 @@ class Layer {
 template<typename Dtype>
 bool CheckForNan( const std::string& name,
                   const std::string& description,
-                  const Blob<Dtype>& blob)
+                  const Blob<Dtype>& blob,
+                  bool data_not_diff = true)
 {
+  bool found_nan = false;
   bool showed = false;
 //  for( int i = 0; i < blobs.size(); ++i) {
 //    Blob<Dtype>* blob = blobs[i];
-    const Dtype* blob_data = blob.cpu_data();
+    const Dtype* blob_data = data_not_diff ? blob.cpu_data() : blob.cpu_diff();
     for( int bi = 0; bi < blob.count(); ++bi ) {
       if ( std::isnan(blob_data[bi]) )
       {
+        found_nan = true;
         if ( !showed )
         {
           std::cout << "Blob from " << name
@@ -525,7 +528,7 @@ bool CheckForNan( const std::string& name,
         }
       }
     }
-    return showed;
+    return found_nan;
 //  }
 }
 
@@ -549,6 +552,7 @@ inline Dtype Layer<Dtype>::Forward(const vector<Blob<Dtype>*>& bottom,
   Reshape(bottom, top);
   switch (Caffe::mode()) {
   case Caffe::CPU:
+  {
     Forward_cpu(bottom, top);
     for (int top_id = 0; top_id < top.size(); ++top_id) {
       std::stringstream ss;
@@ -564,10 +568,19 @@ inline Dtype Layer<Dtype>::Forward(const vector<Blob<Dtype>*>& bottom,
       loss += blob_loss;
     }
     if (CheckForNan<Dtype>(this->layer_param_.name(), "forward top", *top[0]))
+    {
       LOG(FATAL) << "Forward produced NaN blob." << std::endl;
+    }
     break;
+  }
   case Caffe::GPU:
+  {
     Forward_gpu(bottom, top);
+    const Dtype* top_data = top[0]->gpu_data();
+    if (CheckForNanGPU<Dtype>(top[0]->count(), top_data))
+    {
+      LOG(FATAL) << this->layer_param_.name() << " forward NaN top blob." << std::endl;
+    }
 #ifndef CPU_ONLY
     for (int top_id = 0; top_id < top.size(); ++top_id) {
       if (!this->loss(top_id)) { continue; }
@@ -584,6 +597,7 @@ inline Dtype Layer<Dtype>::Forward(const vector<Blob<Dtype>*>& bottom,
     }
 #endif
     break;
+  }
   default:
     LOG(FATAL) << "Unknown caffe mode.";
   }
@@ -608,6 +622,23 @@ inline void Layer<Dtype>::Backward(const vector<Blob<Dtype>*>& top,
   case Caffe::GPU:
   {
     Backward_gpu(top, propagate_down, bottom);
+    for(int i = 0; i < bottom.size(); ++i)
+    {
+      bool should_check = true;
+      if ( propagate_down.size() > i)
+      {
+        should_check = propagate_down[i];
+      }
+      if (should_check)
+      {
+        const Dtype* ptr = bottom[i]->gpu_diff();
+        if (CheckForNanGPU<Dtype>(bottom[i]->count(), ptr))
+        {
+          LOG(FATAL) << this->layer_param_.name() << " backward NaN bottom "
+                        << i << " blob." << std::endl;
+        }
+      }
+    }
     break;
   }
   default:

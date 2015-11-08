@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "caffe/common.hpp"
+#include "caffe/blob.hpp"
 #include "caffe/util/math_functions.hpp"
 
 namespace caffe {
@@ -388,6 +389,32 @@ __global__ void popcll_kernel(const int n, const double* a,
                       static_cast<uint64_t>(b[index]));
   }
 }
+
+template<typename Dtype>
+__global__ void FindNaN( const Dtype* blob_data, int blob_size,
+                  int* nan_found)
+{
+  CUDA_KERNEL_LOOP(bi, blob_size)
+  {
+    if ( ::isnan(static_cast<Dtype>(blob_data[bi])) )
+    {
+      *nan_found = true;
+    }
+  }
+}
+
+template<typename Dtype>
+bool CheckForNanGPU(int n, const Dtype const* data)
+{
+  Blob<int> nan_found(1,1,1,1);
+  *nan_found.mutable_cpu_data() = static_cast<int>(false);
+  FindNaN<Dtype><<<CAFFE_GET_BLOCKS(n),CAFFE_CUDA_NUM_THREADS>>>(
+      data, n, nan_found.mutable_gpu_data());
+  return static_cast<bool>(nan_found.cpu_data()[0]);
+}
+
+template bool CheckForNanGPU<float>(int n, const float* data);
+template bool CheckForNanGPU<double>(int n, const double* data);
 
 template <>
 uint32_t caffe_gpu_hamming_distance<float>(const int n, const float* x,
