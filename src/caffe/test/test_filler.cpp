@@ -1,5 +1,3 @@
-#include <cstring>
-
 #include "gtest/gtest.h"
 
 #include "caffe/filler.hpp"
@@ -232,8 +230,8 @@ TYPED_TEST(ScharrFillerTest, TestConvolution) {
   ConvolutionParameter* convolution_param =
       layer_param.mutable_convolution_param();
   convolution_param->set_bias_term(false);
-  convolution_param->set_kernel_size(3);
-  convolution_param->set_stride(1);
+  convolution_param->add_kernel_size(3);
+  convolution_param->add_stride(1);
   convolution_param->set_num_output(2);
   convolution_param->mutable_weight_filler()->set_type("scharr");
   shared_ptr<Layer<TypeParam> > layer( new ConvolutionLayer<TypeParam>(layer_param));
