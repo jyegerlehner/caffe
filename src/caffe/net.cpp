@@ -1013,6 +1013,9 @@ void Net<Dtype>::Update() {
   for (int i = 0; i < learnable_params_.size(); ++i) {
     learnable_params_[i]->Update();
   }
+  for (int i = 0; i < layers_.size(); ++i) {
+    layers_[i]->PostUpdateProcessing();
+  }
 }
 
 template <typename Dtype>
