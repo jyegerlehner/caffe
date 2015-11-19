@@ -573,20 +573,20 @@ inline Dtype Layer<Dtype>::Forward(const vector<Blob<Dtype>*>& bottom,
       }
       loss += blob_loss;
     }
-    if (CheckForNan<Dtype>(this->layer_param_.name(), "forward top", *top[0]))
-    {
-      LOG(FATAL) << "Forward produced NaN blob." << std::endl;
-    }
+//    if (CheckForNan<Dtype>(this->layer_param_.name(), "forward top", *top[0]))
+//    {
+//      LOG(FATAL) << "Forward produced NaN blob." << std::endl;
+//    }
     break;
   }
   case Caffe::GPU:
   {
     Forward_gpu(bottom, top);
-    const Dtype* top_data = top[0]->gpu_data();
-    if (CheckForNanGPU<Dtype>(top[0]->count(), top_data))
-    {
-      LOG(FATAL) << this->layer_param_.name() << " forward NaN top blob." << std::endl;
-    }
+//    const Dtype* top_data = top[0]->gpu_data();
+//    if (CheckForNanGPU<Dtype>(top[0]->count(), top_data))
+//    {
+//      LOG(FATAL) << this->layer_param_.name() << " forward NaN top blob." << std::endl;
+//    }
 #ifndef CPU_ONLY
     for (int top_id = 0; top_id < top.size(); ++top_id) {
       if (!this->loss(top_id)) { continue; }
@@ -618,33 +618,33 @@ inline void Layer<Dtype>::Backward(const vector<Blob<Dtype>*>& top,
   switch (Caffe::mode()) {
   case Caffe::CPU:
     Backward_cpu(top, propagate_down, bottom);
-    for(int i =0; i < bottom.size(); ++i)
-    {
-      if (CheckForNan<Dtype>(this->layer_param_.name(), "backward bottom", *bottom[i]))
-        LOG(FATAL) << "Backward produced NaN in blob "
-                   << i <<  std::endl;
-    }
+//    for(int i =0; i < bottom.size(); ++i)
+//    {
+//      if (CheckForNan<Dtype>(this->layer_param_.name(), "backward bottom", *bottom[i]))
+//        LOG(FATAL) << "Backward produced NaN in blob "
+//                   << i <<  std::endl;
+//    }
     break;
   case Caffe::GPU:
   {
     Backward_gpu(top, propagate_down, bottom);
-    for(int i = 0; i < bottom.size(); ++i)
-    {
-      bool should_check = true;
-      if ( propagate_down.size() > i)
-      {
-        should_check = propagate_down[i];
-      }
-      if (should_check)
-      {
-        const Dtype* ptr = bottom[i]->gpu_diff();
-        if (CheckForNanGPU<Dtype>(bottom[i]->count(), ptr))
-        {
-          LOG(FATAL) << this->layer_param_.name() << " backward NaN bottom "
-                        << i << " blob." << std::endl;
-        }
-      }
-    }
+//    for(int i = 0; i < bottom.size(); ++i)
+//    {
+//      bool should_check = true;
+//      if ( propagate_down.size() > i)
+//      {
+//        should_check = propagate_down[i];
+//      }
+//      if (should_check)
+//      {
+//        const Dtype* ptr = bottom[i]->gpu_diff();
+//        if (CheckForNanGPU<Dtype>(bottom[i]->count(), ptr))
+//        {
+//          LOG(FATAL) << this->layer_param_.name() << " backward NaN bottom "
+//                        << i << " blob." << std::endl;
+//        }
+//      }
+//    }
     break;
   }
   default:
