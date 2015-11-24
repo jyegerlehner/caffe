@@ -12,9 +12,13 @@ namespace bp = boost::python;
 
 #include "boost/algorithm/string.hpp"
 #include "caffe/caffe.hpp"
+#include "caffe/blob_finder.hpp"
+#include "caffe/layer_finder.hpp"
 #include "caffe/util/signal_handler.h"
 
 using caffe::Blob;
+using caffe::BlobFinder;
+using caffe::LayerFinder;
 using caffe::Caffe;
 using caffe::Net;
 using caffe::Layer;
@@ -236,8 +240,11 @@ int test() {
     LOG(INFO) << "Use CPU.";
     Caffe::set_mode(Caffe::CPU);
   }
+
+  BlobFinder<float> blob_finder;
+  LayerFinder<float> layer_finder;
   // Instantiate the caffe net.
-  Net<float> caffe_net(FLAGS_model, caffe::TEST);
+  Net<float> caffe_net(FLAGS_model, caffe::TEST, blob_finder, layer_finder);
   caffe_net.CopyTrainedLayersFrom(FLAGS_weights);
   LOG(INFO) << "Running for " << FLAGS_iterations << " iterations.";
 
@@ -303,8 +310,10 @@ int time() {
     LOG(INFO) << "Use CPU.";
     Caffe::set_mode(Caffe::CPU);
   }
+  BlobFinder<float> blob_finder;
+  LayerFinder<float> layer_finder;
   // Instantiate the caffe net.
-  Net<float> caffe_net(FLAGS_model, caffe::TRAIN);
+  Net<float> caffe_net(FLAGS_model, caffe::TRAIN, blob_finder, layer_finder);
 
   // Do a clean forward and backward pass, so that memory allocation are done
   // and future iterations will be more stable.

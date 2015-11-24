@@ -33,8 +33,8 @@ class InverseMVNLayerTest : public MultiDeviceTest<TypeParam> {
   typedef typename TypeParam::Dtype Dtype;
 
  protected:
-  void AddMvnTopBlob(Blob<Dtype>* blob, const std::string& name) {
-    mvn_blob_top_vec_.push_back(blob);
+  void AddMvnTopBlob(shared_ptr<Blob<Dtype> > blob, const std::string& name) {
+    mvn_blob_top_vec_.push_back(blob.get());
     blob_finder_.AddBlob(name, blob);
   }
 
@@ -77,33 +77,33 @@ class InverseMVNLayerTest : public MultiDeviceTest<TypeParam> {
         mvn_variance_blob_(new Blob<Dtype>()),
         mvn_result_blob_(new Blob<Dtype>()),
         inverse_mvn_blob_top_(new Blob<Dtype>()) {
-    mvn_bottom_blob_vec_.push_back(mvn_bottom_blob_);
+    mvn_bottom_blob_vec_.push_back(mvn_bottom_blob_.get());
 
     AddMvnTopBlob(this->mvn_mean_blob_, "mean_a");
     AddMvnTopBlob(this->mvn_variance_blob_, "variance_a");
     AddMvnTopBlob(this->mvn_result_blob_, "normalized");
 
     // The blob that contains the means computed by the mvn layer.
-    inverse_mvn_bottom_blob_vec_.push_back(mvn_mean_blob_);
+    inverse_mvn_bottom_blob_vec_.push_back(mvn_mean_blob_.get());
     // The blob that contains the scales computed by the mvn layer.
-    inverse_mvn_bottom_blob_vec_.push_back(mvn_variance_blob_);
+    inverse_mvn_bottom_blob_vec_.push_back(mvn_variance_blob_.get());
     // The blob that has the scaled, mean-subtracted output of the mvn layer.
-    inverse_mvn_bottom_blob_vec_.push_back(mvn_result_blob_);
+    inverse_mvn_bottom_blob_vec_.push_back(mvn_result_blob_.get());
     // The inverse mvn layer's output blob.
-    inverse_mvn_blob_top_vec_.push_back(inverse_mvn_blob_top_);
+    inverse_mvn_blob_top_vec_.push_back(inverse_mvn_blob_top_.get());
     blob_finder_.AddBlob("unnormalized", inverse_mvn_blob_top_);
   }
   virtual ~InverseMVNLayerTest() {
-    delete mvn_mean_blob_;
-    delete mvn_variance_blob_;
-    delete mvn_result_blob_;
-    delete inverse_mvn_blob_top_;
+    mvn_mean_blob_.reset();
+    mvn_variance_blob_.reset();
+    mvn_result_blob_.reset();
+    inverse_mvn_blob_top_.reset();
   }
-  Blob<Dtype>* const mvn_bottom_blob_;
-  Blob<Dtype>* const mvn_mean_blob_;
-  Blob<Dtype>* const mvn_variance_blob_;
-  Blob<Dtype>* const mvn_result_blob_;
-  Blob<Dtype>* const inverse_mvn_blob_top_;
+  shared_ptr<Blob<Dtype> > mvn_bottom_blob_;
+  shared_ptr<Blob<Dtype> > mvn_mean_blob_;
+  shared_ptr<Blob<Dtype> > mvn_variance_blob_;
+  shared_ptr<Blob<Dtype> > mvn_result_blob_;
+  shared_ptr<Blob<Dtype> > inverse_mvn_blob_top_;
 
   vector<Blob<Dtype>*> mvn_bottom_blob_vec_;
   vector<Blob<Dtype>*> mvn_blob_top_vec_;
@@ -111,6 +111,7 @@ class InverseMVNLayerTest : public MultiDeviceTest<TypeParam> {
   vector<Blob<Dtype>*> inverse_mvn_blob_top_vec_;
 
   BlobFinder<Dtype> blob_finder_;
+  LayerFinder<Dtype> layer_finder_;
 };
 
 TYPED_TEST_CASE(InverseMVNLayerTest, TestDtypesAndDevices);
@@ -144,26 +145,26 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp) {
   EXPECT_EQ(this->inverse_mvn_blob_top_vec_.size(), 1);
 
   Blob<Dtype>* normalized_blob =
-      this->blob_finder_.PointerFromName("normalized");
+      this->blob_finder_.PointerFromName("normalized").get();
   EXPECT_EQ(normalized_blob->num(), INPUT_NUM);
   EXPECT_EQ(normalized_blob->height(), INPUT_HEIGHT);
   EXPECT_EQ(normalized_blob->width(), INPUT_WIDTH);
   EXPECT_EQ(normalized_blob->channels(), INPUT_CHANNELS);
 
-  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean_a");
+  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean_a").get();
   EXPECT_EQ(mean_blob->num(), INPUT_NUM);
   EXPECT_EQ(mean_blob->height(), 1);
   EXPECT_EQ(mean_blob->width(), 1);
   EXPECT_EQ(mean_blob->channels(), INPUT_CHANNELS);
 
-  Blob<Dtype>* variance_blob = this->blob_finder_.PointerFromName("variance_a");
+  Blob<Dtype>* variance_blob = this->blob_finder_.PointerFromName("variance_a").get();
   EXPECT_EQ(variance_blob->num(), INPUT_NUM);
   EXPECT_EQ(variance_blob->height(), 1);
   EXPECT_EQ(variance_blob->width(), 1);
   EXPECT_EQ(variance_blob->channels(), INPUT_CHANNELS);
 
   Blob<Dtype>* unnormalized_blob =
-      this->blob_finder_.PointerFromName("unnormalized");
+      this->blob_finder_.PointerFromName("unnormalized").get();
   EXPECT_EQ(unnormalized_blob->num(), INPUT_NUM);
   EXPECT_EQ(unnormalized_blob->height(), INPUT_HEIGHT);
   EXPECT_EQ(unnormalized_blob->width(), INPUT_WIDTH);
@@ -199,26 +200,26 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp_AcrossChannels) {
   EXPECT_EQ(this->inverse_mvn_blob_top_vec_.size(), 1);
 
   Blob<Dtype>* normalized_blob =
-      this->blob_finder_.PointerFromName("normalized");
+      this->blob_finder_.PointerFromName("normalized").get();
   EXPECT_EQ(normalized_blob->num(), INPUT_NUM);
   EXPECT_EQ(normalized_blob->height(), INPUT_HEIGHT);
   EXPECT_EQ(normalized_blob->width(), INPUT_WIDTH);
   EXPECT_EQ(normalized_blob->channels(), INPUT_CHANNELS);
 
-  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean_a");
+  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean_a").get();
   EXPECT_EQ(mean_blob->num(), INPUT_NUM);
   EXPECT_EQ(mean_blob->height(), 1);
   EXPECT_EQ(mean_blob->width(), 1);
   EXPECT_EQ(mean_blob->channels(), 1);
 
-  Blob<Dtype>* variance_blob = this->blob_finder_.PointerFromName("variance_a");
+  Blob<Dtype>* variance_blob = this->blob_finder_.PointerFromName("variance_a").get();
   EXPECT_EQ(variance_blob->num(), INPUT_NUM);
   EXPECT_EQ(variance_blob->height(), 1);
   EXPECT_EQ(variance_blob->width(), 1);
   EXPECT_EQ(variance_blob->channels(), 1);
 
   Blob<Dtype>* unnormalized_blob =
-      this->blob_finder_.PointerFromName("unnormalized");
+      this->blob_finder_.PointerFromName("unnormalized").get();
   EXPECT_EQ(unnormalized_blob->num(), INPUT_NUM);
   EXPECT_EQ(unnormalized_blob->height(), INPUT_HEIGHT);
   EXPECT_EQ(unnormalized_blob->width(), INPUT_WIDTH);
@@ -268,13 +269,13 @@ TYPED_TEST(InverseMVNLayerTest, TestForward) {
 
   // Since across_channels==false, there should be a mean and a variance
   // for each channel of the input image.
-  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean_a");
+  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean_a").get();
   EXPECT_EQ(mean_blob->num(), INPUT_NUM);
   EXPECT_EQ(mean_blob->height(), 1);
   EXPECT_EQ(mean_blob->width(), 1);
   EXPECT_EQ(mean_blob->channels(), INPUT_CHANNELS);
 
-  Blob<Dtype>* variance_blob = this->blob_finder_.PointerFromName("variance_a");
+  Blob<Dtype>* variance_blob = this->blob_finder_.PointerFromName("variance_a").get();
   EXPECT_EQ(variance_blob->num(), INPUT_NUM);
   EXPECT_EQ(variance_blob->height(), 1);
   EXPECT_EQ(variance_blob->width(), 1);
@@ -353,13 +354,13 @@ TYPED_TEST(InverseMVNLayerTest, TestForward_AcrossChannels) {
 
   // Since across_channels==true, there should be one mean and one variance
   // per input image.
-  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean_a");
+  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean_a").get();
   EXPECT_EQ(mean_blob->num(), INPUT_NUM);
   EXPECT_EQ(mean_blob->height(), 1);
   EXPECT_EQ(mean_blob->width(), 1);
   EXPECT_EQ(mean_blob->channels(), 1);
 
-  Blob<Dtype>* variance_blob = this->blob_finder_.PointerFromName("variance_a");
+  Blob<Dtype>* variance_blob = this->blob_finder_.PointerFromName("variance_a").get();
   EXPECT_EQ(variance_blob->num(), INPUT_NUM);
   EXPECT_EQ(variance_blob->height(), 1);
   EXPECT_EQ(variance_blob->width(), 1);
@@ -405,7 +406,7 @@ TYPED_TEST(InverseMVNLayerTest, TestForward_MeanOnly) {
   // it shouldn't be there in this case. So erase it.
   this->mvn_blob_top_vec_.erase(std::remove(this->mvn_blob_top_vec_.begin(),
                                               this->mvn_blob_top_vec_.end(),
-                                              this->mvn_variance_blob_),
+                                              this->mvn_variance_blob_.get()),
                                  this->mvn_blob_top_vec_.end());
 
   // The setup code added the variance blob to the inverse_mvn layer's
@@ -413,7 +414,7 @@ TYPED_TEST(InverseMVNLayerTest, TestForward_MeanOnly) {
   this->inverse_mvn_bottom_blob_vec_.erase(std::remove(
                                    this->inverse_mvn_bottom_blob_vec_.begin(),
                                    this->inverse_mvn_bottom_blob_vec_.end(),
-                                   this->mvn_variance_blob_),
+                                   this->mvn_variance_blob_.get()),
                                  this->inverse_mvn_bottom_blob_vec_.end());
 
   LayerParameter mvn_layer_param;
@@ -517,7 +518,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradientAcrossChannels) {
   for (int index = 0; index < this->inverse_mvn_bottom_blob_vec_.size();
        ++index) {
     if (this->inverse_mvn_bottom_blob_vec_[index] ==
-         this->blob_finder_.PointerFromName("normalized")) {
+         this->blob_finder_.PointerFromName("normalized").get()) {
       blob_index_to_check = index;
     }
   }
@@ -567,7 +568,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradient) {
   for (int index = 0; index < this->inverse_mvn_bottom_blob_vec_.size();
        ++index) {
     if (this->inverse_mvn_bottom_blob_vec_[index] ==
-         this->blob_finder_.PointerFromName("normalized")) {
+         this->blob_finder_.PointerFromName("normalized").get()) {
       blob_index_to_check = index;
     }
   }
@@ -584,7 +585,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradient_MeanOnly) {
   // it shouldn't be there in this case. So erase it.
   this->mvn_blob_top_vec_.erase(std::remove(this->mvn_blob_top_vec_.begin(),
                                               this->mvn_blob_top_vec_.end(),
-                                              this->mvn_variance_blob_),
+                                              this->mvn_variance_blob_.get()),
                                  this->mvn_blob_top_vec_.end());
 
   // The setup code added the variance blob to the inverse_mvn layer's
@@ -592,7 +593,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradient_MeanOnly) {
   this->inverse_mvn_bottom_blob_vec_.erase(std::remove(
                                    this->inverse_mvn_bottom_blob_vec_.begin(),
                                    this->inverse_mvn_bottom_blob_vec_.end(),
-                                   this->mvn_variance_blob_),
+                                   this->mvn_variance_blob_.get()),
                                  this->inverse_mvn_bottom_blob_vec_.end());
 
   LayerParameter mvn_layer_param;
@@ -630,7 +631,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradient_MeanOnly) {
   for (int index = 0; index < this->inverse_mvn_bottom_blob_vec_.size();
        ++index) {
     if (this->inverse_mvn_bottom_blob_vec_[index] ==
-         this->blob_finder_.PointerFromName("normalized")) {
+         this->blob_finder_.PointerFromName("normalized").get()) {
       blob_index_to_check = index;
     }
   }

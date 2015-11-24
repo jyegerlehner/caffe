@@ -23,22 +23,49 @@
 namespace caffe {
 
 template <typename Dtype>
-Net<Dtype>::Net(const NetParameter& param, const Net* root_net)
+Net<Dtype>::Net(const NetParameter& param,
+                BlobFinder<Dtype>& blob_finder,
+                LayerFinder<Dtype>& layer_finder,
+                const Net* root_net)
     : root_net_(root_net) {
-  Init(param);
+  Init(param, blob_finder, layer_finder);
 }
 
 template <typename Dtype>
-Net<Dtype>::Net(const string& param_file, Phase phase, const Net* root_net)
+Net<Dtype>::Net(const string& param_file,
+                Phase phase,
+                BlobFinder<Dtype>& blob_finder,
+                LayerFinder<Dtype>& layer_finder,
+                const Net* root_net)
     : root_net_(root_net) {
   NetParameter param;
   ReadNetParamsFromTextFileOrDie(param_file, &param);
   param.mutable_state()->set_phase(phase);
-  Init(param);
+  Init(param, blob_finder, layer_finder);
 }
 
 template <typename Dtype>
-void Net<Dtype>::Init(const NetParameter& in_param) {
+shared_ptr<Layer<Dtype> > Net<Dtype>::FindOrCreateLayer(
+    LayerFinder<Dtype>& layer_finder,
+    const LayerParameter& layer_param)
+{
+  if (layer_finder.Exists(layer_param.name()))
+  {
+    return layer_finder.PointerFromName(layer_param.name());
+  }
+  else
+  {
+    shared_ptr<Layer<Dtype> >
+        layer(LayerRegistry<Dtype>::CreateLayer(layer_param));
+    layer_finder.AddLayer(layer_param.name(), layer);
+    return layer;
+  }
+}
+
+template <typename Dtype>
+void Net<Dtype>::Init(const NetParameter& in_param,
+                      BlobFinder<Dtype>& blob_finder,
+                      LayerFinder<Dtype>& layer_finder) {
   CHECK(Caffe::root_solver() || root_net_)
       << "root_net_ needs to be set for all non-root solvers";
   // Set phase from the state.
@@ -68,7 +95,6 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
         << "Exactly one input_shape must be specified per input.";
   }
   memory_used_ = 0;
-  BlobFinder<Dtype> blob_finder;
   // set the input blobs
   for (int input_id = 0; input_id < param.input_size(); ++input_id) {
     const int layer_id = -1;  // inputs have fake layer ID -1
@@ -106,7 +132,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
       layers_.push_back(root_net_->layers_[layer_id]);
       layers_[layer_id]->SetShared(true);
     } else {
-      layers_.push_back(LayerRegistry<Dtype>::CreateLayer(layer_param));
+      layers_.push_back(FindOrCreateLayer(layer_finder, layer_param));
     }
     layer_names_.push_back(layer_param.name());
     LOG_IF(INFO, Caffe::root_solver())
@@ -422,12 +448,21 @@ void Net<Dtype>::AppendTop(const NetParameter& param, const int layer_id,
         LOG(INFO) << "Input " << top_id << " -> " << blob_name;
       }
     }
-    shared_ptr<Blob<Dtype> > blob_pointer(new Blob<Dtype>());
+
+    /// Dependent nets: get blob from parent or other dependent net if it
+    /// already exists.
+    shared_ptr<Blob<Dtype> > blob_pointer =
+                   blob_finder->Exists(blob_name) ?
+                    blob_finder->PointerFromName(blob_name) :
+                    shared_ptr<Blob<Dtype> >( new Blob<Dtype>());
+//    shared_ptr<Blob<Dtype> > blob_pointer =
+//        shared_ptr<Blob<Dtype> >( new Blob<Dtype>());
+
     const int blob_id = blobs_.size();
     blobs_.push_back(blob_pointer);
     blob_names_.push_back(blob_name);
     blob_need_backward_.push_back(false);
-    blob_finder->AddBlob(blob_name, blob_pointer.get());
+    blob_finder->AddBlob(blob_name, blob_pointer);
     if (blob_name_to_idx) { (*blob_name_to_idx)[blob_name] = blob_id; }
     if (layer_id == -1) {
       // Set the (explicitly specified) dimensions of the input blob.

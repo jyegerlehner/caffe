@@ -102,7 +102,10 @@ int main( int argc, char** argv )
     LOG(INFO) << "Set mode to CPU" << std::endl;
   }
 
-  shared_ptr<Net<float> > net( new Net<float>( net_proto, TEST ) );
+  BlobFinder<float> blob_finder;
+  LayerFinder<float> layer_finder;
+  shared_ptr<Net<float> > net( new Net<float>( net_proto, TEST,
+                                               blob_finder, layer_finder ) );
 
   int channel_flag;
   // Get input blob and check its shape.

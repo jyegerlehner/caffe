@@ -8,12 +8,14 @@ namespace caffe {
 
 template <typename Dtype>
 struct BlobFinder {
-  typedef std::map<Blob<Dtype>*, std::string> BlobToNameMap;
-  typedef std::map<std::string, Blob<Dtype>*> NameToBlobMap;
+  typedef shared_ptr< Blob<Dtype> > SharedBlobPtr;
+  typedef std::map<SharedBlobPtr, std::string> BlobToNameMap;
+  typedef std::map<std::string, SharedBlobPtr> NameToBlobMap;
   typedef boost::shared_ptr<BlobFinder<Dtype> > Ptr;
 
-  void AddBlob(const std::string& name, Blob<Dtype>* blob_ptr);
-  Blob<Dtype>* PointerFromName(const std::string& name);
+  void AddBlob(const std::string& name, SharedBlobPtr blob_ptr);
+  SharedBlobPtr PointerFromName(const std::string& name);
+  std::string NameFromPointer(SharedBlobPtr blob_pointer) const;
   std::string NameFromPointer(Blob<Dtype>* blob_pointer) const;
 
   bool Exists(const std::string& name) const;

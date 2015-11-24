@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "caffe/blob_finder.hpp"
+#include "caffe/layer_finder.hpp"
 #include "caffe/net.hpp"
 #include "caffe/util/benchmark.hpp"
 #include "caffe/solver_factory.hpp"
@@ -128,6 +130,9 @@ class Solver {
 
   // True iff a request to stop early was received.
   bool requested_early_exit_;
+
+  BlobFinder<Dtype> blob_finder_;
+  LayerFinder<Dtype> layer_finder_;
 
   DISABLE_COPY_AND_ASSIGN(Solver);
 };

@@ -101,9 +101,10 @@ void Solver<Dtype>::InitTrainNet() {
   net_state.MergeFrom(param_.train_state());
   net_param.mutable_state()->CopyFrom(net_state);
   if (Caffe::root_solver()) {
-    net_.reset(new Net<Dtype>(net_param));
+    net_.reset(new Net<Dtype>(net_param, blob_finder_, layer_finder_));
   } else {
-    net_.reset(new Net<Dtype>(net_param, root_solver_->net_.get()));
+    net_.reset(new Net<Dtype>(net_param, blob_finder_, layer_finder_,
+                              root_solver_->net_.get()));
   }
 }
 
@@ -180,9 +181,11 @@ void Solver<Dtype>::InitTestNets() {
     LOG(INFO)
         << "Creating test net (#" << i << ") specified by " << sources[i];
     if (Caffe::root_solver()) {
-      test_nets_[i].reset(new Net<Dtype>(net_params[i]));
+      test_nets_[i].reset(new Net<Dtype>(net_params[i], blob_finder_,
+                                         layer_finder_));
     } else {
       test_nets_[i].reset(new Net<Dtype>(net_params[i],
+          blob_finder_, layer_finder_,
           root_solver_->test_nets_[i].get()));
     }
     test_nets_[i]->set_debug_info(param_.debug_info());

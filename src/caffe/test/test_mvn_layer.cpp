@@ -25,12 +25,12 @@ class MVNLayerTest : public MultiDeviceTest<TypeParam> {
   typedef typename TypeParam::Dtype Dtype;
 
  protected:
-  void AddTopBlob(Blob<Dtype>* blob, const std::string& name) {
-    blob_top_vec_.push_back(blob);
+  void AddTopBlob(shared_ptr<Blob<Dtype> > blob, const std::string& name) {
+    blob_top_vec_.push_back(blob.get());
     blob_finder_.AddBlob(name, blob);
   }
 
-  static Blob<Dtype>* RandomBottomBlob() {
+  static shared_ptr<Blob<Dtype> > RandomBottomBlob() {
     // Give each channel a different mean and std deviation.
     vector<Dtype> means;
     means.push_back(0.5);
@@ -41,7 +41,7 @@ class MVNLayerTest : public MultiDeviceTest<TypeParam> {
     std_devs.push_back(0.5);
     std_devs.push_back(2.0);
 
-    Blob<Dtype>* blob = new Blob<Dtype>(2, 3, 4, 5);
+    shared_ptr<Blob<Dtype> > blob(new Blob<Dtype>(2, 3, 4, 5));
     Dtype* data = blob->mutable_cpu_data();
     for (int channel = 0; channel < 3; ++channel) {
       using boost::normal_distribution;
@@ -65,16 +65,16 @@ class MVNLayerTest : public MultiDeviceTest<TypeParam> {
   MVNLayerTest()
       : blob_bottom_(RandomBottomBlob()),
         blob_top_(new Blob<Dtype>()) {
-    blob_bottom_vec_.push_back(blob_bottom_);
+    blob_bottom_vec_.push_back(blob_bottom_.get());
     AddTopBlob(blob_top_, "top0");
   }
   virtual ~MVNLayerTest() {
-    delete blob_bottom_;
-    delete blob_top_;
+    blob_bottom_.reset();
+    blob_top_.reset();
   }
 
-  Blob<Dtype>* const blob_bottom_;
-  Blob<Dtype>* const blob_top_;
+  shared_ptr<Blob<Dtype> > blob_bottom_;
+  shared_ptr<Blob<Dtype> > blob_top_;
   vector<Blob<Dtype>*> blob_bottom_vec_;
   vector<Blob<Dtype>*> blob_top_vec_;
   BlobFinder<Dtype> blob_finder_;
@@ -123,8 +123,10 @@ TYPED_TEST(MVNLayerTest, TestForward) {
 TYPED_TEST(MVNLayerTest, TestForward_MeanAndVarianceInTopBlobs) {
   typedef typename TypeParam::Dtype Dtype;
 
-  this->AddTopBlob(new Blob<Dtype>(), "mean");
-  this->AddTopBlob(new Blob<Dtype>(), "variance");
+  shared_ptr<Blob<Dtype> > orig_mean_blob(new Blob<Dtype>() );
+  shared_ptr<Blob<Dtype> > orig_var_blob( new Blob<Dtype>() );
+  this->AddTopBlob(orig_mean_blob, "mean");
+  this->AddTopBlob(orig_var_blob, "variance");
 
   LayerParameter layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
@@ -180,8 +182,8 @@ TYPED_TEST(MVNLayerTest, TestForward_MeanAndVarianceInTopBlobs) {
   }
 
   // The variances and means should match what we computed in the loop above.
-  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean");
-  Blob<Dtype>* variance_blob = this->blob_finder_.PointerFromName("variance");
+  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean").get();
+  Blob<Dtype>* variance_blob = this->blob_finder_.PointerFromName("variance").get();
   for (int i = 0; i < num; ++i) {
     for (int j = 0; j < channels; ++j) {
       const Dtype kErrorBound = 0.0001;
@@ -200,7 +202,8 @@ TYPED_TEST(MVNLayerTest, TestForward_MeanAndVarianceInTopBlobs) {
 TYPED_TEST(MVNLayerTest, TestForward_MeanInTopBlobs) {
   typedef typename TypeParam::Dtype Dtype;
 
-  this->AddTopBlob(new Blob<Dtype>(), "mean");
+  shared_ptr<Blob<Dtype> > orig_mean_blob(new Blob<Dtype>());
+  this->AddTopBlob(orig_mean_blob, "mean");
 
   LayerParameter layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
@@ -247,7 +250,7 @@ TYPED_TEST(MVNLayerTest, TestForward_MeanInTopBlobs) {
   }
 
   // The means should match what we computed in the loop above.
-  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean");
+  Blob<Dtype>* mean_blob = this->blob_finder_.PointerFromName("mean").get();
   for (int i = 0; i < num; ++i) {
     for (int j = 0; j < channels; ++j) {
       const Dtype kErrorBound = 0.0001;

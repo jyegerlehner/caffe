@@ -577,29 +577,35 @@ class SoftmaximaLayerTest : public MultiDeviceTest<TypeParam> {
     GaussianFiller<Dtype> filler(filler_param);
 //    filler.Fill(this->blob_bottom_);
     {
-      FillBottomBlob(blob_bottom_, (Dtype) -1.0f);
-      FillBottomBlob(blob_bottom1_, (Dtype)  -1.0f);
-      FillBottomBlob(blob_bottom2_, (Dtype) 0.5f);
+      FillBottomBlob(blob_bottom_.get(), (Dtype) -1.0f);
+      FillBottomBlob(blob_bottom1_.get(), (Dtype)  -1.0f);
+      FillBottomBlob(blob_bottom2_.get(), (Dtype) 0.5f);
     }
-    blob_bottom_vec_.push_back(blob_bottom_);
-    blob_top_vec_.push_back(blob_top_);
+    blob_bottom_vec_.push_back(blob_bottom_.get());
+    blob_top_vec_.push_back(blob_top_.get());
 
 //    filler.Fill(this->blob_bottom1_);
 //    filler.Fill(this->blob_bottom2_);
   }
-  virtual ~SoftmaximaLayerTest() { delete blob_bottom_; delete blob_top_; }
-  Blob<Dtype>* const blob_bottom_;
-  Blob<Dtype>* const blob_top_;
+  virtual ~SoftmaximaLayerTest()
+  {
+    blob_bottom_.reset();
+    blob_top_.reset();
+    blob_bottom1_.reset();
+    blob_bottom2_.reset();
+  }
+  shared_ptr<Blob<Dtype> > blob_bottom_;
+  shared_ptr<Blob<Dtype> > blob_top_;
 
   // Multiple iteration test
-  Blob<Dtype>* const blob_bottom1_;
-  Blob<Dtype>* const blob_bottom2_;
+  shared_ptr<Blob<Dtype> > blob_bottom1_;
+  shared_ptr<Blob<Dtype> > blob_bottom2_;
 
   vector<Blob<Dtype>*> blob_bottom_vec_;
   vector<Blob<Dtype>*> blob_top_vec_;
 
   shared_ptr<Blob<Dtype> > ForwardPropThroughTwoSoftmaxes( int softmax_size,
-                                                           Blob<Dtype>* bottom) {
+                                shared_ptr<Blob<Dtype> > bottom) {
     std::stringstream ss;
     ss <<    "name: 'TestNetwork' ";
     ss <<    "input: 'data' ";
@@ -640,10 +646,12 @@ class SoftmaximaLayerTest : public MultiDeviceTest<TypeParam> {
     std::string proto = ss.str();
 
     vector<Blob<Dtype>*> bottom_blob_vec;
-    bottom_blob_vec.push_back(bottom);
+    bottom_blob_vec.push_back(bottom.get());
     NetParameter param;
     CHECK(google::protobuf::TextFormat::ParseFromString(proto, &param));
-    Net<Dtype> net( param );
+    BlobFinder<Dtype> blob_finder;
+    LayerFinder<Dtype> layer_finder;
+    Net<Dtype> net( param, blob_finder, layer_finder );
     net.Forward(bottom_blob_vec);
 
     EXPECT_TRUE(net.has_blob("data"));
@@ -1039,7 +1047,7 @@ TYPED_TEST(SoftmaximaLayerTest, TestForwardIdenticalToNaive) {
   // Forward prop once.
   {
     vector<Blob<Dtype>*> bottom_blob_vec;
-    bottom_blob_vec.push_back(this->blob_bottom1_);
+    bottom_blob_vec.push_back(this->blob_bottom1_.get());
 
     Blob<Dtype> top_blob;
     vector<Blob<Dtype>*> top_blob_vec;
@@ -1081,7 +1089,7 @@ TYPED_TEST(SoftmaximaLayerTest, TestForwardIdenticalToNaive) {
   // Forward prop again.
   {
     vector<Blob<Dtype>*> bottom_blob_vec;
-    bottom_blob_vec.push_back(this->blob_bottom2_);
+    bottom_blob_vec.push_back(this->blob_bottom2_.get());
 
     Blob<Dtype> top_blob;
     vector<Blob<Dtype>*> top_blob_vec;
@@ -1263,10 +1271,10 @@ TYPED_TEST(SoftmaximaLayerTest, TestWinnerTakeAllForward) {
   SoftmaximaLayer<Dtype> layer(layer_param);
 
   vector<Blob<Dtype>*> bottom_blob_vec;
-  bottom_blob_vec.push_back(this->blob_bottom1_);
+  bottom_blob_vec.push_back(this->blob_bottom1_.get());
 
   vector<Blob<Dtype>*> top_blob_vec;
-  top_blob_vec.push_back(this->blob_top_);
+  top_blob_vec.push_back(this->blob_top_.get());
 
   layer.SetUp(bottom_blob_vec, top_blob_vec);
   layer.Forward(bottom_blob_vec, top_blob_vec);
@@ -1324,7 +1332,7 @@ TYPED_TEST(SoftmaximaLayerTest, TestForwardNonNan) {
   // Forward prop once.
   {
     vector<Blob<Dtype>*> bottom_blob_vec;
-    bottom_blob_vec.push_back(this->blob_bottom1_);
+    bottom_blob_vec.push_back(this->blob_bottom1_.get());
 
     Blob<Dtype> top_blob;
     vector<Blob<Dtype>*> top_blob_vec;
@@ -1349,7 +1357,7 @@ TYPED_TEST(SoftmaximaLayerTest, TestForwardNonNan) {
   // Forward prop again.
   {
     vector<Blob<Dtype>*> bottom_blob_vec;
-    bottom_blob_vec.push_back(this->blob_bottom2_);
+    bottom_blob_vec.push_back(this->blob_bottom2_.get());
 
     Blob<Dtype> top_blob;
     vector<Blob<Dtype>*> top_blob_vec;

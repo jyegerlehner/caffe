@@ -6,7 +6,9 @@
 #include "google/protobuf/text_format.h"
 
 #include "caffe/blob.hpp"
+#include "caffe/blob_finder.hpp"
 #include "caffe/common.hpp"
+#include "caffe/layer_finder.hpp"
 #include "caffe/net.hpp"
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/db.hpp"
@@ -108,9 +110,12 @@ int feature_extraction_pipeline(int argc, char** argv) {
      top: "fc7"
    }
    */
+  caffe::BlobFinder<Dtype> blob_finder;
+  caffe::LayerFinder<Dtype> layer_finder;
   std::string feature_extraction_proto(argv[++arg_pos]);
   shared_ptr<Net<Dtype> > feature_extraction_net(
-      new Net<Dtype>(feature_extraction_proto, caffe::TEST));
+      new Net<Dtype>(feature_extraction_proto, caffe::TEST, blob_finder,
+                     layer_finder));
   feature_extraction_net->CopyTrainedLayersFrom(pretrained_binary_proto);
 
   std::string extract_feature_blob_names(argv[++arg_pos]);

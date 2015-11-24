@@ -11,6 +11,7 @@
 #include "caffe/blob_finder.hpp"
 #include "caffe/common.hpp"
 #include "caffe/layer.hpp"
+#include "caffe/layer_finder.hpp"
 #include "caffe/proto/caffe.pb.h"
 
 namespace caffe {
@@ -24,13 +25,21 @@ namespace caffe {
 template <typename Dtype>
 class Net {
  public:
-  explicit Net(const NetParameter& param, const Net* root_net = NULL);
-  explicit Net(const string& param_file, Phase phase,
-      const Net* root_net = NULL);
+  explicit Net(const NetParameter& param,
+               BlobFinder<Dtype>& blob_finder,
+               LayerFinder<Dtype>& layer_finder,
+               const Net* root_net = NULL);
+  explicit Net(const string& param_file,
+               Phase phase,
+               BlobFinder<Dtype>& blob_finder,
+               LayerFinder<Dtype>& layer_finder,
+               const Net* root_net = NULL);
   virtual ~Net() {}
 
   /// @brief Initialize a network with a NetParameter.
-  void Init(const NetParameter& param);
+  void Init(const NetParameter& param,
+            BlobFinder<Dtype>& blob_finder,
+            LayerFinder<Dtype>& layer_finder);
 
   /**
    * @brief Run Forward with the input Blob%s already fed separately.
@@ -213,6 +222,10 @@ class Net {
   /// @brief return whether NetState state meets NetStateRule rule
   static bool StateMeetsRule(const NetState& state, const NetStateRule& rule,
       const string& layer_name);
+
+  /// @brief Create a layer if it isn't found in any of the created nets yet.
+  shared_ptr<Layer<Dtype> > FindOrCreateLayer(LayerFinder<Dtype>& layer_finder,
+                                            const LayerParameter& layer_param);
 
  protected:
   // Helpers for Init.

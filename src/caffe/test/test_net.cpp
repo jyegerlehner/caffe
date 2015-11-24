@@ -24,9 +24,11 @@ class NetTest : public MultiDeviceTest<TypeParam> {
   NetTest() : seed_(1701) {}
 
   virtual void InitNetFromProtoString(const string& proto) {
+    BlobFinder<Dtype> blob_finder;
+    LayerFinder<Dtype> layer_finder;
     NetParameter param;
     CHECK(google::protobuf::TextFormat::ParseFromString(proto, &param));
-    net_.reset(new Net<Dtype>(param));
+    net_.reset(new Net<Dtype>(param, blob_finder, layer_finder));
   }
 
   virtual void CopyNetBlobs(const bool copy_diff,
@@ -220,7 +222,7 @@ class NetTest : public MultiDeviceTest<TypeParam> {
         "  top: 'label' "
         "} "
         "layer { "
-        "  name: 'innerproduct' "
+        "  name: 'innerproduct1' "
         "  type: 'InnerProduct' "
         "  inner_product_param { "
         "    num_output: 1000 "
@@ -245,7 +247,7 @@ class NetTest : public MultiDeviceTest<TypeParam> {
         "  top: 'transformed_data' "
         "} "
         "layer { "
-        "  name: 'innerproduct' "
+        "  name: 'innerproduct2' "
         "  type: 'InnerProduct' "
         "  inner_product_param { "
         "    num_output: 1 "
@@ -846,7 +848,7 @@ TYPED_TEST(NetTest, TestLossWeight) {
     for (int j = 0; j < blob_grads.size(); ++j) {
       ASSERT_EQ(blob_grads[j]->count(), weighted_blobs[j]->count());
       for (int k = 0; k < blob_grads[j]->count(); ++k) {
-        EXPECT_NEAR(blob_grads[j]->cpu_diff()[k] * kLossWeights[i],
+        ASSERT_NEAR(blob_grads[j]->cpu_diff()[k] * kLossWeights[i],
                     weighted_blobs[j]->cpu_diff()[k], error_margin);
       }
     }

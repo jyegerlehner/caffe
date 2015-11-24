@@ -15,6 +15,8 @@
 #include <fstream>  // NOLINT
 
 #include "caffe/caffe.hpp"
+#include "caffe/blob_finder.hpp"
+#include "caffe/layer_finder.hpp"
 #include "caffe/python_layer.hpp"
 #include "caffe/sgd_solvers.hpp"
 
@@ -27,6 +29,10 @@
 
 namespace bp = boost::python;
 
+namespace {
+  caffe::BlobFinder<float> blob_finder;
+  caffe::LayerFinder<float> layer_finder;
+}
 namespace caffe {
 
 // For Python, for now, we'll just always use float as the type.
@@ -78,7 +84,7 @@ shared_ptr<Net<Dtype> > Net_Init(
   CheckFile(param_file);
 
   shared_ptr<Net<Dtype> > net(new Net<Dtype>(param_file,
-      static_cast<Phase>(phase)));
+      static_cast<Phase>(phase), blob_finder, layer_finder));
   return net;
 }
 
@@ -89,7 +95,7 @@ shared_ptr<Net<Dtype> > Net_Init_Load(
   CheckFile(pretrained_param_file);
 
   shared_ptr<Net<Dtype> > net(new Net<Dtype>(param_file,
-      static_cast<Phase>(phase)));
+      static_cast<Phase>(phase), blob_finder, layer_finder));
   net->CopyTrainedLayersFrom(pretrained_param_file);
   return net;
 }

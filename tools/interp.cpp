@@ -13,7 +13,9 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include "caffe/blob.hpp"
+#include "caffe/blob_finder.hpp"
 #include "caffe/common.hpp"
+#include "caffe/layer_finder.hpp"
 #include "caffe/net.hpp"
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/db.hpp"
@@ -263,7 +265,11 @@ int main( int argc, char** argv )
     LOG(INFO) << "Set mode to CPU" << std::endl;
   }
 
-  shared_ptr<Net<float> > net( new Net<float>( net_proto, TEST ) );
+  caffe::BlobFinder<float> blob_finder;
+  caffe::LayerFinder<float> layer_finder;
+
+  shared_ptr<Net<float> > net( new Net<float>( net_proto, TEST, blob_finder,
+                                               layer_finder ) );
 
   {
     std::vector<std::string> model_names;
