@@ -38,12 +38,16 @@
 #ifndef CAFFE_SOLVER_FACTORY_H_
 #define CAFFE_SOLVER_FACTORY_H_
 
+#include <boost/bind.hpp>
+#include <boost/function.hpp>
 #include <map>
 #include <string>
 #include <vector>
 
+#include "caffe/blob_finder.hpp"
 #include "caffe/common.hpp"
 #include "caffe/proto/caffe.pb.h"
+#include "caffe/solver.hpp"
 
 namespace caffe {
 
@@ -53,7 +57,8 @@ class Solver;
 template <typename Dtype>
 class SolverRegistry {
  public:
-  typedef Solver<Dtype>* (*Creator)(const SolverParameter&);
+  typedef boost::function<Solver<Dtype>* (const SolverParameter&, BlobFinder<Dtype>& )> Creator;
+  //typedef Solver<Dtype>* (*Creator)(const SolverParameter&);
   typedef std::map<string, Creator> CreatorRegistry;
 
   static CreatorRegistry& Registry() {
@@ -70,12 +75,13 @@ class SolverRegistry {
   }
 
   // Get a solver using a SolverParameter.
-  static Solver<Dtype>* CreateSolver(const SolverParameter& param) {
+  static Solver<Dtype>* CreateSolver(const SolverParameter& param,
+                                     BlobFinder<Dtype>& blob_finder) {
     const string& type = param.type();
     CreatorRegistry& registry = Registry();
     CHECK_EQ(registry.count(type), 1) << "Unknown solver type: " << type
         << " (known types: " << SolverTypeListString() << ")";
-    return registry[type](param);
+    return registry[type](param, blob_finder);
   }
 
   static vector<string> SolverTypeList() {
@@ -108,29 +114,40 @@ class SolverRegistry {
 };
 
 
-template <typename Dtype>
-class SolverRegisterer {
- public:
-  SolverRegisterer(const string& type,
-      Solver<Dtype>* (*creator)(const SolverParameter&)) {
-    // LOG(INFO) << "Registering solver type: " << type;
-    SolverRegistry<Dtype>::AddCreator(type, creator);
+//template <typename Dtype>
+//class SolverRegisterer {
+// public:
+//  SolverRegisterer(const string& type,
+//      Solver<Dtype>* (*creator)(const SolverParameter&)) {
+//    // LOG(INFO) << "Registering solver type: " << type;
+//    SolverRegistry<Dtype>::AddCreator(type, creator);
+//  }
+//};
+
+template<typename SolverClass, typename Dtype>
+class SolverRegisterer
+{
+public:
+  SolverRegisterer()
+  {
+    typename SolverRegistry<Dtype>::Creator creator =
+        boost::bind<Solver<Dtype>*>(&(SolverClass::Make), _1, _2 );
+    SolverRegistry<Dtype>::AddCreator(SolverClass::Name(), creator);
   }
 };
 
+// #define REGISTER_SOLVER_CREATOR(type, creator)                                \
+//  static SolverRegisterer<float> g_creator_f_##type(#type, creator<float>);    \
+//  static SolverRegisterer<double> g_creator_d_##type(#type, creator<double>)   \
 
-#define REGISTER_SOLVER_CREATOR(type, creator)                                 \
-  static SolverRegisterer<float> g_creator_f_##type(#type, creator<float>);    \
-  static SolverRegisterer<double> g_creator_d_##type(#type, creator<double>)   \
-
-#define REGISTER_SOLVER_CLASS(type)                                            \
-  template <typename Dtype>                                                    \
-  Solver<Dtype>* Creator_##type##Solver(                                       \
-      const SolverParameter& param)                                            \
-  {                                                                            \
-    return new type##Solver<Dtype>(param);                                     \
-  }                                                                            \
-  REGISTER_SOLVER_CREATOR(type, Creator_##type##Solver)
+//#define REGISTER_SOLVER_CLASS(type)                                            \
+//  template <typename Dtype>                                                    \
+//  Solver<Dtype>* Creator_##type##Solver(                                       \
+//      const SolverParameter& param, BlobFinder<Dtype>& blob_finder)            \
+//  {                                                                            \
+//    return new type##Solver<Dtype>(param, blob_finder);                                     \
+//  }                                                                            \
+//  REGISTER_SOLVER_CREATOR(type, Creator_##type##Solver)
 
 }  // namespace caffe
 

@@ -567,7 +567,8 @@ class SGDSolverTest : public GradientBasedSolverTest<TypeParam> {
 
  protected:
   virtual void InitSolver(const SolverParameter& param) {
-    this->solver_.reset(new SGDSolver<Dtype>(param));
+    BlobFinder<Dtype> blob_finder;
+    this->solver_.reset(new SGDSolver<Dtype>(param,blob_finder));
   }
 };
 
@@ -703,7 +704,8 @@ class AdaGradSolverTest : public GradientBasedSolverTest<TypeParam> {
 
  protected:
   virtual void InitSolver(const SolverParameter& param) {
-    this->solver_.reset(new AdaGradSolver<Dtype>(param));
+    BlobFinder<Dtype> blob_finder;
+    this->solver_.reset(new AdaGradSolver<Dtype>(param, blob_finder));
   }
 };
 
@@ -803,7 +805,8 @@ class NesterovSolverTest : public GradientBasedSolverTest<TypeParam> {
 
  protected:
   virtual void InitSolver(const SolverParameter& param) {
-    this->solver_.reset(new NesterovSolver<Dtype>(param));
+    BlobFinder<Dtype> blob_finder;
+    this->solver_.reset(new NesterovSolver<Dtype>(param, blob_finder));
   }
 };
 
@@ -936,7 +939,8 @@ class AdaDeltaSolverTest : public GradientBasedSolverTest<TypeParam> {
 
  protected:
   virtual void InitSolver(const SolverParameter& param) {
-    this->solver_.reset(new AdaDeltaSolver<Dtype>(param));
+    BlobFinder<Dtype> blob_finder;
+    this->solver_.reset(new AdaDeltaSolver<Dtype>(param, blob_finder));
   }
 };
 
@@ -1070,7 +1074,8 @@ class AdamSolverTest : public GradientBasedSolverTest<TypeParam> {
     new_param.set_momentum(momentum);
     const Dtype momentum2 = 0.999;
     new_param.set_momentum2(momentum2);
-    this->solver_.reset(new AdamSolver<Dtype>(new_param));
+    BlobFinder<Dtype> blob_finder;
+    this->solver_.reset(new AdamSolver<Dtype>(new_param, blob_finder));
   }
 };
 
@@ -1167,10 +1172,12 @@ class RMSPropSolverTest : public GradientBasedSolverTest<TypeParam> {
 
  protected:
   virtual void InitSolver(const SolverParameter& param) {
+    BlobFinder<Dtype> blob_finder;
     const Dtype rms_decay = 0.95;
     SolverParameter new_param = param;
     new_param.set_rms_decay(rms_decay);
-    this->solver_.reset(new RMSPropSolver<Dtype>(new_param));
+    this->solver_.reset(new RMSPropSolver<Dtype>(new_param,
+                                                 blob_finder));
   }
 };
 

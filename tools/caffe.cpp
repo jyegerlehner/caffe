@@ -197,10 +197,10 @@ int train() {
         GetRequestedAction(FLAGS_sigint_effect),
         GetRequestedAction(FLAGS_sighup_effect));
 
+  BlobFinder<float> blob_finder;
   shared_ptr<caffe::Solver<float> >
-      solver(caffe::SolverRegistry<float>::CreateSolver(solver_param));
-
-  solver->SetActionFunction(signal_handler.GetActionFunction());
+      solver(caffe::SolverRegistry<float>::CreateSolver(solver_param,
+                                                        blob_finder));
 
   solver->SetActionFunction(signal_handler.GetActionFunction());
 

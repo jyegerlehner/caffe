@@ -23,6 +23,7 @@ class SolverTest : public MultiDeviceTest<TypeParam> {
  protected:
   virtual void InitSolverFromProtoString(const string& proto) {
     SolverParameter param;
+    BlobFinder<Dtype> blob_finder;
     CHECK(google::protobuf::TextFormat::ParseFromString(proto, &param));
     // Set the solver_mode according to current Caffe::mode.
     switch (Caffe::mode()) {
@@ -35,7 +36,7 @@ class SolverTest : public MultiDeviceTest<TypeParam> {
       default:
         LOG(FATAL) << "Unknown Caffe mode: " << Caffe::mode();
     }
-    solver_.reset(new SGDSolver<Dtype>(param));
+    solver_.reset(new SGDSolver<Dtype>(param, blob_finder));
   }
 
   shared_ptr<Solver<Dtype> > solver_;

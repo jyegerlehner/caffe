@@ -62,18 +62,115 @@ Dtype SGDSolver<Dtype>::GetLearningRate() {
   return rate;
 }
 
+template<typename Dtype>
+void CreateAndAddBlob(const vector<int>& shape,
+                      vector<shared_ptr<Blob<Dtype> > >& vect) {
+  typename BlobFinder<Dtype>::SharedBlobPtr ptr( new Blob<Dtype>(shape));
+  vect.push_back(ptr);
+}
+
+template<typename Dtype>
+void SGDSolver<Dtype>::GetOrCreateBlob( BlobFinder<Dtype>& blob_finder,
+                                       const std::string& base_name,
+                                      const vector<int>& shape,
+                                      vector<shared_ptr<Blob<Dtype> > >& vect,
+                                      const std::string& suffix)
+{
+  // Only use blob finder if it is blob named in the ParamSpec of the layer.
+  if (base_name.size() > 0)
+  {
+    typename BlobFinder<Dtype>::SharedBlobPtr ptr;
+    std::string history_name = base_name + suffix;
+    if ( blob_finder.Exists(history_name))
+    {
+      ptr = blob_finder.PointerFromName(history_name);
+    }
+    else
+    {
+      ptr.reset(new Blob<Dtype>(shape));
+      blob_finder.AddBlob(history_name, ptr);
+    }
+    vect.push_back(ptr);
+  }
+  else
+  {
+    CreateAndAddBlob(shape, vect);
+  }
+}
+
+//template<typename Dtype>
+//void SGDSolver<Dtype>::GetOrCreateHistoryBlob( BlobFinder<Dtype>& blob_finder,
+//                                               const std::string& base_name,
+//                                              const vector<int>& shape)
+//{
+//  GetOrCreateBlob<Dtype>(blob_finder, base_name, shape, history_, "_history");
+//}
+
+//template<typename Dtype>
+//void SGDSolver<Dtype>::GetOrCreateUpdateBlob( BlobFinder<Dtype>& blob_finder,
+//                                               const std::string& base_name,
+//                                              const vector<int>& shape)
+//{
+//  GetOrCreateBlob<Dtype>(blob_finder, base_name, shape, temp_, "_history");
+//}
+
+//template<typename Dtype>
+//void SGDSolver<Dtype>::GetOrCreateTempBlob( BlobFinder<Dtype>& blob_finder,
+//                                               const std::string& base_name,
+//                                              const vector<int>& shape)
+//{
+//  GetOrCreateBlob<Dtype>(blob_finder, base_name, shape, history_, "_history");
+//}
+
+template<typename Dtype>
+typename SGDSolver<Dtype>::ParamNameMap
+            SGDSolver<Dtype>::CreateParamNameMap() const
+{
+  ParamNameMap result;
+  const std::map<string,int>& name_index = this->net_->param_names_index();
+  for(std::map<string,int>::const_iterator it = name_index.begin();
+      it != name_index.end(); ++it)
+  {
+    result[it->second] = it->first;
+  }
+  return result;
+}
+
 template <typename Dtype>
-void SGDSolver<Dtype>::PreSolve() {
+void SGDSolver<Dtype>::PreSolve(BlobFinder<Dtype>& blob_finder) {
   // Initialize the history
   const vector<Blob<Dtype>*>& net_params = this->net_->learnable_params();
   history_.clear();
   update_.clear();
   temp_.clear();
+
+  ParamNameMap name_map = CreateParamNameMap();
+
   for (int i = 0; i < net_params.size(); ++i) {
     const vector<int>& shape = net_params[i]->shape();
-    history_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
-    update_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
-    temp_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
+
+    if (name_map.find(i) != name_map.end())
+    {
+      std::string learnable_param_name = name_map[i];
+
+      // The param has a name from the layer's ParamSpec, so try get it from
+      // the blob finder if it's there, or else create it.
+      GetOrCreateBlob(blob_finder, learnable_param_name, shape,
+                             history_, "_history");
+      GetOrCreateBlob(blob_finder, learnable_param_name, shape,
+                            update_, "_update");
+      GetOrCreateBlob(blob_finder, learnable_param_name, shape,
+                          temp_, "_temp");
+    }
+    else
+    {
+      // It has no name (Layer's ParamSpec doesn't specify one), so always
+      // just create it since it can't be in the blob_finder's map without a
+      // a name.
+      CreateAndAddBlob(shape, temp_);
+      CreateAndAddBlob(shape, update_);
+      CreateAndAddBlob(shape, history_);
+    }
   }
 }
 
@@ -343,6 +440,8 @@ void SGDSolver<Dtype>::RestoreSolverStateFromHDF5(const string& state_file) {
 }
 
 INSTANTIATE_CLASS(SGDSolver);
-REGISTER_SOLVER_CLASS(SGD);
+//REGISTER_SOLVER_CLASS(SGD);
+SolverRegisterer<SGDSolver<float>,float> sgd_registerer_float;
+SolverRegisterer<SGDSolver<double>,double> sgd_registerer_double;
 
 }  // namespace caffe

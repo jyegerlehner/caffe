@@ -140,8 +140,9 @@ void Net_SetInputArrays(Net<Dtype>* net, bp::object data_obj,
 
 Solver<Dtype>* GetSolverFromFile(const string& filename) {
   SolverParameter param;
+  BlobFinder<Dtype> blob_finder;
   ReadSolverParamsFromTextFileOrDie(filename, &param);
-  return SolverRegistry<Dtype>::CreateSolver(param);
+  return SolverRegistry<Dtype>::CreateSolver(param, blob_finder);
 }
 
 struct NdarrayConverterGenerator {
@@ -296,24 +297,24 @@ BOOST_PYTHON_MODULE(_caffe) {
     .def("restore", &Solver<Dtype>::Restore)
     .def("snapshot", &Solver<Dtype>::Snapshot);
 
-  bp::class_<SGDSolver<Dtype>, bp::bases<Solver<Dtype> >,
-    shared_ptr<SGDSolver<Dtype> >, boost::noncopyable>(
-        "SGDSolver", bp::init<string>());
-  bp::class_<NesterovSolver<Dtype>, bp::bases<Solver<Dtype> >,
-    shared_ptr<NesterovSolver<Dtype> >, boost::noncopyable>(
-        "NesterovSolver", bp::init<string>());
-  bp::class_<AdaGradSolver<Dtype>, bp::bases<Solver<Dtype> >,
-    shared_ptr<AdaGradSolver<Dtype> >, boost::noncopyable>(
-        "AdaGradSolver", bp::init<string>());
-  bp::class_<RMSPropSolver<Dtype>, bp::bases<Solver<Dtype> >,
-    shared_ptr<RMSPropSolver<Dtype> >, boost::noncopyable>(
-        "RMSPropSolver", bp::init<string>());
-  bp::class_<AdaDeltaSolver<Dtype>, bp::bases<Solver<Dtype> >,
-    shared_ptr<AdaDeltaSolver<Dtype> >, boost::noncopyable>(
-        "AdaDeltaSolver", bp::init<string>());
-  bp::class_<AdamSolver<Dtype>, bp::bases<Solver<Dtype> >,
-    shared_ptr<AdamSolver<Dtype> >, boost::noncopyable>(
-        "AdamSolver", bp::init<string>());
+//  bp::class_<SGDSolver<Dtype>, bp::bases<Solver<Dtype> >,
+//    shared_ptr<SGDSolver<Dtype> >, boost::noncopyable>(
+//        "SGDSolver", bp::init<string>());
+//  bp::class_<NesterovSolver<Dtype>, bp::bases<Solver<Dtype> >,
+//    shared_ptr<NesterovSolver<Dtype> >, boost::noncopyable>(
+//        "NesterovSolver", bp::init<string>());
+//  bp::class_<AdaGradSolver<Dtype>, bp::bases<Solver<Dtype> >,
+//    shared_ptr<AdaGradSolver<Dtype> >, boost::noncopyable>(
+//        "AdaGradSolver", bp::init<string>());
+//  bp::class_<RMSPropSolver<Dtype>, bp::bases<Solver<Dtype> >,
+//    shared_ptr<RMSPropSolver<Dtype> >, boost::noncopyable>(
+//        "RMSPropSolver", bp::init<string>());
+//  bp::class_<AdaDeltaSolver<Dtype>, bp::bases<Solver<Dtype> >,
+//    shared_ptr<AdaDeltaSolver<Dtype> >, boost::noncopyable>(
+//        "AdaDeltaSolver", bp::init<string>());
+//  bp::class_<AdamSolver<Dtype>, bp::bases<Solver<Dtype> >,
+//    shared_ptr<AdamSolver<Dtype> >, boost::noncopyable>(
+//        "AdamSolver", bp::init<string>());
 
   bp::def("get_solver", &GetSolverFromFile,
       bp::return_value_policy<bp::manage_new_object>());
