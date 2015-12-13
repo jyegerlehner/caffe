@@ -44,8 +44,13 @@ template <typename Dtype>
 class Solver {
  public:
   explicit Solver(const SolverParameter& param,
+      BlobFinder<Dtype>& blob_finder,
+      LayerFinder<Dtype>& layer_finder,
       const Solver* root_solver = NULL);
-  explicit Solver(const string& param_file, const Solver* root_solver = NULL);
+  explicit Solver(const string& param_file,
+                  BlobFinder<Dtype>& blob_finder,
+                  LayerFinder<Dtype>& layer_finder,
+                  const Solver* root_solver = NULL);
   void Init(const SolverParameter& param);
   void InitTrainNet();
   void InitTestNets();
@@ -59,6 +64,8 @@ class Solver {
   // in a non-zero iter number to resume training for a pre-trained net.
   virtual void Solve(const char* resume_file = NULL);
   inline void Solve(const string resume_file) { Solve(resume_file.c_str()); }
+  void SingleStep(int start_iter, std::vector<Dtype>& losses,
+                                 int average_loss, Dtype smoothed_loss);
   void Step(int iters);
   // The Restore method simply dispatches to one of the
   // RestoreSolverStateFrom___ protected methods. You should implement these
@@ -131,8 +138,8 @@ class Solver {
   // True iff a request to stop early was received.
   bool requested_early_exit_;
 
-  BlobFinder<Dtype> blob_finder_;
-  LayerFinder<Dtype> layer_finder_;
+  BlobFinder<Dtype>& blob_finder_;
+  LayerFinder<Dtype>& layer_finder_;
 
   DISABLE_COPY_AND_ASSIGN(Solver);
 };
@@ -145,8 +152,10 @@ template <typename Dtype>
 class WorkerSolver : public Solver<Dtype> {
  public:
   explicit WorkerSolver(const SolverParameter& param,
+      BlobFinder<Dtype>& blob_finder,
+      LayerFinder<Dtype>& layer_finder,
       const Solver<Dtype>* root_solver = NULL)
-      : Solver<Dtype>(param, root_solver) {}
+      : Solver<Dtype>(param, blob_finder, layer_finder, root_solver) {}
 
  protected:
   void ApplyUpdate() {}

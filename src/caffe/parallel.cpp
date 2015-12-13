@@ -203,7 +203,10 @@ void DevicePair::compute(const vector<int> devices, vector<DevicePair>* pairs) {
 
 template<typename Dtype>
 P2PSync<Dtype>::P2PSync(shared_ptr<Solver<Dtype> > root_solver,
-                        P2PSync<Dtype>* parent, const SolverParameter& param)
+                        P2PSync<Dtype>* parent,
+                        const SolverParameter& param) //,
+//                        BlobFinder<Dtype>& blob_finder,
+//                        LayerFinder<Dtype>& layer_finder)
     : GPUParams<Dtype>(root_solver, param.device_id()),
       parent_(parent),
       children_(),
@@ -220,7 +223,12 @@ P2PSync<Dtype>::P2PSync(shared_ptr<Solver<Dtype> > root_solver,
     solver_ = root_solver;
   } else {
     Caffe::set_root_solver(false);
-    solver_.reset(new WorkerSolver<Dtype>(param, root_solver.get()));
+    BlobFinder<Dtype> blob_finder;
+    LayerFinder<Dtype> layer_finder;
+    solver_.reset(new WorkerSolver<Dtype>(param,
+                                          blob_finder,
+                                          layer_finder,
+                                          root_solver.get()));
     Caffe::set_root_solver(true);
   }
   this->configure(solver_.get());

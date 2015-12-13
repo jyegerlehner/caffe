@@ -98,30 +98,6 @@ void SGDSolver<Dtype>::GetOrCreateBlob( BlobFinder<Dtype>& blob_finder,
   }
 }
 
-//template<typename Dtype>
-//void SGDSolver<Dtype>::GetOrCreateHistoryBlob( BlobFinder<Dtype>& blob_finder,
-//                                               const std::string& base_name,
-//                                              const vector<int>& shape)
-//{
-//  GetOrCreateBlob<Dtype>(blob_finder, base_name, shape, history_, "_history");
-//}
-
-//template<typename Dtype>
-//void SGDSolver<Dtype>::GetOrCreateUpdateBlob( BlobFinder<Dtype>& blob_finder,
-//                                               const std::string& base_name,
-//                                              const vector<int>& shape)
-//{
-//  GetOrCreateBlob<Dtype>(blob_finder, base_name, shape, temp_, "_history");
-//}
-
-//template<typename Dtype>
-//void SGDSolver<Dtype>::GetOrCreateTempBlob( BlobFinder<Dtype>& blob_finder,
-//                                               const std::string& base_name,
-//                                              const vector<int>& shape)
-//{
-//  GetOrCreateBlob<Dtype>(blob_finder, base_name, shape, history_, "_history");
-//}
-
 template<typename Dtype>
 typename SGDSolver<Dtype>::ParamNameMap
             SGDSolver<Dtype>::CreateParamNameMap() const
@@ -137,7 +113,7 @@ typename SGDSolver<Dtype>::ParamNameMap
 }
 
 template <typename Dtype>
-void SGDSolver<Dtype>::PreSolve(BlobFinder<Dtype>& blob_finder) {
+void SGDSolver<Dtype>::PreSolve() {
   // Initialize the history
   const vector<Blob<Dtype>*>& net_params = this->net_->learnable_params();
   history_.clear();
@@ -149,17 +125,23 @@ void SGDSolver<Dtype>::PreSolve(BlobFinder<Dtype>& blob_finder) {
   for (int i = 0; i < net_params.size(); ++i) {
     const vector<int>& shape = net_params[i]->shape();
 
-    if (name_map.find(i) != name_map.end())
+    bool use_named_blob = name_map.find(i) != name_map.end();
+    if (use_named_blob)
     {
+
       std::string learnable_param_name = name_map[i];
+      if (learnable_param_name.size() == 0)
+      {
+        throw std::runtime_error("empty learnable_param_name");
+      }
 
       // The param has a name from the layer's ParamSpec, so try get it from
       // the blob finder if it's there, or else create it.
-      GetOrCreateBlob(blob_finder, learnable_param_name, shape,
+      GetOrCreateBlob(this->blob_finder_, learnable_param_name, shape,
                              history_, "_history");
-      GetOrCreateBlob(blob_finder, learnable_param_name, shape,
+      GetOrCreateBlob(this->blob_finder_, learnable_param_name, shape,
                             update_, "_update");
-      GetOrCreateBlob(blob_finder, learnable_param_name, shape,
+      GetOrCreateBlob(this->blob_finder_, learnable_param_name, shape,
                           temp_, "_temp");
     }
     else

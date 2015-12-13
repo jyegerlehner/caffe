@@ -18,19 +18,24 @@ class SGDSolver : public Solver<Dtype> {
  public:
   typedef std::map<int,string> ParamNameMap;
   explicit SGDSolver(const SolverParameter& param,
-                     BlobFinder<Dtype>& blob_finder)
-      : Solver<Dtype>(param) { PreSolve(blob_finder); }
+                     BlobFinder<Dtype>& blob_finder,
+                     LayerFinder<Dtype>& layer_finder)
+      : Solver<Dtype>(param,blob_finder, layer_finder)
+  { PreSolve(); }
   explicit SGDSolver(const string& param_file,
-                     BlobFinder<Dtype>& blob_finder)
-      : Solver<Dtype>(param_file) { PreSolve(blob_finder); }
+                     BlobFinder<Dtype>& blob_finder,
+                     LayerFinder<Dtype>& layer_finder)
+      : Solver<Dtype>(param_file, blob_finder, layer_finder)
+  { PreSolve(); }
   virtual inline const char* type() const { return "SGD"; }
 
   const vector<shared_ptr<Blob<Dtype> > >& history() { return history_; }
   ParamNameMap CreateParamNameMap() const;
   static std::string Name() { return "SGD"; }
   static Solver<Dtype>* Make( const SolverParameter& param,
-                              BlobFinder<Dtype>& blob_finder) {
-    return new SGDSolver<Dtype>(param, blob_finder);
+                              BlobFinder<Dtype>& blob_finder,
+                              LayerFinder<Dtype>& layer_finder) {
+    return new SGDSolver<Dtype>(param, blob_finder, layer_finder);
   }
 
  protected:
@@ -39,7 +44,7 @@ class SGDSolver : public Solver<Dtype> {
                         const vector<int>& shape,
                         vector<shared_ptr<Blob<Dtype> > >& vect,
                         const std::string& suffix);
-  void PreSolve(BlobFinder<Dtype>& blob_finder);
+  void PreSolve();
   Dtype GetLearningRate();
   virtual void ApplyUpdate();
   virtual void Normalize(int param_id);
@@ -64,16 +69,19 @@ template <typename Dtype>
 class NesterovSolver : public SGDSolver<Dtype> {
  public:
   explicit NesterovSolver(const SolverParameter& param,
-                          BlobFinder<Dtype>& blob_finder)
-      : SGDSolver<Dtype>(param, blob_finder) {}
+                          BlobFinder<Dtype>& blob_finder,
+                          LayerFinder<Dtype>& layer_finder)
+      : SGDSolver<Dtype>(param, blob_finder, layer_finder) {}
   explicit NesterovSolver(const string& param_file,
-                          BlobFinder<Dtype>& blob_finder)
-      : SGDSolver<Dtype>(param_file, blob_finder) {}
+                          BlobFinder<Dtype>& blob_finder,
+                          LayerFinder<Dtype>& layer_finder)
+      : SGDSolver<Dtype>(param_file, blob_finder, layer_finder) {}
   virtual inline const char* type() const { return "Nesterov"; }
   static std::string Name() { return "Nesterov"; }
   static Solver<Dtype>* Make( const SolverParameter& param,
-                              BlobFinder<Dtype>& blob_finder) {
-    return new NesterovSolver<Dtype>(param, blob_finder);
+                              BlobFinder<Dtype>& blob_finder,
+                              LayerFinder<Dtype>& layer_finder) {
+    return new NesterovSolver<Dtype>(param, blob_finder, layer_finder);
   }
 
  protected:
@@ -85,15 +93,21 @@ class NesterovSolver : public SGDSolver<Dtype> {
 template <typename Dtype>
 class AdaGradSolver : public SGDSolver<Dtype> {
  public:
-  explicit AdaGradSolver(const SolverParameter& param, BlobFinder<Dtype>& blob_finder)
-      : SGDSolver<Dtype>(param, blob_finder) { constructor_sanity_check(); }
-  explicit AdaGradSolver(const string& param_file, BlobFinder<Dtype>& blob_finder)
-      : SGDSolver<Dtype>(param_file, blob_finder) { constructor_sanity_check(); }
+  explicit AdaGradSolver(const SolverParameter& param,
+                         BlobFinder<Dtype>& blob_finder,
+                         LayerFinder<Dtype>& layer_finder)
+      : SGDSolver<Dtype>(param, blob_finder, layer_finder)
+                              { constructor_sanity_check(); }
+  explicit AdaGradSolver(const string& param_file,
+                         BlobFinder<Dtype>& blob_finder,
+                         LayerFinder<Dtype>& layer_finder)
+      : SGDSolver<Dtype>(param_file, blob_finder, layer_finder) { constructor_sanity_check(); }
   virtual inline const char* type() const { return "AdaGrad"; }
   static std::string Name() { return "AdaGrad"; }
   static Solver<Dtype>* Make( const SolverParameter& param,
-                              BlobFinder<Dtype>& blob_finder) {
-    return new AdaGradSolver<Dtype>(param, blob_finder);
+                              BlobFinder<Dtype>& blob_finder,
+                              LayerFinder<Dtype>& layer_finder) {
+    return new AdaGradSolver<Dtype>(param, blob_finder, layer_finder);
   }
  protected:
   virtual void ComputeUpdateValue(int param_id, Dtype rate);
@@ -110,16 +124,21 @@ template <typename Dtype>
 class RMSPropSolver : public SGDSolver<Dtype> {
  public:
   explicit RMSPropSolver(const SolverParameter& param,
-                         BlobFinder<Dtype>& blob_finder)
-      : SGDSolver<Dtype>(param, blob_finder) { constructor_sanity_check(); }
+                         BlobFinder<Dtype>& blob_finder,
+                         LayerFinder<Dtype>& layer_finder)
+      : SGDSolver<Dtype>(param, blob_finder, layer_finder)
+  { constructor_sanity_check(); }
   explicit RMSPropSolver(const string& param_file,
-                         BlobFinder<Dtype>& blob_finder)
-      : SGDSolver<Dtype>(param_file, blob_finder) { constructor_sanity_check(); }
+                         BlobFinder<Dtype>& blob_finder,
+                         LayerFinder<Dtype>& layer_finder)
+      : SGDSolver<Dtype>(param_file, blob_finder, layer_finder)
+  { constructor_sanity_check(); }
   virtual inline const char* type() const { return "RMSProp"; }
   static std::string Name() { return "RMSProp"; }
   static Solver<Dtype>* Make( const SolverParameter& param,
-                              BlobFinder<Dtype>& blob_finder) {
-    return new RMSPropSolver<Dtype>(param, blob_finder);
+                              BlobFinder<Dtype>& blob_finder,
+                              LayerFinder<Dtype>& layer_finder) {
+    return new RMSPropSolver<Dtype>(param, blob_finder, layer_finder);
   }
 
  protected:
@@ -140,17 +159,22 @@ template <typename Dtype>
 class AdaDeltaSolver : public SGDSolver<Dtype> {
  public:
   explicit AdaDeltaSolver(const SolverParameter& param,
-                          BlobFinder<Dtype>& blob_finder)
-      : SGDSolver<Dtype>(param, blob_finder ) { AdaDeltaPreSolve(); }
+                          BlobFinder<Dtype>& blob_finder,
+                          LayerFinder<Dtype>& layer_finder)
+      : SGDSolver<Dtype>(param, blob_finder, layer_finder )
+      { AdaDeltaPreSolve(); }
   explicit AdaDeltaSolver(const string& param_file,
-                          BlobFinder<Dtype>& blob_finder)
-      : SGDSolver<Dtype>(param_file, blob_finder) { AdaDeltaPreSolve(); }
+                          BlobFinder<Dtype>& blob_finder,
+                          LayerFinder<Dtype>& layer_finder)
+      : SGDSolver<Dtype>(param_file, blob_finder, layer_finder)
+      { AdaDeltaPreSolve(); }
   virtual inline const char* type() const { return "AdaDelta"; }
 
   static std::string Name() { return "AdaDelta"; }
   static Solver<Dtype>* Make( const SolverParameter& param,
-                              BlobFinder<Dtype>& blob_finder) {
-    return new AdaDeltaSolver<Dtype>(param, blob_finder);
+                              BlobFinder<Dtype>& blob_finder,
+                              LayerFinder<Dtype>& layer_finder) {
+    return new AdaDeltaSolver<Dtype>(param, blob_finder, layer_finder);
   }
  protected:
   void AdaDeltaPreSolve();
@@ -171,16 +195,19 @@ template <typename Dtype>
 class AdamSolver : public SGDSolver<Dtype> {
  public:
   explicit AdamSolver(const SolverParameter& param,
-                      BlobFinder<Dtype>& blob_finder)
-      : SGDSolver<Dtype>(param, blob_finder) { AdamPreSolve();}
+                      BlobFinder<Dtype>& blob_finder,
+                      LayerFinder<Dtype>& layer_finder)
+      : SGDSolver<Dtype>(param, blob_finder, layer_finder) { AdamPreSolve();}
   explicit AdamSolver(const string& param_file,
-                      BlobFinder<Dtype>& blob_finder)
-      : SGDSolver<Dtype>(param_file, blob_finder) { AdamPreSolve(); }
+                      BlobFinder<Dtype>& blob_finder,
+                      LayerFinder<Dtype>& layer_finder)
+      : SGDSolver<Dtype>(param_file, blob_finder, layer_finder) { AdamPreSolve(); }
   virtual inline const char* type() const { return "Adam"; }
   static std::string Name() { return "Adam"; }
   static Solver<Dtype>* Make( const SolverParameter& param,
-                              BlobFinder<Dtype>& blob_finder) {
-    return new AdamSolver<Dtype>(param, blob_finder);
+                              BlobFinder<Dtype>& blob_finder,
+                              LayerFinder<Dtype>& layer_finder) {
+    return new AdamSolver<Dtype>(param, blob_finder, layer_finder);
   }
 
  protected:

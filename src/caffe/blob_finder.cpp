@@ -3,12 +3,17 @@
 
 #include "caffe/blob_finder.hpp"
 #include "caffe/common.hpp"
+#include "caffe/net.hpp"
 
 namespace caffe {
 
 template <typename Dtype>
 void BlobFinder<Dtype>::AddBlob(
     const std::string& name,SharedBlobPtr blob_ptr ) {
+  if( name == Net<Dtype>::AUTOMATIC_BLOB_NAME )
+  {
+    throw std::runtime_error("Adding automatic blob to blob finder.");
+  }
   blob_to_name_[blob_ptr] = name;
   name_to_blob_[name] = blob_ptr;
 }
@@ -16,6 +21,11 @@ void BlobFinder<Dtype>::AddBlob(
 template <typename Dtype>
 typename BlobFinder<Dtype>::SharedBlobPtr BlobFinder<Dtype>::PointerFromName(
                     const std::string& name) {
+  std::cout << "BlobFinder::PointerFromName: " << name << std::endl;
+  if ( name == Net<Dtype>::AUTOMATIC_BLOB_NAME)
+  {
+    throw std::runtime_error("tried to retrieve automatic blob by name.");
+  }
   return name_to_blob_[name];
 }
 
@@ -51,6 +61,10 @@ bool BlobFinder<Dtype>::Exists(const std::string& name) const {
   if ( name == std::string("") || name.size() == 0)
   {
     throw std::runtime_error("Blob with no name.");
+  }
+  if ( name == Net<Dtype>::AUTOMATIC_BLOB_NAME)
+  {
+    return false;
   }
   return name_to_blob_.find(name) != name_to_blob_.end();
 }

@@ -26,7 +26,7 @@ class GradientBasedSolverTest : public MultiDeviceTest<TypeParam> {
  protected:
   GradientBasedSolverTest() :
       seed_(1701), num_(4), channels_(3), height_(10), width_(10),
-      share_(false) {
+      share_(false), dump_file_() {
         input_file_ = new string(
         CMAKE_SOURCE_DIR "caffe/test/test_data/solver_data_list.txt" CMAKE_EXT);
       }
@@ -43,6 +43,7 @@ class GradientBasedSolverTest : public MultiDeviceTest<TypeParam> {
   int num_, channels_, height_, width_;
   bool share_;
   Dtype delta_;  // Stability constant for RMSProp, AdaGrad, AdaDelta and Adam
+  std::string dump_file_;
 
   // Test data: check out generate_sample_data.py in the same directory.
   string* input_file_;
@@ -190,6 +191,68 @@ string RunLeastSquaresSolver(const Dtype learning_rate,
         this->solver_->net()->Forward(empty_bottom_vec);
       }
     }
+    if( this->dump_file_.size() > 0)
+    {
+      // dump data and innerprod blobs' data to the dump file.
+      std::ofstream out_file;
+      out_file.open(this->dump_file_.c_str(),
+                    std::ofstream::trunc | std::ofstream::out);
+      Net<Dtype>& net = *this->solver_->net();
+      if(!net.has_blob("data"))
+        throw std::runtime_error("No data blob");
+      const Blob<Dtype>& data = *net.blob_by_name("data");
+      PrintBlob(out_file, "data", data, false);
+      if(!net.has_blob("innerprod"))
+        throw std::runtime_error("No innerproduct blob");
+      const Blob<Dtype>& inner_prod = *net.blob_by_name("innerprod");
+      PrintBlob(out_file, "innerprod", inner_prod, false);
+
+      if ( net.has_blob("data1"))
+      {
+        const Blob<Dtype>& data1 = *net.blob_by_name("data1");
+        PrintBlob(out_file, "data1", data1, false);
+      }
+      if ( net.has_blob("data2"))
+      {
+        const Blob<Dtype>& data2 = *net.blob_by_name("data2");
+        PrintBlob(out_file, "data2", data2, false);
+      }
+
+      if ( net.has_blob("innerprod1"))
+      {
+        const Blob<Dtype>& data1 = *net.blob_by_name("innerprod1");
+        PrintBlob(out_file, "innerprod1", data1, false);
+      }
+      if ( net.has_blob("innerprod2"))
+      {
+        const Blob<Dtype>& data2 = *net.blob_by_name("innerprod2");
+        PrintBlob(out_file, "innerprod2", data2, false);
+      }
+
+      if ( net.has_layer("innerprod"))
+      {
+        const vector<shared_ptr<Blob<Dtype> > >& param_blobs =
+            net.layer_by_name("innerprod")->blobs();
+
+        PrintBlob(out_file, "innerprod.weights",
+                  *param_blobs[0], false);
+        PrintBlob(out_file, "innerprod.bias",
+                  *param_blobs[1], false);
+
+      }
+      if ( net.has_layer("innerprod2"))
+      {
+        const vector<shared_ptr<Blob<Dtype> > >& param_blobs =
+            net.layer_by_name("innerprod2")->blobs();
+
+        PrintBlob(out_file, "innerprod2.weights",
+                  *param_blobs[0], false);
+        PrintBlob(out_file, "innerprod2.bias",
+                  *param_blobs[1], false);
+
+      }
+    }
+
     if (devices == 1) {
       this->solver_->Solve();
     } else {
@@ -202,6 +265,8 @@ string RunLeastSquaresSolver(const Dtype learning_rate,
         if (i != device_id)
           gpus.push_back(i);
       }
+      BlobFinder<Dtype> blob_finder;
+      LayerFinder<Dtype> layer_finder;
       Caffe::set_solver_count(gpus.size());
       this->sync_.reset(new P2PSync<Dtype>(
           this->solver_, NULL, this->solver_->param()));
@@ -459,11 +524,11 @@ string RunLeastSquaresSolver(const Dtype learning_rate,
     const int kIterSize = 1;
     // Test over all numbers of devices.
     int available_devices = 1;
-#ifndef CPU_ONLY
-    if (Caffe::mode() == Caffe::GPU) {
-      CUDA_CHECK(cudaGetDeviceCount(&available_devices));
-    }
-#endif
+//#ifndef CPU_ONLY
+//    if (Caffe::mode() == Caffe::GPU) {
+//      CUDA_CHECK(cudaGetDeviceCount(&available_devices));
+//    }
+//#endif
     for (int devices = 1; devices <= available_devices; ++devices) {
       // Configure batch size for single / multi device equivalence.
       // Constant data is needed for multi device as for accumulation.
@@ -568,7 +633,9 @@ class SGDSolverTest : public GradientBasedSolverTest<TypeParam> {
  protected:
   virtual void InitSolver(const SolverParameter& param) {
     BlobFinder<Dtype> blob_finder;
-    this->solver_.reset(new SGDSolver<Dtype>(param,blob_finder));
+    LayerFinder<Dtype> layer_finder;
+    this->solver_.reset(new SGDSolver<Dtype>(param,blob_finder,
+                                             layer_finder));
   }
 };
 
@@ -633,7 +700,9 @@ TYPED_TEST(SGDSolverTest, TestLeastSquaresUpdateWithEverything) {
   const Dtype kLearningRate = 0.01;
   const Dtype kWeightDecay = 0.5;
   const Dtype kMomentum = 0.5;
-  const int kNumIters = 4;
+//  const int kNumIters = 4;
+  const int kNumIters = 1;
+  this->dump_file_ = std::string("NoShare.txt");
   for (int i = 0; i <= kNumIters; ++i) {
     this->TestLeastSquaresUpdate(kLearningRate, kWeightDecay, kMomentum, i);
   }
@@ -644,8 +713,10 @@ TYPED_TEST(SGDSolverTest, TestLeastSquaresUpdateWithEverythingShare) {
   const Dtype kLearningRate = 0.01;
   const Dtype kWeightDecay = 0.5;
   const Dtype kMomentum = 0.5;
-  const int kNumIters = 4;
+//  const int kNumIters = 4;
+  const int kNumIters = 1;
   this->share_ = true;
+  this->dump_file_ = std::string("Share.txt");
   for (int i = 0; i <= kNumIters; ++i) {
     this->TestLeastSquaresUpdate(kLearningRate, kWeightDecay, kMomentum, i);
   }
@@ -705,7 +776,9 @@ class AdaGradSolverTest : public GradientBasedSolverTest<TypeParam> {
  protected:
   virtual void InitSolver(const SolverParameter& param) {
     BlobFinder<Dtype> blob_finder;
-    this->solver_.reset(new AdaGradSolver<Dtype>(param, blob_finder));
+    LayerFinder<Dtype> layer_finder;
+    this->solver_.reset(new AdaGradSolver<Dtype>(param, blob_finder,
+                                                 layer_finder));
   }
 };
 
@@ -806,7 +879,9 @@ class NesterovSolverTest : public GradientBasedSolverTest<TypeParam> {
  protected:
   virtual void InitSolver(const SolverParameter& param) {
     BlobFinder<Dtype> blob_finder;
-    this->solver_.reset(new NesterovSolver<Dtype>(param, blob_finder));
+    LayerFinder<Dtype> layer_finder;
+    this->solver_.reset(new NesterovSolver<Dtype>(param, blob_finder,
+                                                  layer_finder));
   }
 };
 
@@ -940,7 +1015,9 @@ class AdaDeltaSolverTest : public GradientBasedSolverTest<TypeParam> {
  protected:
   virtual void InitSolver(const SolverParameter& param) {
     BlobFinder<Dtype> blob_finder;
-    this->solver_.reset(new AdaDeltaSolver<Dtype>(param, blob_finder));
+    LayerFinder<Dtype> layer_finder;
+    this->solver_.reset(new AdaDeltaSolver<Dtype>(param, blob_finder,
+                                                  layer_finder));
   }
 };
 
@@ -1075,7 +1152,9 @@ class AdamSolverTest : public GradientBasedSolverTest<TypeParam> {
     const Dtype momentum2 = 0.999;
     new_param.set_momentum2(momentum2);
     BlobFinder<Dtype> blob_finder;
-    this->solver_.reset(new AdamSolver<Dtype>(new_param, blob_finder));
+    LayerFinder<Dtype> layer_finder;
+    this->solver_.reset(new AdamSolver<Dtype>(new_param, blob_finder,
+                                              layer_finder));
   }
 };
 
@@ -1173,11 +1252,13 @@ class RMSPropSolverTest : public GradientBasedSolverTest<TypeParam> {
  protected:
   virtual void InitSolver(const SolverParameter& param) {
     BlobFinder<Dtype> blob_finder;
+    LayerFinder<Dtype> layer_finder;
     const Dtype rms_decay = 0.95;
     SolverParameter new_param = param;
     new_param.set_rms_decay(rms_decay);
     this->solver_.reset(new RMSPropSolver<Dtype>(new_param,
-                                                 blob_finder));
+                                                 blob_finder,
+                                                 layer_finder));
   }
 };
 

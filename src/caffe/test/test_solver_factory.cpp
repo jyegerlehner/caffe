@@ -38,13 +38,15 @@ TYPED_TEST(SolverFactoryTest, TestCreateSolver) {
   typename SolverRegistry<Dtype>::CreatorRegistry& registry =
       SolverRegistry<Dtype>::Registry();
   BlobFinder<Dtype> blob_finder;
+  LayerFinder<Dtype> layer_finder;
   shared_ptr<Solver<Dtype> > solver;
   SolverParameter solver_param = this->simple_solver_param();
   for (typename SolverRegistry<Dtype>::CreatorRegistry::iterator iter =
        registry.begin(); iter != registry.end(); ++iter) {
     solver_param.set_type(iter->first);
     solver.reset(SolverRegistry<Dtype>::CreateSolver(solver_param,
-                                                     blob_finder));
+                                                     blob_finder,
+                                                     layer_finder));
     EXPECT_EQ(iter->first, solver->type());
   }
 }

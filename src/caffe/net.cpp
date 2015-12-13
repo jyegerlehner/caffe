@@ -22,6 +22,10 @@
 
 namespace caffe {
 
+template< typename Dtype>
+const std::string Net<Dtype>::AUTOMATIC_BLOB_NAME("(automatic)");
+
+
 template <typename Dtype>
 Net<Dtype>::Net(const NetParameter& param,
                 BlobFinder<Dtype>& blob_finder,
@@ -312,7 +316,30 @@ void Net<Dtype>::Init(const NetParameter& in_param,
   for (size_t layer_id = 0; layer_id < layer_names_.size(); ++layer_id) {
     layer_names_index_[layer_names_[layer_id]] = layer_id;
   }
-  ShareWeights();
+
+  for(int i=0; i < in_param.encoder_loop_size(); ++i)
+  {
+    NetState net_state;
+    net_state.set_phase(TRAIN);
+    NetParameter encoder_param = in_param.encoder_loop(i);
+    encoder_param.mutable_state()->CopyFrom(net_state);
+
+    encoder_loops_.push_back( shared_ptr<Net<Dtype> > (
+                                new Net<Dtype>(encoder_param, blob_finder,
+                                             layer_finder, this)));
+  }
+
+  for(int i=0; i < in_param.decoder_loop_size(); ++i)
+  {
+    NetState net_state;
+    net_state.set_phase(TRAIN);
+    NetParameter decoder_param = in_param.encoder_loop(i);
+    decoder_param.mutable_state()->CopyFrom(net_state);
+    decoder_loops_.push_back( shared_ptr<Net<Dtype> > (
+                                new Net<Dtype>(decoder_param, blob_finder,
+                                             layer_finder, this)));
+  }
+
   debug_info_ = param.debug_info();
   LOG_IF(INFO, Caffe::root_solver()) << "Network initialization done.";
 }
@@ -424,7 +451,7 @@ void Net<Dtype>::AppendTop(const NetParameter& param, const int layer_id,
     (new LayerParameter(param.layer(layer_id))) : NULL);
   const string& blob_name = layer_param ?
       (layer_param->top_size() > top_id ?
-          layer_param->top(top_id) : "(automatic)") : param.input(top_id);
+          layer_param->top(top_id) : AUTOMATIC_BLOB_NAME) : param.input(top_id);
   // Check if we are doing in-place computation
   if (blob_name_to_idx && layer_param && layer_param->bottom_size() > top_id &&
       blob_name == layer_param->bottom(top_id)) {
@@ -462,7 +489,10 @@ void Net<Dtype>::AppendTop(const NetParameter& param, const int layer_id,
     blobs_.push_back(blob_pointer);
     blob_names_.push_back(blob_name);
     blob_need_backward_.push_back(false);
-    blob_finder->AddBlob(blob_name, blob_pointer);
+    if (blob_name != AUTOMATIC_BLOB_NAME)
+    {
+      blob_finder->AddBlob(blob_name, blob_pointer);
+    }
     if (blob_name_to_idx) { (*blob_name_to_idx)[blob_name] = blob_id; }
     if (layer_id == -1) {
       // Set the (explicitly specified) dimensions of the input blob.

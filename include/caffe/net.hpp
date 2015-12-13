@@ -226,6 +226,7 @@ class Net {
   /// @brief Create a layer if it isn't found in any of the created nets yet.
   shared_ptr<Layer<Dtype> > FindOrCreateLayer(LayerFinder<Dtype>& layer_finder,
                                             const LayerParameter& layer_param);
+  const static std::string AUTOMATIC_BLOB_NAME;
 
  protected:
   // Helpers for Init.
@@ -310,6 +311,10 @@ class Net {
   bool debug_info_;
   /// The root net that actually holds the shared layers in data parallelism
   const Net* const root_net_;
+  /// Encoder loops for target prop.
+  vector<shared_ptr<Net<Dtype> > > encoder_loops_;
+  /// Decoder loops for target prop
+  vector<shared_ptr<Net<Dtype> > > decoder_loops_;
   DISABLE_COPY_AND_ASSIGN(Net);
 };
 

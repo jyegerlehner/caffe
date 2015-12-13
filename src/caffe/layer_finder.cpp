@@ -17,6 +17,11 @@ void LayerFinder<Dtype>::AddLayer(
 
 template <typename Dtype>
 typename LayerFinder<Dtype>::SharedLayerPtr LayerFinder<Dtype>::PointerFromName(const std::string& name) {
+  if ( name == std::string("") || name.size() == 0)
+  {
+    throw std::runtime_error("Layer with no name: PointerFromName.");
+  }
+  std::cout << "LayerFinder::PointerFromName: " << name << std::endl;
   return name_to_layer_map_[name];
 }
 

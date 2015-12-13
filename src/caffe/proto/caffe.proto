@@ -90,7 +90,8 @@ message NetParameter {
 
   // Use for identity loops in target prop, where the layers are (mostly) shared
   // with each other and the parent (independent) net.
-  repeated NetParameter dependent_net = 8;
+  repeated NetParameter encoder_loop = 9;
+  repeated NetParameter decoder_loop = 10;
 
   // The layers that make up the net.  Each of their configurations, including
   // connectivity and behavior, is specified as a LayerParameter.
@@ -99,6 +100,12 @@ message NetParameter {
   // DEPRECATED: use 'layer' instead.
   repeated V1LayerParameter layers = 2;
 }
+
+// Identity loop is essentially just a net. Except it only specifies layers.
+//message IdentityLoopParameter {
+//  optional string name = 1;
+//  repeated LayerParameter layer = 2;
+//}
 
 // NOTE
 // Update the next available ID when you add a new SolverParameter field.

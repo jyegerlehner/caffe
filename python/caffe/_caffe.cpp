@@ -141,8 +141,10 @@ void Net_SetInputArrays(Net<Dtype>* net, bp::object data_obj,
 Solver<Dtype>* GetSolverFromFile(const string& filename) {
   SolverParameter param;
   BlobFinder<Dtype> blob_finder;
+  LayerFinder<Dtype> layer_finder;
   ReadSolverParamsFromTextFileOrDie(filename, &param);
-  return SolverRegistry<Dtype>::CreateSolver(param, blob_finder);
+  return SolverRegistry<Dtype>::CreateSolver(param, blob_finder,
+                                             layer_finder);
 }
 
 struct NdarrayConverterGenerator {

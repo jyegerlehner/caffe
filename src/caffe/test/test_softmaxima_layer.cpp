@@ -853,7 +853,8 @@ class SoftmaximaLayerTest : public MultiDeviceTest<TypeParam> {
     }
 
     BlobFinder<Dtype> blob_finder;
-    SGDSolver<Dtype> solver(param, blob_finder);
+    LayerFinder<Dtype> layer_finder;
+    SGDSolver<Dtype> solver(param, blob_finder, layer_finder);
     AssignXorBlobs(*solver.net());
     //    PrintBlob<Dtype>("ip2 weights", *solver.net()->layer_by_name("innerprod2")->blobs()[0]);
     //    PrintBlob<Dtype>("ip2 biases", *solver.net()->layer_by_name("innerprod2")->blobs()[1]);

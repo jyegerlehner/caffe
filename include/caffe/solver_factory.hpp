@@ -57,7 +57,9 @@ class Solver;
 template <typename Dtype>
 class SolverRegistry {
  public:
-  typedef boost::function<Solver<Dtype>* (const SolverParameter&, BlobFinder<Dtype>& )> Creator;
+  typedef boost::function<Solver<Dtype>* (const SolverParameter&,
+                                          BlobFinder<Dtype>&,
+                                          LayerFinder<Dtype>& )> Creator;
   //typedef Solver<Dtype>* (*Creator)(const SolverParameter&);
   typedef std::map<string, Creator> CreatorRegistry;
 
@@ -76,13 +78,26 @@ class SolverRegistry {
 
   // Get a solver using a SolverParameter.
   static Solver<Dtype>* CreateSolver(const SolverParameter& param,
-                                     BlobFinder<Dtype>& blob_finder) {
+                                     BlobFinder<Dtype>& blob_finder,
+                                     LayerFinder<Dtype>& layer_finder) {
     const string& type = param.type();
     CreatorRegistry& registry = Registry();
     CHECK_EQ(registry.count(type), 1) << "Unknown solver type: " << type
         << " (known types: " << SolverTypeListString() << ")";
-    return registry[type](param, blob_finder);
+    return registry[type](param, blob_finder, layer_finder);
   }
+
+//  // Get a solver using a SolverParameter.
+//  static Solver<Dtype>* CreateSolver(const SolverParameter& param,
+//                                     BlobFinder<Dtype>& blob_finder,
+//                                     LayerFinder<Dtype>& layer_finder) {
+//    const string& type = param.type();
+//    CreatorRegistry& registry = Registry();
+//    CHECK_EQ(registry.count(type), 1) << "Unknown solver type: " << type
+//        << " (known types: " << SolverTypeListString() << ")";
+//    return registry[type](param, blob_finder, layer_finder);
+//  }
+
 
   static vector<string> SolverTypeList() {
     CreatorRegistry& registry = Registry();
@@ -131,7 +146,7 @@ public:
   SolverRegisterer()
   {
     typename SolverRegistry<Dtype>::Creator creator =
-        boost::bind<Solver<Dtype>*>(&(SolverClass::Make), _1, _2 );
+        boost::bind<Solver<Dtype>*>(&(SolverClass::Make), _1, _2, _3 );
     SolverRegistry<Dtype>::AddCreator(SolverClass::Name(), creator);
   }
 };

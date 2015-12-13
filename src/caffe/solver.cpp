@@ -25,16 +25,32 @@ SolverAction::Enum Solver<Dtype>::GetRequestedAction() {
 }
 
 template <typename Dtype>
-Solver<Dtype>::Solver(const SolverParameter& param, const Solver* root_solver)
-    : net_(), callbacks_(), root_solver_(root_solver),
-      requested_early_exit_(false) {
+Solver<Dtype>::Solver(const SolverParameter& param,
+                      BlobFinder<Dtype>& blob_finder,
+                      LayerFinder<Dtype>& layer_finder,
+                      const Solver* root_solver)
+    : net_(),
+      callbacks_(),
+      root_solver_(root_solver),
+      requested_early_exit_(false),
+      blob_finder_(blob_finder),
+      layer_finder_(layer_finder)
+{
   Init(param);
 }
 
 template <typename Dtype>
-Solver<Dtype>::Solver(const string& param_file, const Solver* root_solver)
-    : net_(), callbacks_(), root_solver_(root_solver),
-      requested_early_exit_(false) {
+Solver<Dtype>::Solver(const string& param_file,
+                      BlobFinder<Dtype>& blob_finder,
+                      LayerFinder<Dtype>& layer_finder,
+                      const Solver* root_solver)
+    : net_(),
+      callbacks_(),
+      root_solver_(root_solver),
+      requested_early_exit_(false),
+      blob_finder_(blob_finder),
+      layer_finder_(layer_finder)
+{
   SolverParameter param;
   ReadSolverParamsFromTextFileOrDie(param_file, &param);
   Init(param);
@@ -193,79 +209,89 @@ void Solver<Dtype>::InitTestNets() {
 }
 
 template <typename Dtype>
-void Solver<Dtype>::Step(int iters) {
+void Solver<Dtype>::SingleStep(int start_iter, std::vector<Dtype>& losses,
+                               int average_loss, Dtype smoothed_loss)
+{
   vector<Blob<Dtype>*> bottom_vec;
+
+  // zero-init the params
+  net_->ClearParamDiffs();
+  if (param_.test_interval() && iter_ % param_.test_interval() == 0
+      && (iter_ > 0 || param_.test_initialization())
+      && Caffe::root_solver()) {
+    TestAll();
+    if (requested_early_exit_) {
+      // Break out of the while loop because stop was requested while testing.
+      return;
+    }
+  }
+
+  for (int i = 0; i < callbacks_.size(); ++i) {
+    callbacks_[i]->on_start();
+  }
+  const bool display = param_.display() && iter_ % param_.display() == 0;
+  net_->set_debug_info(display && param_.debug_info());
+  // accumulate the loss and gradient
+  Dtype loss = 0;
+
+  // "Normal" non-target prop training.
+  for (int i = 0; i < param_.iter_size(); ++i) {
+    loss += net_->ForwardBackward(bottom_vec);
+  }
+  loss /= param_.iter_size();
+  // average the loss across iterations for smoothed reporting
+  if (losses.size() < average_loss) {
+    losses.push_back(loss);
+    int size = losses.size();
+    smoothed_loss = (smoothed_loss * (size - 1) + loss) / size;
+  } else {
+    int idx = (iter_ - start_iter) % average_loss;
+    smoothed_loss += (loss - losses[idx]) / average_loss;
+    losses[idx] = loss;
+  }
+  if (display) {
+    LOG_IF(INFO, Caffe::root_solver()) << "Iteration " << iter_
+        << ", loss = " << smoothed_loss;
+    const vector<Blob<Dtype>*>& result = net_->output_blobs();
+    int score_index = 0;
+    for (int j = 0; j < result.size(); ++j) {
+      const Dtype* result_vec = result[j]->cpu_data();
+      const string& output_name =
+          net_->blob_names()[net_->output_blob_indices()[j]];
+      const Dtype loss_weight =
+          net_->blob_loss_weights()[net_->output_blob_indices()[j]];
+      for (int k = 0; k < result[j]->count(); ++k) {
+        ostringstream loss_msg_stream;
+        if (loss_weight) {
+          loss_msg_stream << " (* " << loss_weight
+                          << " = " << loss_weight * result_vec[k] << " loss)";
+        }
+        LOG_IF(INFO, Caffe::root_solver()) << "    Train net output #"
+            << score_index++ << ": " << output_name << " = "
+            << result_vec[k] << loss_msg_stream.str();
+      }
+    }
+  }
+  for (int i = 0; i < callbacks_.size(); ++i) {
+    callbacks_[i]->on_gradients_ready();
+  }
+  ApplyUpdate();
+
+  // Increment the internal iter_ counter -- its value should always indicate
+  // the number of times the weights have been updated.
+  ++iter_;
+}
+
+template <typename Dtype>
+void Solver<Dtype>::Step(int iters) {
   const int start_iter = iter_;
   const int stop_iter = iter_ + iters;
   int average_loss = this->param_.average_loss();
   vector<Dtype> losses;
   Dtype smoothed_loss = 0;
 
-  while (iter_ < stop_iter) {
-    // zero-init the params
-    net_->ClearParamDiffs();
-    if (param_.test_interval() && iter_ % param_.test_interval() == 0
-        && (iter_ > 0 || param_.test_initialization())
-        && Caffe::root_solver()) {
-      TestAll();
-      if (requested_early_exit_) {
-        // Break out of the while loop because stop was requested while testing.
-        break;
-      }
-    }
-
-    for (int i = 0; i < callbacks_.size(); ++i) {
-      callbacks_[i]->on_start();
-    }
-    const bool display = param_.display() && iter_ % param_.display() == 0;
-    net_->set_debug_info(display && param_.debug_info());
-    // accumulate the loss and gradient
-    Dtype loss = 0;
-    for (int i = 0; i < param_.iter_size(); ++i) {
-      loss += net_->ForwardBackward(bottom_vec);
-    }
-    loss /= param_.iter_size();
-    // average the loss across iterations for smoothed reporting
-    if (losses.size() < average_loss) {
-      losses.push_back(loss);
-      int size = losses.size();
-      smoothed_loss = (smoothed_loss * (size - 1) + loss) / size;
-    } else {
-      int idx = (iter_ - start_iter) % average_loss;
-      smoothed_loss += (loss - losses[idx]) / average_loss;
-      losses[idx] = loss;
-    }
-    if (display) {
-      LOG_IF(INFO, Caffe::root_solver()) << "Iteration " << iter_
-          << ", loss = " << smoothed_loss;
-      const vector<Blob<Dtype>*>& result = net_->output_blobs();
-      int score_index = 0;
-      for (int j = 0; j < result.size(); ++j) {
-        const Dtype* result_vec = result[j]->cpu_data();
-        const string& output_name =
-            net_->blob_names()[net_->output_blob_indices()[j]];
-        const Dtype loss_weight =
-            net_->blob_loss_weights()[net_->output_blob_indices()[j]];
-        for (int k = 0; k < result[j]->count(); ++k) {
-          ostringstream loss_msg_stream;
-          if (loss_weight) {
-            loss_msg_stream << " (* " << loss_weight
-                            << " = " << loss_weight * result_vec[k] << " loss)";
-          }
-          LOG_IF(INFO, Caffe::root_solver()) << "    Train net output #"
-              << score_index++ << ": " << output_name << " = "
-              << result_vec[k] << loss_msg_stream.str();
-        }
-      }
-    }
-    for (int i = 0; i < callbacks_.size(); ++i) {
-      callbacks_[i]->on_gradients_ready();
-    }
-    ApplyUpdate();
-
-    // Increment the internal iter_ counter -- its value should always indicate
-    // the number of times the weights have been updated.
-    ++iter_;
+  while (iter_ < stop_iter && (!requested_early_exit_) ) {
+    SingleStep(start_iter, losses, average_loss, smoothed_loss);
 
     SolverAction::Enum request = GetRequestedAction();
 
@@ -277,9 +303,8 @@ void Solver<Dtype>::Step(int iters) {
       Snapshot();
     }
     if (SolverAction::STOP == request) {
-      requested_early_exit_ = true;
       // Break out of training loop.
-      break;
+      requested_early_exit_ = true;
     }
   }
 }
