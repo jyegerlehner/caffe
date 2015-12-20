@@ -15,6 +15,7 @@
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/hdf5.hpp"
 #include "caffe/util/insert_splits.hpp"
+#include "caffe/util/io.hpp"
 #include "caffe/util/math_functions.hpp"
 #include "caffe/util/upgrade_proto.hpp"
 
@@ -216,7 +217,7 @@ void Net<Dtype>::Init(const NetParameter& in_param,
                                                   param_need_backward);
     }
     for (int param_id = 0; param_id < num_param_blobs; ++param_id) {
-      AppendParam(param, layer_id, param_id);
+      AppendParam(param, layer_id, param_id, blob_finder);
     }
     // Finally, set the backward flag
     layer_need_backward_.push_back(need_backward);
@@ -316,6 +317,8 @@ void Net<Dtype>::Init(const NetParameter& in_param,
   for (size_t layer_id = 0; layer_id < layer_names_.size(); ++layer_id) {
     layer_names_index_[layer_names_[layer_id]] = layer_id;
   }
+
+  ShareWeights();
 
   for(int i=0; i < in_param.encoder_loop_size(); ++i)
   {
@@ -491,7 +494,7 @@ void Net<Dtype>::AppendTop(const NetParameter& param, const int layer_id,
     blob_need_backward_.push_back(false);
     if (blob_name != AUTOMATIC_BLOB_NAME)
     {
-      blob_finder->AddBlob(blob_name, blob_pointer);
+      blob_finder->AddActivationBlob(blob_name, blob_pointer);
     }
     if (blob_name_to_idx) { (*blob_name_to_idx)[blob_name] = blob_id; }
     if (layer_id == -1) {
@@ -542,8 +545,10 @@ int Net<Dtype>::AppendBottom(const NetParameter& param, const int layer_id,
 }
 
 template <typename Dtype>
-void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
-                             const int param_id) {
+void Net<Dtype>::AppendParam(const NetParameter& param,
+                             const int layer_id,
+                             const int param_id,
+                             BlobFinder<Dtype>& blob_finder) {
   const LayerParameter& layer_param = layers_[layer_id]->layer_param();
   const int param_size = layer_param.param_size();
   string param_name =
@@ -578,6 +583,15 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
     has_params_decay_.push_back(param_spec->has_decay_mult());
     params_lr_.push_back(param_spec->lr_mult());
     params_weight_decay_.push_back(param_spec->decay_mult());
+    if (param_name.size() == 0)
+    {
+      std::ostringstream ss;
+      ss << layer_param.name();
+      // param_id is the zero-based index within a layer.
+      ss << "_param_" << param_id;
+      param_name = ss.str();
+    }
+    blob_finder.AddParamBlob(param_name, params_[net_param_id]);
   } else {
     // Named param blob with name we've seen before: share params
     const int owner_net_param_id = param_names_index_[param_name];
@@ -633,6 +647,7 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
         params_weight_decay_[learnable_param_id] = param_spec->decay_mult();
       }
     }
+    blob_finder.AddParamBlob(param_name, params_[net_param_id]);
   }
 }
 

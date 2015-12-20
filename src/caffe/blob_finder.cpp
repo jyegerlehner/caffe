@@ -8,15 +8,29 @@
 namespace caffe {
 
 template <typename Dtype>
-void BlobFinder<Dtype>::AddBlob(
+void BlobFinder<Dtype>::AddParamBlob(
     const std::string& name,SharedBlobPtr blob_ptr ) {
+  if( name == Net<Dtype>::AUTOMATIC_BLOB_NAME )
+  {
+    throw std::runtime_error("Adding automatic blo      b to blob finder.");
+  }
+  blob_to_name_[blob_ptr] = name;
+  name_to_blob_[name] = blob_ptr;
+  is_param_map_[name] = true;
+}
+
+template <typename Dtype>
+void BlobFinder<Dtype>::AddActivationBlob( const std::string& name,
+                                           SharedBlobPtr blob_ptr) {
   if( name == Net<Dtype>::AUTOMATIC_BLOB_NAME )
   {
     throw std::runtime_error("Adding automatic blob to blob finder.");
   }
   blob_to_name_[blob_ptr] = name;
   name_to_blob_[name] = blob_ptr;
+  is_param_map_[name] = false;
 }
+
 
 template <typename Dtype>
 typename BlobFinder<Dtype>::SharedBlobPtr BlobFinder<Dtype>::PointerFromName(
@@ -67,6 +81,28 @@ bool BlobFinder<Dtype>::Exists(const std::string& name) const {
     return false;
   }
   return name_to_blob_.find(name) != name_to_blob_.end();
+}
+
+template <typename Dtype>
+ParamNames BlobFinder<Dtype>::GetParamNames() const
+{
+  ParamNames result;
+  for(typename NameToBlobMap::const_iterator it = name_to_blob_.begin();
+      it != name_to_blob_.end();
+      ++it)
+  {
+    std::string name = it->first;
+    ParamActivationMap::const_iterator pit = is_param_map_.find(name);
+    if (pit != is_param_map_.end())
+    {
+      bool is_param = pit->second;
+      if (is_param)
+      {
+        result.push_back(it->first);
+      }
+    }
+  }
+  return result;
 }
 
 INSTANTIATE_CLASS(BlobFinder);

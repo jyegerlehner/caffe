@@ -191,67 +191,67 @@ string RunLeastSquaresSolver(const Dtype learning_rate,
         this->solver_->net()->Forward(empty_bottom_vec);
       }
     }
-    if( this->dump_file_.size() > 0)
-    {
-      // dump data and innerprod blobs' data to the dump file.
-      std::ofstream out_file;
-      out_file.open(this->dump_file_.c_str(),
-                    std::ofstream::trunc | std::ofstream::out);
-      Net<Dtype>& net = *this->solver_->net();
-      if(!net.has_blob("data"))
-        throw std::runtime_error("No data blob");
-      const Blob<Dtype>& data = *net.blob_by_name("data");
-      PrintBlob(out_file, "data", data, false);
-      if(!net.has_blob("innerprod"))
-        throw std::runtime_error("No innerproduct blob");
-      const Blob<Dtype>& inner_prod = *net.blob_by_name("innerprod");
-      PrintBlob(out_file, "innerprod", inner_prod, false);
+//    if( this->dump_file_.size() > 0)
+//    {
+//      // dump data and innerprod blobs' data to the dump file.
+//      std::ofstream out_file;
+//      out_file.open(this->dump_file_.c_str(),
+//                    std::ofstream::trunc | std::ofstream::out);
+//      Net<Dtype>& net = *this->solver_->net();
+//      if(!net.has_blob("data"))
+//        throw std::runtime_error("No data blob");
+//      const Blob<Dtype>& data = *net.blob_by_name("data");
+//      PrintBlob(out_file, "data", data, false);
+//      if(!net.has_blob("innerprod"))
+//        throw std::runtime_error("No innerproduct blob");
+//      const Blob<Dtype>& inner_prod = *net.blob_by_name("innerprod");
+//      PrintBlob(out_file, "innerprod", inner_prod, false);
 
-      if ( net.has_blob("data1"))
-      {
-        const Blob<Dtype>& data1 = *net.blob_by_name("data1");
-        PrintBlob(out_file, "data1", data1, false);
-      }
-      if ( net.has_blob("data2"))
-      {
-        const Blob<Dtype>& data2 = *net.blob_by_name("data2");
-        PrintBlob(out_file, "data2", data2, false);
-      }
+//      if ( net.has_blob("data1"))
+//      {
+//        const Blob<Dtype>& data1 = *net.blob_by_name("data1");
+//        PrintBlob(out_file, "data1", data1, false);
+//      }
+//      if ( net.has_blob("data2"))
+//      {
+//        const Blob<Dtype>& data2 = *net.blob_by_name("data2");
+//        PrintBlob(out_file, "data2", data2, false);
+//      }
 
-      if ( net.has_blob("innerprod1"))
-      {
-        const Blob<Dtype>& data1 = *net.blob_by_name("innerprod1");
-        PrintBlob(out_file, "innerprod1", data1, false);
-      }
-      if ( net.has_blob("innerprod2"))
-      {
-        const Blob<Dtype>& data2 = *net.blob_by_name("innerprod2");
-        PrintBlob(out_file, "innerprod2", data2, false);
-      }
+//      if ( net.has_blob("innerprod1"))
+//      {
+//        const Blob<Dtype>& data1 = *net.blob_by_name("innerprod1");
+//        PrintBlob(out_file, "innerprod1", data1, false);
+//      }
+//      if ( net.has_blob("innerprod2"))
+//      {
+//        const Blob<Dtype>& data2 = *net.blob_by_name("innerprod2");
+//        PrintBlob(out_file, "innerprod2", data2, false);
+//      }
 
-      if ( net.has_layer("innerprod"))
-      {
-        const vector<shared_ptr<Blob<Dtype> > >& param_blobs =
-            net.layer_by_name("innerprod")->blobs();
+//      if ( net.has_layer("innerprod"))
+//      {
+//        const vector<shared_ptr<Blob<Dtype> > >& param_blobs =
+//            net.layer_by_name("innerprod")->blobs();
 
-        PrintBlob(out_file, "innerprod.weights",
-                  *param_blobs[0], false);
-        PrintBlob(out_file, "innerprod.bias",
-                  *param_blobs[1], false);
+//        PrintBlob(out_file, "innerprod.weights",
+//                  *param_blobs[0], false);
+//        PrintBlob(out_file, "innerprod.bias",
+//                  *param_blobs[1], false);
 
-      }
-      if ( net.has_layer("innerprod2"))
-      {
-        const vector<shared_ptr<Blob<Dtype> > >& param_blobs =
-            net.layer_by_name("innerprod2")->blobs();
+//      }
+//      if ( net.has_layer("innerprod2"))
+//      {
+//        const vector<shared_ptr<Blob<Dtype> > >& param_blobs =
+//            net.layer_by_name("innerprod2")->blobs();
 
-        PrintBlob(out_file, "innerprod2.weights",
-                  *param_blobs[0], false);
-        PrintBlob(out_file, "innerprod2.bias",
-                  *param_blobs[1], false);
+//        PrintBlob(out_file, "innerprod2.weights",
+//                  *param_blobs[0], false);
+//        PrintBlob(out_file, "innerprod2.bias",
+//                  *param_blobs[1], false);
 
-      }
-    }
+//      }
+//    }
 
     if (devices == 1) {
       this->solver_->Solve();
@@ -524,11 +524,11 @@ string RunLeastSquaresSolver(const Dtype learning_rate,
     const int kIterSize = 1;
     // Test over all numbers of devices.
     int available_devices = 1;
-//#ifndef CPU_ONLY
-//    if (Caffe::mode() == Caffe::GPU) {
-//      CUDA_CHECK(cudaGetDeviceCount(&available_devices));
-//    }
-//#endif
+#ifndef CPU_ONLY
+    if (Caffe::mode() == Caffe::GPU) {
+      CUDA_CHECK(cudaGetDeviceCount(&available_devices));
+    }
+#endif
     for (int devices = 1; devices <= available_devices; ++devices) {
       // Configure batch size for single / multi device equivalence.
       // Constant data is needed for multi device as for accumulation.
@@ -700,9 +700,8 @@ TYPED_TEST(SGDSolverTest, TestLeastSquaresUpdateWithEverything) {
   const Dtype kLearningRate = 0.01;
   const Dtype kWeightDecay = 0.5;
   const Dtype kMomentum = 0.5;
-//  const int kNumIters = 4;
-  const int kNumIters = 1;
-  this->dump_file_ = std::string("NoShare.txt");
+  const int kNumIters = 4;
+//  this->dump_file_ = std::string("NoShare.txt");
   for (int i = 0; i <= kNumIters; ++i) {
     this->TestLeastSquaresUpdate(kLearningRate, kWeightDecay, kMomentum, i);
   }
@@ -713,10 +712,9 @@ TYPED_TEST(SGDSolverTest, TestLeastSquaresUpdateWithEverythingShare) {
   const Dtype kLearningRate = 0.01;
   const Dtype kWeightDecay = 0.5;
   const Dtype kMomentum = 0.5;
-//  const int kNumIters = 4;
-  const int kNumIters = 1;
+  const int kNumIters = 4;
   this->share_ = true;
-  this->dump_file_ = std::string("Share.txt");
+//  this->dump_file_ = std::string("Share.txt");
   for (int i = 0; i <= kNumIters; ++i) {
     this->TestLeastSquaresUpdate(kLearningRate, kWeightDecay, kMomentum, i);
   }

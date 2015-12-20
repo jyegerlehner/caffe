@@ -35,7 +35,7 @@ class InverseMVNLayerTest : public MultiDeviceTest<TypeParam> {
  protected:
   void AddMvnTopBlob(shared_ptr<Blob<Dtype> > blob, const std::string& name) {
     mvn_blob_top_vec_.push_back(blob.get());
-    blob_finder_.AddBlob(name, blob);
+    blob_finder_.AddActivationBlob(name, blob);
   }
 
   static Blob<Dtype>* RandomBottomBlob() {
@@ -91,7 +91,7 @@ class InverseMVNLayerTest : public MultiDeviceTest<TypeParam> {
     inverse_mvn_bottom_blob_vec_.push_back(mvn_result_blob_.get());
     // The inverse mvn layer's output blob.
     inverse_mvn_blob_top_vec_.push_back(inverse_mvn_blob_top_.get());
-    blob_finder_.AddBlob("unnormalized", inverse_mvn_blob_top_);
+    blob_finder_.AddActivationBlob("unnormalized", inverse_mvn_blob_top_);
   }
   virtual ~InverseMVNLayerTest() {
     mvn_mean_blob_.reset();

@@ -241,7 +241,7 @@ class Net {
                    map<string, int>* blob_name_to_idx);
   /// @brief Append a new parameter blob to the net.
   void AppendParam(const NetParameter& param, const int layer_id,
-                   const int param_id);
+                   const int param_id, BlobFinder<Dtype>& blob_finder);
 
   /// @brief Helper for displaying debug info in Forward about input Blobs.
   void InputDebugInfo(const int layer_id);

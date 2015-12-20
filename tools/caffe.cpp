@@ -15,6 +15,7 @@ namespace bp = boost::python;
 #include "caffe/blob_finder.hpp"
 #include "caffe/layer_finder.hpp"
 #include "caffe/util/signal_handler.h"
+#include "caffe/TargetPropSolver.h"
 
 using caffe::Blob;
 using caffe::BlobFinder;
@@ -436,30 +437,31 @@ int target_prop() {
         GetRequestedAction(FLAGS_sigint_effect),
         GetRequestedAction(FLAGS_sighup_effect));
 
-  BlobFinder<float> blob_finder;
-  LayerFinder<float> layer_finder;
 
-  shared_ptr<caffe::Solver<float> >
-      solver(caffe::SolverRegistry<float>::CreateSolver(solver_param,
-                                                        blob_finder,
-                                                        layer_finder));
+  caffe::TargetPropSolver<float> solver(solver_param);
+//  solver(caffe::SolverRegistry<float>::CreateSolver(solver_param,
+//                                                    blob_finder,
+//                                                    layer_finder));
 
-  solver->SetActionFunction(signal_handler.GetActionFunction());
+  solver.SetActionFunction(signal_handler.GetActionFunction());
 
   if (FLAGS_snapshot.size()) {
     LOG(INFO) << "Resuming from " << FLAGS_snapshot;
-    solver->Restore(FLAGS_snapshot.c_str());
+    //solver->Restore(FLAGS_snapshot.c_str());
+    solver.SetResumeFile(FLAGS_snapshot);
   } else if (FLAGS_weights.size()) {
-    CopyLayers(solver.get(), FLAGS_weights);
+    //CopyLayers(solver.get(), FLAGS_weights);
+    solver.SetWeightsFile(FLAGS_weights);
   }
 
 
+  solver.Run(gpus);
 //  if (gpus.size() > 1) {
 //    caffe::P2PSync<float> sync(solver, NULL, solver->param());
 //    sync.run(gpus);
 //  } else {
-    LOG(INFO) << "Starting Optimization";
-    solver->Solve();
+//    LOG(INFO) << "Starting Optimization";
+//    solver->Solve();
 //  }
   LOG(INFO) << "Optimization Done.";
   return 0;
@@ -477,7 +479,8 @@ int main(int argc, char** argv) {
       "  train           train or finetune a model\n"
       "  test            score a model\n"
       "  device_query    show GPU diagnostic information\n"
-      "  time            benchmark model execution time");
+      "  time            benchmark model execution time\n"
+      "  target_prop     train using target prop.");
   // Run tool or show usage.
   caffe::GlobalInit(&argc, &argv);
   if (argc == 2) {

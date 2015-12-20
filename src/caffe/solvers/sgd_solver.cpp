@@ -88,7 +88,7 @@ void SGDSolver<Dtype>::GetOrCreateBlob( BlobFinder<Dtype>& blob_finder,
     else
     {
       ptr.reset(new Blob<Dtype>(shape));
-      blob_finder.AddBlob(history_name, ptr);
+      blob_finder.AddActivationBlob(history_name, ptr);
     }
     vect.push_back(ptr);
   }

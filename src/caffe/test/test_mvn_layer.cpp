@@ -27,7 +27,7 @@ class MVNLayerTest : public MultiDeviceTest<TypeParam> {
  protected:
   void AddTopBlob(shared_ptr<Blob<Dtype> > blob, const std::string& name) {
     blob_top_vec_.push_back(blob.get());
-    blob_finder_.AddBlob(name, blob);
+    blob_finder_.AddActivationBlob(name, blob);
   }
 
   static shared_ptr<Blob<Dtype> > RandomBottomBlob() {
