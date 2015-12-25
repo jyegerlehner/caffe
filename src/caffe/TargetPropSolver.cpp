@@ -10,11 +10,9 @@ namespace caffe
 template<typename Dtype>
 TargetPropSolver<Dtype>::TargetPropSolver(
     const caffe::SolverParameter& solver_param ):
-  param_(solver_param)
+  param_(solver_param),
+  requested_early_exit_(false)
 {
-  //  solver(caffe::SolverRegistry<float>::CreateSolver(solver_param,
-  //                                                    blob_finder,
-  //                                                    layer_finder));
 }
 
 template<typename Dtype>
@@ -45,37 +43,25 @@ void TargetPropSolver<Dtype>::InitLongLoopNet()
       << "using one of these fields: " << field_names;
   CHECK_LE(num_train_nets, 1) << "SolverParameter must not contain more than "
       << "one of these fields specifying a train_net: " << field_names;
-  NetParameter net_param;
-  if (param_.has_train_net_param()) {
-    LOG_IF(INFO, Caffe::root_solver())
-        << "Creating long loop net specified in train_net_param.";
-    net_param.CopyFrom(param_.train_net_param());
-  } else if (param_.has_train_net()) {
-    LOG_IF(INFO, Caffe::root_solver())
-        << "Creating long loop net from train_net file: " << param_.train_net();
-    ReadNetParamsFromTextFileOrDie(param_.train_net(), &net_param);
-  }
-  if (param_.has_net_param()) {
-    LOG_IF(INFO, Caffe::root_solver())
-        << "Creating long loop net specified in net_param.";
-    net_param.CopyFrom(param_.net_param());
-  }
-  if (param_.has_net()) {
-    LOG_IF(INFO, Caffe::root_solver())
-        << "Creating long loop net from net file: " << param_.net();
-    ReadNetParamsFromTextFileOrDie(param_.net(), &net_param);
-  }
+
+  CHECK(param_.has_net()) << "Solver does not specify a net prototxt file "
+                             " in its net parameter.";
+  LOG_IF(INFO, Caffe::root_solver())
+      << "Creating long loop net from net file: " << param_.net();
+  ReadNetParamsFromTextFileOrDie(param_.net(), &top_net_param_);
+
   // Set the correct NetState.  We start with the solver defaults (lowest
   // precedence); then, merge in any NetState specified by the net_param itself;
   // finally, merge in any NetState specified by the train_state (highest
   // precedence).
   NetState net_state;
   net_state.set_phase(TRAIN);
-  net_state.MergeFrom(net_param.state());
+  net_state.MergeFrom(top_net_param_.state());
   net_state.MergeFrom(param_.train_state());
-  net_param.mutable_state()->CopyFrom(net_state);
+  top_net_param_.mutable_state()->CopyFrom(net_state);
   if (Caffe::root_solver()) {
-    long_loop_net_.reset(new Net<Dtype>(net_param, blob_finder_, layer_finder_));
+    long_loop_net_.reset(new Net<Dtype>(top_net_param_,
+                                        blob_finder_, layer_finder_));
   } else {
     //    long_loop_net_.reset(new Net<Dtype>(net_param, blob_finder_, layer_finder_,
     //                              root_solver_->net_.get()));
@@ -86,16 +72,17 @@ void TargetPropSolver<Dtype>::InitLongLoopNet()
   // for each encoder loop
   // {
   //   Copy the original solver parameter.
-  for(int i = 0; i < net_param.encoder_loop_size(); ++i)
+  for(int i = 0; i < top_net_param_.encoder_loop_size(); ++i)
   {
-    loop_solvers_.push_back(CreateDependentNetSolver(net_param.encoder_loop(i)));
+    loop_solvers_.push_back(CreateDependentNetSolver(
+                              top_net_param_.encoder_loop(i)));
   }
 
-  for(int i = 0; i < net_param.decoder_loop_size(); ++i)
+  for(int i = 0; i < top_net_param_.decoder_loop_size(); ++i)
   {
-    loop_solvers_.push_back(CreateDependentNetSolver(net_param.decoder_loop(i)));
+    loop_solvers_.push_back(CreateDependentNetSolver(
+                              top_net_param_.decoder_loop(i)));
   }
-
 }
 
 template<typename Dtype>
@@ -182,6 +169,23 @@ void TargetPropSolver<Dtype>::CopyTrainedLayersFromHDF5(
   H5Fclose(file_hid);
 }
 
+template <typename Dtype>
+string TargetPropSolver<Dtype>::SnapshotFilename(const string extension) {
+  string filename(param_.snapshot_prefix());
+  const int kBufferSize = 20;
+  char iter_str_buffer[kBufferSize];
+  snprintf(iter_str_buffer, kBufferSize, "_iter_%d", iter_);
+  return filename + iter_str_buffer + extension;
+}
+
+template<typename Dtype>
+void TargetPropSolver<Dtype>::Snapshot()
+{
+  string model_filename = SnapshotFilename(".caffemodel.h5");
+  LOG(INFO) << "Snapshotting to HDF5 file " << model_filename;
+  this->ToHDF5(model_filename);
+}
+
 template<typename Dtype>
 void TargetPropSolver<Dtype>::LoadWeights()
 {
@@ -191,6 +195,142 @@ void TargetPropSolver<Dtype>::LoadWeights()
   } else {
     //CopyTrainedLayersFromBinaryProto(weights_file_);
     throw std::runtime_error("Only support loading target prop models from hdf5");
+  }
+}
+
+// Take the original solver, and make one of
+template<typename Dtype>
+void TargetPropSolver<Dtype>::FillDependentSolverParam(
+    SolverParameter& solver_param,
+    const NetParameter& dependent_net_param)
+{
+  solver_param.CopyFrom(param_);
+  solver_param.clear_net();
+  solver_param.clear_net_param();
+  solver_param.clear_test_net();
+  solver_param.clear_test_net_param();
+  solver_param.clear_train_net_param();
+  solver_param.mutable_train_net_param()->CopyFrom(dependent_net_param);
+}
+
+template<typename Dtype>
+void TargetPropSolver<Dtype>::InitDependentNets()
+{
+  for (int i = 0; i < top_net_param_.encoder_loop_size(); ++i)
+  {
+    SolverParameter solver_param;
+    FillDependentSolverParam(solver_param, top_net_param_.encoder_loop(i));
+
+    // Now we've created a solver param whose net is this encoder loop's
+    // net. Instantiate the solver and add to the list.
+    shared_ptr<caffe::Solver<Dtype> >
+        solver(caffe::SolverRegistry<Dtype>::CreateSolver( solver_param,
+                                                          blob_finder_,
+                                                          layer_finder_));
+    loop_solvers_.push_back(solver);
+  }
+  for (int i = 0; i < top_net_param_.decoder_loop_size(); ++i)
+  {
+    SolverParameter solver_param;
+    FillDependentSolverParam(solver_param, top_net_param_.decoder_loop(i));
+
+    // Now we've created a solver param whose net is this encoder loop's
+    // net. Instantiate the solver and add to the list.
+    shared_ptr<caffe::Solver<Dtype> >
+        solver(caffe::SolverRegistry<Dtype>::CreateSolver(solver_param,
+                                                          blob_finder_,
+                                                          layer_finder_));
+    loop_solvers_.push_back(solver);
+  }
+}
+
+template<typename Dtype>
+SolverAction::Enum TargetPropSolver<Dtype>::GetRequestedAction()
+{
+  if (action_callback_)
+  {
+    return action_callback_();
+  }
+  return SolverAction::NONE;
+}
+
+template<typename Dtype>
+void TargetPropSolver<Dtype>::TestLongLoopNet(int iter)
+{
+  CHECK(Caffe::root_solver());
+  LOG(INFO) << "Iteration " << iter
+            << ", Testing long loop net " << long_loop_net_->name();
+//  CHECK_NOTNULL(test_nets_[test_net_id].get())->
+//      ShareTrainedLayersWith(net_.get());
+  vector<Dtype> test_score;
+  vector<int> test_score_output_id;
+  vector<Blob<Dtype>*> bottom_vec;
+  const shared_ptr<Net<Dtype> >& test_net = long_loop_net_;
+  Dtype loss = 0;
+  for (int i = 0; i < param_.test_iter(0); ++i) {
+    SolverAction::Enum request = GetRequestedAction();
+    // Check to see if stoppage of testing/training has been requested.
+    while (request != SolverAction::NONE) {
+        if (SolverAction::SNAPSHOT == request) {
+          Snapshot();
+        } else if (SolverAction::STOP == request) {
+          requested_early_exit_ = true;
+        }
+        request = GetRequestedAction();
+    }
+    if (requested_early_exit_) {
+      // break out of test loop.
+      break;
+    }
+
+    Dtype iter_loss;
+    const vector<Blob<Dtype>*>& result =
+        test_net->Forward(bottom_vec, &iter_loss);
+    if (param_.test_compute_loss()) {
+      loss += iter_loss;
+    }
+    if (i == 0) {
+      for (int j = 0; j < result.size(); ++j) {
+        const Dtype* result_vec = result[j]->cpu_data();
+        for (int k = 0; k < result[j]->count(); ++k) {
+          test_score.push_back(result_vec[k]);
+          test_score_output_id.push_back(j);
+        }
+      }
+    } else {
+      int idx = 0;
+      for (int j = 0; j < result.size(); ++j) {
+        const Dtype* result_vec = result[j]->cpu_data();
+        for (int k = 0; k < result[j]->count(); ++k) {
+          test_score[idx++] += result_vec[k];
+        }
+      }
+    }
+  }
+  if (requested_early_exit_) {
+    LOG(INFO)     << "Test interrupted.";
+    return;
+  }
+  if (param_.test_compute_loss()) {
+    loss /= param_.test_iter(0);
+    LOG(INFO) << "Long loop test loss: " << loss;
+  }
+
+  CHECK_EQ(test_score.size(), 0);
+
+  for (int i = 0; i < test_score.size(); ++i) {
+    const int output_blob_index =
+        test_net->output_blob_indices()[test_score_output_id[i]];
+    const string& output_name = test_net->blob_names()[output_blob_index];
+    const Dtype loss_weight = test_net->blob_loss_weights()[output_blob_index];
+    ostringstream loss_msg_stream;
+    const Dtype mean_score = test_score[i] / param_.test_iter(0);
+    if (loss_weight) {
+      loss_msg_stream << " (* " << loss_weight
+                      << " = " << loss_weight * mean_score << " loss)";
+    }
+    LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
+              << mean_score << loss_msg_stream.str();
   }
 }
 
@@ -208,18 +348,46 @@ void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus)
     LoadWeights();
   }
 
+  {
+    // Forward prop the long loop net to generate loss.
+    Dtype loss;
+    long_loop_net_->ForwardPrefilled(&loss);
+    LOG(INFO) << "Long loop loss: " << loss;
+  }
 
-  // Forward prop the long loop net
+  // Create the dependent nets and their solvers.
+  InitDependentNets();
+  
+  // Run each solver on a minibatch.
+  int iter_ = 0;
+  while (iter_ < param_.max_iter() && !requested_early_exit_)
+  {
+    // Run each solver 1 iter.
+    for(int solver_index = 0;
+        solver_index < loop_solvers_.size();
+        ++solver_index)
+    {
+      loop_solvers_[solver_index]->Step(1);
+    }
 
+    SolverAction::Enum request = GetRequestedAction();
+    if (request == SolverAction::STOP)
+    {
+      requested_early_exit_ = true;
+    }
 
-  //while more iterations
-  //{
-  //    for each encoder loop solver:
-  //      Step iters
-  //
-  //    for each decoder loop solver:
-  //      Step iters
-  //}
+    if ( iter_ % param_.test_interval() == 0)
+    {
+      TestLongLoopNet(iter_);
+    }
+
+    iter_++;
+  }
+
+  if (param_.snapshot_after_train())
+  {
+    Snapshot();
+  }
 }
 
 INSTANTIATE_CLASS(TargetPropSolver);

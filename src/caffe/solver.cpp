@@ -210,7 +210,7 @@ void Solver<Dtype>::InitTestNets() {
 
 template <typename Dtype>
 void Solver<Dtype>::SingleStep(int start_iter, std::vector<Dtype>& losses,
-                               int average_loss, Dtype smoothed_loss)
+                               int average_loss, Dtype& smoothed_loss)
 {
   vector<Blob<Dtype>*> bottom_vec;
 
@@ -266,8 +266,8 @@ void Solver<Dtype>::SingleStep(int start_iter, std::vector<Dtype>& losses,
           loss_msg_stream << " (* " << loss_weight
                           << " = " << loss_weight * result_vec[k] << " loss)";
         }
-        LOG_IF(INFO, Caffe::root_solver()) << "    Train net output #"
-            << score_index++ << ": " << output_name << " = "
+        LOG_IF(INFO, Caffe::root_solver()) << "    Train net " << net_->name()
+            << " output #" << score_index++ << ": " << output_name << " = "
             << result_vec[k] << loss_msg_stream.str();
       }
     }

@@ -28,6 +28,13 @@ protected:
   void CopyTrainedLayersFromHDF5(const std::string& trained_filename);
   void LoadWeights();
   bool UpgradeNetAsNeeded(const string& param_file, NetParameter* param);
+  void InitDependentNets();
+  void FillDependentSolverParam(SolverParameter& solver_param,
+                         const NetParameter& dependent_net_param);
+  void TestLongLoopNet(int iter);
+  SolverAction::Enum GetRequestedAction();
+  void Snapshot();
+  string SnapshotFilename(const string extension);
 
   BlobFinder<Dtype> blob_finder_;
   LayerFinder<Dtype> layer_finder_;
@@ -37,12 +44,13 @@ protected:
   // This will be run forward prop only as the "test" net to get
   // current autoencoding performance.
   shared_ptr<Net<Dtype> > long_loop_net_;
+  NetParameter top_net_param_;
   SolverParameter param_;
   std::string resume_file_;
   std::string weights_file_;
+  bool requested_early_exit_;
+  int iter_;
 };
-
-
 
 }
 

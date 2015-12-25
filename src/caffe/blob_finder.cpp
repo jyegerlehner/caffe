@@ -35,7 +35,6 @@ void BlobFinder<Dtype>::AddActivationBlob( const std::string& name,
 template <typename Dtype>
 typename BlobFinder<Dtype>::SharedBlobPtr BlobFinder<Dtype>::PointerFromName(
                     const std::string& name) {
-  std::cout << "BlobFinder::PointerFromName: " << name << std::endl;
   if ( name == Net<Dtype>::AUTOMATIC_BLOB_NAME)
   {
     throw std::runtime_error("tried to retrieve automatic blob by name.");
