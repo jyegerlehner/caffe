@@ -311,10 +311,10 @@ class Net {
   bool debug_info_;
   /// The root net that actually holds the shared layers in data parallelism
   const Net* const root_net_;
-  /// Encoder loops for target prop.
-  vector<shared_ptr<Net<Dtype> > > encoder_loops_;
-  /// Decoder loops for target prop
-  vector<shared_ptr<Net<Dtype> > > decoder_loops_;
+//  /// Encoder loops for target prop.
+//  vector<shared_ptr<Net<Dtype> > > encoder_loops_;
+//  /// Decoder loops for target prop
+//  vector<shared_ptr<Net<Dtype> > > decoder_loops_;
   DISABLE_COPY_AND_ASSIGN(Net);
 };
 

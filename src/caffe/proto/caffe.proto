@@ -52,7 +52,8 @@ message FillerParameter {
   // The expected number of non-zero output weights for a given input in
   // Gaussian filler -- the default -1 means don't perform sparsification.
   optional int32 sparse = 7 [default = -1];
-  // Normalize the filler variance by fan_in, fan_out, or their average.
+
+// Normalize the filler variance by fan_in, fan_out, or their average.
   // Applies to 'xavier' and 'msra' fillers.
   enum VarianceNorm {
     FAN_IN = 0;
@@ -60,6 +61,8 @@ message FillerParameter {
     AVERAGE = 2;
   }
   optional VarianceNorm variance_norm = 8 [default = FAN_IN];
+  optional string mirror_blob = 9; // Name of a blob to be copied
+                                   // to the output.
 }
 
 message NetParameter {
@@ -90,8 +93,8 @@ message NetParameter {
 
   // Use for identity loops in target prop, where the layers are (mostly) shared
   // with each other and the parent (independent) net.
-  repeated NetParameter encoder_loop = 9;
-  repeated NetParameter decoder_loop = 10;
+  repeated NetParameter dependent_net = 9;
+  //repeated NetParameter decoder_loop = 10;
 
   // The layers that make up the net.  Each of their configurations, including
   // connectivity and behavior, is specified as a LayerParameter.

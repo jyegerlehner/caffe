@@ -65,8 +65,9 @@ class Solver {
   virtual void Solve(const char* resume_file = NULL);
   inline void Solve(const string resume_file) { Solve(resume_file.c_str()); }
   void SingleStep(int start_iter, std::vector<Dtype>& losses,
-                                 int average_loss, Dtype& smoothed_loss);
-  void Step(int iters);
+                                 int average_loss, Dtype& smoothed_loss,
+                                 bool suppress_display = false);
+  void Step(int iters, bool suppress_display = false);
   // The Restore method simply dispatches to one of the
   // RestoreSolverStateFrom___ protected methods. You should implement these
   // methods to restore the state from the appropriate snapshot type.
@@ -83,6 +84,18 @@ class Solver {
     return test_nets_;
   }
   int iter() { return iter_; }
+  bool ShouldDisplay() const
+  {
+    if (!this->param_.has_display() )
+    {
+      return false;
+    }
+    if(this->param_.display() == 0)
+    {
+      return false;
+    }
+    return  ((this->iter_ % this->param_.display()) == 0);
+  }
 
   // Invoked at specific points during an iteration
   class Callback {

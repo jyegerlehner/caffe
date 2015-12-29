@@ -18,11 +18,12 @@ public:
   void SetWeightsFile(const std::string& filename);
   void Run(const std::vector<int>& gpus);
   void SetActionFunction(ActionCallback action_callback);
+  typename BlobFinder<Dtype>::SharedBlobPtr BlobByName(const std::string blob_name);
 
 protected:
   void InitLongLoopNet();
-  shared_ptr<Solver<Dtype> > CreateDependentNetSolver(
-      const NetParameter& loop_net_param );
+//  shared_ptr<Solver<Dtype> > CreateDependentNetSolver(
+//      const NetParameter& loop_net_param );
   void ParseAndCreateLoopSolvers();
   void ToHDF5(const std::string& filename);
   void CopyTrainedLayersFromHDF5(const std::string& trained_filename);

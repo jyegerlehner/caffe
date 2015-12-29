@@ -320,28 +320,26 @@ void Net<Dtype>::Init(const NetParameter& in_param,
 
   ShareWeights();
 
-  for(int i=0; i < in_param.encoder_loop_size(); ++i)
-  {
-    NetState net_state;
-    net_state.set_phase(TRAIN);
-    NetParameter encoder_param = in_param.encoder_loop(i);
-    encoder_param.mutable_state()->CopyFrom(net_state);
-
-    encoder_loops_.push_back( shared_ptr<Net<Dtype> > (
-                                new Net<Dtype>(encoder_param, blob_finder,
-                                             layer_finder, this)));
-  }
-
-  for(int i=0; i < in_param.decoder_loop_size(); ++i)
-  {
-    NetState net_state;
-    net_state.set_phase(TRAIN);
-    NetParameter decoder_param = in_param.encoder_loop(i);
-    decoder_param.mutable_state()->CopyFrom(net_state);
-    decoder_loops_.push_back( shared_ptr<Net<Dtype> > (
-                                new Net<Dtype>(decoder_param, blob_finder,
-                                             layer_finder, this)));
-  }
+//  for(int i=0; i < in_param.encoder_loop_size(); ++i)
+//  {
+//    NetState net_state;
+//    net_state.set_phase(TRAIN);
+//    NetParameter encoder_param = in_param.encoder_loop(i);
+//    encoder_param.mutable_state()->CopyFrom(net_state);
+//    encoder_loops_.push_back( shared_ptr<Net<Dtype> > (
+//                                new Net<Dtype>(encoder_param, blob_finder,
+//                                             layer_finder, this)));
+//  }
+//  for(int i=0; i < in_param.decoder_loop_size(); ++i)
+//  {
+//    NetState net_state;
+//    net_state.set_phase(TRAIN);
+//    NetParameter decoder_param = in_param.encoder_loop(i);
+//    decoder_param.mutable_state()->CopyFrom(net_state);
+//    decoder_loops_.push_back( shared_ptr<Net<Dtype> > (
+//                                new Net<Dtype>(decoder_param, blob_finder,
+//                                             layer_finder, this)));
+//  }
 
   debug_info_ = param.debug_info();
   LOG_IF(INFO, Caffe::root_solver()) << "Network initialization done.";

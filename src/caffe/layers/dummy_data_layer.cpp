@@ -16,6 +16,16 @@ void DummyDataLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       << "Number of data fillers must be 0, 1 or equal to the number of tops: "
       << num_top << "; you specified " << num_data_filler << " data fillers.";
 
+  bool has_mirror_blob = false;
+  if (num_data_filler == num_top)
+  {
+    for(int i=0; i < num_data_filler; ++i)
+    {
+      if( param.data_filler(i).has_mirror_blob())
+        has_mirror_blob = true;
+    }
+  }
+
   const bool legacy_dims = param.num_size() || param.channels_size() ||
                            param.height_size() || param.width_size();
   if (legacy_dims) {
@@ -35,9 +45,13 @@ void DummyDataLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
         << "Must specify 'width' once, or once per top blob "
         << "(" << num_top << "); specified " << param.width_size() << ".";
   } else {
-    CHECK(param.shape_size() == 1 || param.shape_size() == num_top)
-        << "Must specify 'shape' once, or once per top blob "
-        << "(" << num_top << "); specified " << param.shape_size() << ".";
+    if(!has_mirror_blob)
+    {
+      CHECK(param.shape_size() == 1 || param.shape_size() == num_top)
+          << "Must specify 'shape' once, or once per top blob "
+          << "(" << num_top << "); specified " << param.shape_size() << ".";
+    }
+
   }
   // refill_[i] tells Forward i whether or not to actually refill top Blob i.
   // If refill_[i] is false, Forward does nothing for Blob i. We use this to
@@ -61,12 +75,30 @@ void DummyDataLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     refill_.resize(1);
     refill_[0] = (strcmp(filler_param.type().c_str(), "constant") == 0);
     fillers_.resize(1);
-    fillers_[0].reset(GetFiller<Dtype>(filler_param));
+    if (filler_param.type() == "mirror")
+    {
+      CHECK(this->blob_finder_ != NULL ) << "Null blob finder in mirroring "
+                                            << "DummyDataLayer.";
+      fillers_[0].reset(GetMirrorFiller<Dtype>(filler_param,
+                                               *this->blob_finder_));
+    }
+    else
+    {
+      fillers_[0].reset(GetFiller<Dtype>(filler_param));
+    }
   } else {
     refill_.resize(num_top);
     fillers_.resize(num_top);
     for (int i = 0; i < num_top; ++i) {
-      fillers_[i].reset(GetFiller<Dtype>(param.data_filler(i)));
+      if (param.data_filler(i).type() == "mirror")
+      {
+        fillers_[i].reset(GetMirrorFiller<Dtype>(param.data_filler(i),
+                                                 *this->blob_finder_));
+      }
+      else
+      {
+        fillers_[i].reset(GetFiller<Dtype>(param.data_filler(i)));
+      }
       // Refill on each iteration iff not using a constant filler,
       // but use the inverse of this rule for the first run.
       refill_[i] =

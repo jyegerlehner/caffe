@@ -132,6 +132,9 @@ class DummyDataLayer : public Layer<Dtype> {
   virtual inline const char* type() const { return "DummyData"; }
   virtual inline int ExactNumBottomBlobs() const { return 0; }
   virtual inline int MinTopBlobs() const { return 1; }
+  virtual void SetBlobFinder(BlobFinder<Dtype>* blob_finder) {
+    blob_finder_ = blob_finder;
+  }
 
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
@@ -143,6 +146,7 @@ class DummyDataLayer : public Layer<Dtype> {
 
   vector<shared_ptr<Filler<Dtype> > > fillers_;
   vector<bool> refill_;
+  BlobFinder<Dtype>* blob_finder_;
 };
 
 /**

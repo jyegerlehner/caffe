@@ -139,8 +139,11 @@ void Solver<Dtype>::InitTestNets() {
       CHECK_GE(param_.test_iter_size(), num_test_nets)
           << "test_iter must be specified for each test network.";
   } else {
-      CHECK_EQ(param_.test_iter_size(), num_test_nets)
-          << "test_iter must be specified for each test network.";
+      if (num_test_nets > 0)
+      {
+        CHECK_EQ(param_.test_iter_size(), num_test_nets)
+            << "test_iter must be specified for each test network.";
+      }
   }
   // If we have a generic net (specified by net or net_param, rather than
   // test_net or test_net_param), we may have an unlimited number of actual
@@ -210,7 +213,8 @@ void Solver<Dtype>::InitTestNets() {
 
 template <typename Dtype>
 void Solver<Dtype>::SingleStep(int start_iter, std::vector<Dtype>& losses,
-                               int average_loss, Dtype& smoothed_loss)
+                               int average_loss, Dtype& smoothed_loss,
+                               bool suppress_display)
 {
   vector<Blob<Dtype>*> bottom_vec;
 
@@ -250,8 +254,11 @@ void Solver<Dtype>::SingleStep(int start_iter, std::vector<Dtype>& losses,
     losses[idx] = loss;
   }
   if (display) {
-    LOG_IF(INFO, Caffe::root_solver()) << "Iteration " << iter_
-        << ", loss = " << smoothed_loss;
+    if (!suppress_display)
+    {
+      LOG_IF(INFO, Caffe::root_solver()) << "Iteration " << iter_
+          << ", loss = " << smoothed_loss;
+    }
     const vector<Blob<Dtype>*>& result = net_->output_blobs();
     int score_index = 0;
     for (int j = 0; j < result.size(); ++j) {
@@ -283,7 +290,7 @@ void Solver<Dtype>::SingleStep(int start_iter, std::vector<Dtype>& losses,
 }
 
 template <typename Dtype>
-void Solver<Dtype>::Step(int iters) {
+void Solver<Dtype>::Step(int iters, bool suppress_display) {
   const int start_iter = iter_;
   const int stop_iter = iter_ + iters;
   int average_loss = this->param_.average_loss();
@@ -291,7 +298,7 @@ void Solver<Dtype>::Step(int iters) {
   Dtype smoothed_loss = 0;
 
   while (iter_ < stop_iter && (!requested_early_exit_) ) {
-    SingleStep(start_iter, losses, average_loss, smoothed_loss);
+    SingleStep(start_iter, losses, average_loss, smoothed_loss, suppress_display);
 
     SolverAction::Enum request = GetRequestedAction();
 

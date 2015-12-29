@@ -13,6 +13,10 @@ TargetPropSolver<Dtype>::TargetPropSolver(
   param_(solver_param),
   requested_early_exit_(false)
 {
+  // Load the long loop net
+  InitLongLoopNet();
+  // Create the dependent nets and their solvers.
+  InitDependentNets();
 }
 
 template<typename Dtype>
@@ -44,11 +48,19 @@ void TargetPropSolver<Dtype>::InitLongLoopNet()
   CHECK_LE(num_train_nets, 1) << "SolverParameter must not contain more than "
       << "one of these fields specifying a train_net: " << field_names;
 
-  CHECK(param_.has_net()) << "Solver does not specify a net prototxt file "
-                             " in its net parameter.";
+  bool has_net_file = param_.has_net();
+  bool has_net_param = param_.has_net_param();
+  CHECK(has_net_file || has_net_param)
+      << "Solver does not specify a net prototxt file "
+                            << " in its net parameter.";
   LOG_IF(INFO, Caffe::root_solver())
       << "Creating long loop net from net file: " << param_.net();
-  ReadNetParamsFromTextFileOrDie(param_.net(), &top_net_param_);
+  if (has_net_file)
+    ReadNetParamsFromTextFileOrDie(param_.net(), &top_net_param_);
+
+  top_net_param_.CopyFrom(param_.net_param());
+//  else
+//    ParseParamFromTextOrDie(param_.net_param(), &top_net_param_);
 
   // Set the correct NetState.  We start with the solver defaults (lowest
   // precedence); then, merge in any NetState specified by the net_param itself;
@@ -67,50 +79,7 @@ void TargetPropSolver<Dtype>::InitLongLoopNet()
     //                              root_solver_->net_.get()));
     throw std::runtime_error("Parallel training not supported for target prop.");
   }
-
-  // Parse/Create the dependent nets and their solvers:
-  // for each encoder loop
-  // {
-  //   Copy the original solver parameter.
-  for(int i = 0; i < top_net_param_.encoder_loop_size(); ++i)
-  {
-    loop_solvers_.push_back(CreateDependentNetSolver(
-                              top_net_param_.encoder_loop(i)));
-  }
-
-  for(int i = 0; i < top_net_param_.decoder_loop_size(); ++i)
-  {
-    loop_solvers_.push_back(CreateDependentNetSolver(
-                              top_net_param_.decoder_loop(i)));
-  }
 }
-
-template<typename Dtype>
-shared_ptr<Solver<Dtype> > TargetPropSolver<Dtype>::CreateDependentNetSolver(
-    const NetParameter& loop_net_param )
-{
-  SolverParameter loop_solver_param = param_;
-  // Clear out the old net that was set on param_ from the loop_solver_param
-  loop_solver_param.clear_train_net_param();
-  loop_solver_param.clear_train_net();
-  loop_solver_param.clear_net_param();
-  loop_solver_param.clear_net();
-  loop_solver_param.clear_test_net();
-  loop_solver_param.clear_test_net_param();
-
-  // Copy the dependent net's param into the solver param.
-  loop_solver_param.mutable_net_param()->CopyFrom(loop_net_param);
-  shared_ptr<Solver<Dtype> > solver_ptr(
-        SolverRegistry<Dtype>::CreateSolver(loop_solver_param,
-          blob_finder_,
-          layer_finder_));
-  return solver_ptr;
-}
-
-//template<typename Dtype>
-//void TargetPropSolver<Dtype>::ParseAndCreateLoopSolvers()
-//{
-//}
 
 template<typename Dtype>
 void TargetPropSolver<Dtype>::ToHDF5(const std::string& filename)
@@ -210,16 +179,19 @@ void TargetPropSolver<Dtype>::FillDependentSolverParam(
   solver_param.clear_test_net();
   solver_param.clear_test_net_param();
   solver_param.clear_train_net_param();
+  solver_param.clear_test_interval();
+  solver_param.clear_test_iter();
   solver_param.mutable_train_net_param()->CopyFrom(dependent_net_param);
 }
+
 
 template<typename Dtype>
 void TargetPropSolver<Dtype>::InitDependentNets()
 {
-  for (int i = 0; i < top_net_param_.encoder_loop_size(); ++i)
+  for (int i = 0; i < top_net_param_.dependent_net_size(); ++i)
   {
     SolverParameter solver_param;
-    FillDependentSolverParam(solver_param, top_net_param_.encoder_loop(i));
+    FillDependentSolverParam(solver_param, top_net_param_.dependent_net(i));
 
     // Now we've created a solver param whose net is this encoder loop's
     // net. Instantiate the solver and add to the list.
@@ -229,19 +201,15 @@ void TargetPropSolver<Dtype>::InitDependentNets()
                                                           layer_finder_));
     loop_solvers_.push_back(solver);
   }
-  for (int i = 0; i < top_net_param_.decoder_loop_size(); ++i)
-  {
-    SolverParameter solver_param;
-    FillDependentSolverParam(solver_param, top_net_param_.decoder_loop(i));
 
-    // Now we've created a solver param whose net is this encoder loop's
-    // net. Instantiate the solver and add to the list.
-    shared_ptr<caffe::Solver<Dtype> >
-        solver(caffe::SolverRegistry<Dtype>::CreateSolver(solver_param,
-                                                          blob_finder_,
-                                                          layer_finder_));
-    loop_solvers_.push_back(solver);
-  }
+
+//  for(int i = 0; i < top_net_param_.dependent_net_size(); ++i)
+//  {
+//    loop_solvers_.push_back(CreateDependentNetSolver(
+//                              top_net_param_.dependent_net(i)));
+//  }
+
+
 }
 
 template<typename Dtype>
@@ -258,8 +226,8 @@ template<typename Dtype>
 void TargetPropSolver<Dtype>::TestLongLoopNet(int iter)
 {
   CHECK(Caffe::root_solver());
-  LOG(INFO) << "Iteration " << iter
-            << ", Testing long loop net " << long_loop_net_->name();
+//  LOG(INFO) << "Iteration " << iter
+//            << ", Testing long loop net " << long_loop_net_->name();
 //  CHECK_NOTNULL(test_nets_[test_net_id].get())->
 //      ShareTrainedLayersWith(net_.get());
   vector<Dtype> test_score;
@@ -316,8 +284,6 @@ void TargetPropSolver<Dtype>::TestLongLoopNet(int iter)
     LOG(INFO) << "Long loop test loss: " << loss;
   }
 
-  CHECK_EQ(test_score.size(), 0);
-
   for (int i = 0; i < test_score.size(); ++i) {
     const int output_blob_index =
         test_net->output_blob_indices()[test_score_output_id[i]];
@@ -337,9 +303,6 @@ void TargetPropSolver<Dtype>::TestLongLoopNet(int iter)
 template<typename Dtype>
 void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus)
 {
-  // Load the long loop net
-  InitLongLoopNet();
-
   CHECK(resume_file_.empty()) << "Resuming target prop solver not supported.";
 
   // Load layers from weights.
@@ -355,8 +318,6 @@ void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus)
     LOG(INFO) << "Long loop loss: " << loss;
   }
 
-  // Create the dependent nets and their solvers.
-  InitDependentNets();
   
   // Run each solver on a minibatch.
   int iter_ = 0;
@@ -367,7 +328,7 @@ void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus)
         solver_index < loop_solvers_.size();
         ++solver_index)
     {
-      loop_solvers_[solver_index]->Step(1);
+      loop_solvers_[solver_index]->Step(1, true);
     }
 
     SolverAction::Enum request = GetRequestedAction();
@@ -376,11 +337,21 @@ void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus)
       requested_early_exit_ = true;
     }
 
-    if ( iter_ % param_.test_interval() == 0)
+    bool do_test = (param_.test_interval() != 0);
+    if( param_.has_test_interval())
     {
-      TestLongLoopNet(iter_);
+      if ( ((do_test = iter_ % param_.test_interval()) == 0))
+      {
+        TestLongLoopNet(iter_);
+      }
     }
 
+    int last_index = loop_solvers_.size()-1;
+    if(loop_solvers_[last_index]->ShouldDisplay())
+    {
+      LOG(INFO) << "Iteration " << loop_solvers_[last_index]->iter();
+//                << ", lr=" << loop_solvers_[last_index]->GetLearningRate();
+    }
     iter_++;
   }
 
@@ -389,6 +360,14 @@ void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus)
     Snapshot();
   }
 }
+
+template<typename Dtype>
+typename BlobFinder<Dtype>::SharedBlobPtr TargetPropSolver<Dtype>::BlobByName(
+    const std::string blob_name)
+{
+  return blob_finder_.PointerFromName(blob_name);
+}
+
 
 INSTANTIATE_CLASS(TargetPropSolver);
 

@@ -70,6 +70,13 @@ void ReadNetParamsFromTextFileOrDie(const string& param_file,
   UpgradeNetAsNeeded(param_file, param);
 }
 
+void ParseParamFromTextOrDie(const string& param_text,
+                             NetParameter* param)
+{
+  bool success = google::protobuf::TextFormat::ParseFromString(param_text,param);
+  CHECK(success) << "Failed to parse net prototxt.";
+}
+
 void ReadNetParamsFromBinaryFileOrDie(const string& param_file,
                                       NetParameter* param) {
   CHECK(ReadProtoFromBinaryFile(param_file, param))

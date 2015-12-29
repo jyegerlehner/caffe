@@ -7,6 +7,9 @@
 
 namespace caffe {
 
+void ParseParamFromTextOrDie(const string& param_text,
+                             NetParameter* param);
+
 // Return true iff the net is not the current version.
 bool NetNeedsUpgrade(const NetParameter& net_param);
 
