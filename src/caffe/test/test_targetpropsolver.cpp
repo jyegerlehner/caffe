@@ -43,20 +43,20 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
 //    ss << "debug_info: true \n";
   }
 
-  void AddDataLayer(std::stringstream& ss)
-  {
-    ss << "  layer {\n";
-    ss << "    name: 'data_layer' \n";
-    ss << "    type: 'DummyData' \n";
-    ss << "    top: 'h0' \n";
-    ss << "    dummy_data_param {\n";
-    ss << "      shape { \n";
-    ss << "        dim: 4 \n"; // batch size 4
-    ss << "        dim: 6 \n"; // 6 scalars in the input vector.
-    ss << "       } \n";
-    ss << "    } \n";
-    ss << "  } \n";
-  }
+//  void AddDataLayer(std::stringstream& ss)
+//  {
+//    ss << "  layer {\n";
+//    ss << "    name: 'data_layer' \n";
+//    ss << "    type: 'DummyData' \n";
+//    ss << "    top: 'h0' \n";
+//    ss << "    dummy_data_param {\n";
+//    ss << "      shape { \n";
+//    ss << "        dim: 4 \n"; // batch size 4
+//    ss << "        dim: 6 \n"; // 6 scalars in the input vector.
+//    ss << "       } \n";
+//    ss << "    } \n";
+//    ss << "  } \n";
+//  }
 
   std::string IntToStr(int i)
   {
@@ -65,7 +65,7 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
     return ss.str();
   }
 
-  void AddMirrorDataLayer(std::stringstream& ss,
+  void AddDataLayer(std::stringstream& ss,
                           const std::string& mirror_blob,
                           int shape0, int shape1)
   {
@@ -85,12 +85,6 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
     ss << "        dim: " << IntToStr(shape0) << "\n"; // batch size
     ss << "        dim: " << IntToStr(shape1) << "\n";
     ss << "       } \n";
-
-//    ss << "       data_filler { \n";
-//    ss << "         type: 'mirror' \n";
-//    ss << "         mirror_blob: '" << mirror_blob << "' \n";
-//    ss << "       } \n";
-
     ss << "    } \n";
     ss << "  } \n";
   }
@@ -224,7 +218,7 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
 
   void AddLongLoop(std::stringstream& ss)
   {
-    AddMirrorDataLayer(ss, "h0", 4,6);
+    AddDataLayer(ss, "h0", 4,6);
     AddProcessingLayers(ss, true, 1);
     AddProcessingLayers(ss, true, 2);
     AddProcessingLayers(ss, false, 2);
@@ -232,17 +226,17 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
     AddEuclideanLoss(ss, "h0", "h0_hat", "LongLoopLoss");
   }
 
-  void AddIdentityLoop(std::stringstream& ss, int level)
+  void AddEncoderIdentityLoop(std::stringstream& ss, int level)
   {
     ss << "dependent_net { \n";
-    ss << "  name: 'loop" << level << "' \n";
+    ss << "  name: 'encoder_loop" << level << "' \n";
     if ( level == 1)
     {
-      AddDataLayer(ss);
+      AddDataLayer(ss, "h0", 4, 6);
     }
     else
     {
-      AddMirrorDataLayer(ss, "h1", 4, 4);
+      AddDataLayer(ss, "h1", 4, 4);
     }
 
     std::string decoder_bottom_blob_name = (level == 1) ? "h1" : "h2";
@@ -255,12 +249,44 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
     std::string loss_name;
     {
       std::stringstream ln;
-      ln << "loop" << level << "_loss";
+      ln << "encoder_loop" << level << "_loss";
       loss_name = ln.str();
     }
     AddEuclideanLoss(ss, loss_blob1, loss_blob2, loss_name );
     ss << "} \n";
   }
+
+  void AddDecoderIdentityLoop(std::stringstream& ss, int level)
+  {
+    ss << "dependent_net { \n";
+    ss << "  name: 'encoder_loop" << level << "' \n";
+    if ( level == 1)
+    {
+      AddDataLayer(ss, "h0", 4,6);
+      AddDataLayer(ss, "h1_hat", 4, 4);
+    }
+    else
+    {
+      throw std::runtime_error("Only level 1 supported.");
+    }
+
+    AddProcessingLayers(ss, false, level);
+    AddProcessingLayers(ss, true, level, "h0_hat");
+
+    std::string loss_blob1 = (level == 1) ? "h1" : "xxxxx";
+    std::string loss_blob2 = (level == 1) ? "h1_hat" : "zzzzzz";
+    std::string loss_name;
+    {
+      std::stringstream ln;
+      ln << "decoder_loop" << level << "_loss_h1";
+      loss_name = ln.str();
+    }
+    AddEuclideanLoss(ss, loss_blob1, loss_blob2, loss_name );
+    AddEuclideanLoss(ss, "h0", "h0_hat", "decoder_loop_loss_h0" );
+
+    ss << "} \n";
+  }
+
 
   void StartNet(std::stringstream& ss)
   {
@@ -279,8 +305,9 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
     AddSolver(ss);
     StartNet(ss);
     AddLongLoop(ss);
-    AddIdentityLoop(ss,1);
-    AddIdentityLoop(ss,2);
+    AddEncoderIdentityLoop(ss,1);
+    AddEncoderIdentityLoop(ss,2);
+    AddDecoderIdentityLoop(ss,1);
     EndNet(ss);
     return ss.str();
   }
@@ -344,6 +371,21 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
 
 };
 
+template <typename Dtype>
+void AssertBlobsEqual(const Blob<Dtype>& b1, const Blob<Dtype>& b2) {
+  ASSERT_EQ( b1.count(), b2.count());
+  int count = b1.count();
+  for(int index = 0; index < count; ++index) {
+    Dtype val1 = b1.cpu_data()[index];
+    Dtype val2 = b2.cpu_data()[index];
+    if (val1 != 0.0 || val2 != 0.0 )
+    {
+      ASSERT_NEAR(val1, val2, 0.00001);
+    } else {
+      ASSERT_NEAR(val1, val2, 0.00001);
+    }
+  }
+}
 
 
 TYPED_TEST_CASE(TargetPropSolverTest, TestDtypesAndDevices);
@@ -374,7 +416,18 @@ TYPED_TEST(TargetPropSolverTest, PrintXorProto) {
   std::vector<int> gpus;
   gpus.push_back(0);
   this->AssignTrainingData(solver);
-  solver.Run(gpus);
+  Dtype loss = 0.0;
+  solver.Run(gpus, loss);
+
+  ASSERT_NE(loss, 0.0);
+  const Dtype TOL = 0.001f;
+  ASSERT_NEAR(loss, 0.0, TOL);
+
+  {
+    shared_ptr<Blob<Dtype> > long_loop_output = solver.ForwardLongLoop();
+    shared_ptr<Blob<Dtype> > loops_output = solver.ForwardLoops();
+    AssertBlobsEqual(*long_loop_output, *loops_output);
+  }
 }
 
 } // namespace caffe

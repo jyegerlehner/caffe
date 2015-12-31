@@ -61,8 +61,6 @@ message FillerParameter {
     AVERAGE = 2;
   }
   optional VarianceNorm variance_norm = 8 [default = FAN_IN];
-  optional string mirror_blob = 9; // Name of a blob to be copied
-                                   // to the output.
 }
 
 message NetParameter {

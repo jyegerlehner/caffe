@@ -455,7 +455,8 @@ int target_prop() {
   }
 
 
-  solver.Run(gpus);
+  float loss;
+  solver.Run(gpus, loss);
 //  if (gpus.size() > 1) {
 //    caffe::P2PSync<float> sync(solver, NULL, solver->param());
 //    sync.run(gpus);

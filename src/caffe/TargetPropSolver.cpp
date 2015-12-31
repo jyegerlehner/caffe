@@ -143,7 +143,7 @@ string TargetPropSolver<Dtype>::SnapshotFilename(const string extension) {
   string filename(param_.snapshot_prefix());
   const int kBufferSize = 20;
   char iter_str_buffer[kBufferSize];
-  snprintf(iter_str_buffer, kBufferSize, "_iter_%d", iter_);
+  snprintf(iter_str_buffer, kBufferSize, "_iter_%d", GetIter());
   return filename + iter_str_buffer + extension;
 }
 
@@ -223,8 +223,9 @@ SolverAction::Enum TargetPropSolver<Dtype>::GetRequestedAction()
 }
 
 template<typename Dtype>
-void TargetPropSolver<Dtype>::TestLongLoopNet(int iter)
+void TargetPropSolver<Dtype>::TestLongLoopNet(int iter, Dtype& loss)
 {
+  Dtype last_iter_loss = 0;
   CHECK(Caffe::root_solver());
 //  LOG(INFO) << "Iteration " << iter
 //            << ", Testing long loop net " << long_loop_net_->name();
@@ -234,7 +235,7 @@ void TargetPropSolver<Dtype>::TestLongLoopNet(int iter)
   vector<int> test_score_output_id;
   vector<Blob<Dtype>*> bottom_vec;
   const shared_ptr<Net<Dtype> >& test_net = long_loop_net_;
-  Dtype loss = 0;
+  loss = 0;
   for (int i = 0; i < param_.test_iter(0); ++i) {
     SolverAction::Enum request = GetRequestedAction();
     // Check to see if stoppage of testing/training has been requested.
@@ -274,6 +275,8 @@ void TargetPropSolver<Dtype>::TestLongLoopNet(int iter)
         }
       }
     }
+    if (last_iter_loss == 0 )
+      last_iter_loss = iter_loss;
   }
   if (requested_early_exit_) {
     LOG(INFO)     << "Test interrupted.";
@@ -298,10 +301,12 @@ void TargetPropSolver<Dtype>::TestLongLoopNet(int iter)
     LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
               << mean_score << loss_msg_stream.str();
   }
+  if (loss == 0)
+    loss = last_iter_loss;
 }
 
 template<typename Dtype>
-void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus)
+void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus, Dtype& loss)
 {
   CHECK(resume_file_.empty()) << "Resuming target prop solver not supported.";
 
@@ -320,8 +325,7 @@ void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus)
 
   
   // Run each solver on a minibatch.
-  int iter_ = 0;
-  while (iter_ < param_.max_iter() && !requested_early_exit_)
+  while (GetIter() < param_.max_iter() && !requested_early_exit_)
   {
     // Run each solver 1 iter.
     for(int solver_index = 0;
@@ -340,9 +344,9 @@ void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus)
     bool do_test = (param_.test_interval() != 0);
     if( param_.has_test_interval())
     {
-      if ( ((do_test = iter_ % param_.test_interval()) == 0))
+      if ( ((do_test = GetIter() % param_.test_interval()) == 0))
       {
-        TestLongLoopNet(iter_);
+        TestLongLoopNet(param_.test_iter(0), loss);
       }
     }
 
@@ -352,13 +356,20 @@ void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus)
       LOG(INFO) << "Iteration " << loop_solvers_[last_index]->iter();
 //                << ", lr=" << loop_solvers_[last_index]->GetLearningRate();
     }
-    iter_++;
   }
+  TestLongLoopNet(1, loss);
 
   if (param_.snapshot_after_train())
   {
     Snapshot();
   }
+}
+
+template<typename Dtype>
+int TargetPropSolver<Dtype>::GetIter() const
+{
+  CHECK(loop_solvers_.size() > 0) << "Empty loop solvers vector.";
+  return loop_solvers_[0]->iter();
 }
 
 template<typename Dtype>
@@ -368,6 +379,32 @@ typename BlobFinder<Dtype>::SharedBlobPtr TargetPropSolver<Dtype>::BlobByName(
   return blob_finder_.PointerFromName(blob_name);
 }
 
+template<typename Dtype>
+shared_ptr<Blob<Dtype> >  TargetPropSolver<Dtype>::ForwardLongLoop()
+{
+  Dtype loss;
+  std::vector<Blob<Dtype>* > bottom_vec;
+  (void) long_loop_net_->Forward(bottom_vec);
+  shared_ptr<Blob<Dtype> > blob = long_loop_net_->blob_by_name("h0_hat");
+  //PrintBlob("h0_hat, long loop", *blob);
+  return blob;
+}
+
+template<typename Dtype>
+shared_ptr<Blob<Dtype> >  TargetPropSolver<Dtype>::ForwardLoops()
+{
+  Dtype loss;
+  std::vector<Blob<Dtype>* > bottom_vec;
+  for( int i =0; i < loop_solvers_.size(); ++i)
+  {
+    (void) loop_solvers_[i]->net()->Forward(bottom_vec, &loss);
+  }
+  int solver_index = loop_solvers_.size()-1;
+  shared_ptr<Blob<Dtype> > blob = loop_solvers_[solver_index]->net()->blob_by_name("h0_hat");
+
+  //PrintBlob("h0_hat, short loops", *blob);
+  return blob;
+}
 
 INSTANTIATE_CLASS(TargetPropSolver);
 

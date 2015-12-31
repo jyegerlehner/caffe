@@ -16,9 +16,11 @@ public:
   TargetPropSolver(const caffe::SolverParameter& param);
   void SetResumeFile(const std::string& filename);
   void SetWeightsFile(const std::string& filename);
-  void Run(const std::vector<int>& gpus);
+  void Run(const std::vector<int>& gpus, Dtype& loss);
   void SetActionFunction(ActionCallback action_callback);
   typename BlobFinder<Dtype>::SharedBlobPtr BlobByName(const std::string blob_name);
+  shared_ptr<Blob<Dtype> > ForwardLongLoop();
+  shared_ptr<Blob<Dtype> > ForwardLoops();
 
 protected:
   void InitLongLoopNet();
@@ -32,7 +34,7 @@ protected:
   void InitDependentNets();
   void FillDependentSolverParam(SolverParameter& solver_param,
                          const NetParameter& dependent_net_param);
-  void TestLongLoopNet(int iter);
+  void TestLongLoopNet(int iter, Dtype& loss);
   SolverAction::Enum GetRequestedAction();
   void Snapshot();
   string SnapshotFilename(const string extension);
@@ -50,7 +52,7 @@ protected:
   std::string resume_file_;
   std::string weights_file_;
   bool requested_early_exit_;
-  int iter_;
+  int GetIter() const;
 };
 
 }

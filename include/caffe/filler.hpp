@@ -345,26 +345,6 @@ class BilinearFiller : public Filler<Dtype> {
   }
 };
 
-template<typename Dtype>
-class MirrorFiller : public Filler<Dtype> {
- public:
-  explicit MirrorFiller(const FillerParameter& param,
-                        BlobFinder<Dtype>& blob_finder):
-    Filler<Dtype>(param),
-    blob_finder_(&blob_finder) { }
-  virtual void Fill(Blob<Dtype>* blob) {
-    std::string mirrored_blob_name = this->filler_param_.mirror_blob();
-    CHECK(blob_finder_->Exists(mirrored_blob_name))
-        << "Mirrored blob " << mirrored_blob_name << "doesn't exist.";
-    shared_ptr<Blob<Dtype> > source_blob =
-        blob_finder_->PointerFromName(mirrored_blob_name);
-    blob->ShareData(*source_blob);
-  }
-protected:
-  BlobFinder<Dtype>* blob_finder_;
-};
-
-
 /**
  * @brief Get a specific filler from the specification given in FillerParameter.
  *
@@ -396,13 +376,6 @@ Filler<Dtype>* GetFiller(const FillerParameter& param) {
     CHECK(false) << "Unknown filler name: " << param.type();
   }
   return (Filler<Dtype>*)(NULL);
-}
-
-template <typename Dtype>
-Filler<Dtype>* GetMirrorFiller(const FillerParameter& param,
-    BlobFinder<Dtype>& blob_finder = BlobFinder<Dtype>())
-{
-  return new MirrorFiller<Dtype>(param, blob_finder);
 }
 
 }  // namespace caffe
