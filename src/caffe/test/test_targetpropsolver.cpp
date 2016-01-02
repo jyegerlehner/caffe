@@ -2,7 +2,7 @@
 #include <cstring>
 #include <numeric>
 #include <vector>
-
+#include "boost/scoped_ptr.hpp"
 #include "google/protobuf/text_format.h"
 
 #include "gtest/gtest.h"
@@ -10,6 +10,7 @@
 #include "caffe/blob.hpp"
 #include "caffe/common.hpp"
 #include "caffe/filler.hpp"
+#include "caffe/util/io.hpp"
 #include "caffe/solver.hpp"
 #include "caffe/vision_layers.hpp"
 #include "caffe/sgd_solvers.hpp"
@@ -19,6 +20,15 @@
 #include "caffe/test/test_gradient_check_util.hpp"
 
 namespace caffe {
+
+std::string MakeSourceDir()
+{
+  std::string source;
+  MakeTempDir(&source);
+  source += "/db";
+  MakeTempDir(&source);
+  return source;
+}
 
 template <typename TypeParam>
 class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
@@ -65,27 +75,46 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
     return ss.str();
   }
 
+  void AddDummyDataLayer(std::stringstream& ss,
+                         const std::string& mirror_blob,
+                         int shape0, int shape1)
+  {
+
+  }
+
   void AddDataLayer(std::stringstream& ss,
+                          const std::string& layer_name_prefix,
                           const std::string& mirror_blob,
-                          int shape0, int shape1)
+                          int shape0, int shape1,
+                          bool from_db = false,
+                          std::string source_str = std::string() )
   {
     std::stringstream ln;
-    ln << "data_layer_" << mirror_blob;
+    ln << layer_name_prefix << "_data_layer_" << mirror_blob;
     ss << "  layer {\n";
     ss << "    name: '" << ln.str() << "' \n";
-    ss << "    type: 'DummyData' \n";
-    // Top blob is named the same as the blob it mirrors (which was created
-    // in a different net).
+    if (from_db)
+    {
+      ss << "    type: 'Data' \n";
+      ss << "    data_param { \n";
+      ss << "      source: '" << source_str << "' \n";
+      ss << "      batch_size: 4 \n";
+      ss << "      backend: LMDB \n";
+      ss << "    } \n";
+    }
+    else
+    {
+      ss << "    type: 'DummyData' \n";
+      ss << "    dummy_data_param {\n";
+      // Data layer mirrors a blob that the blob_finder already
+      // knows about.
+      ss << "      shape { \n";
+      ss << "        dim: " << IntToStr(shape0) << "\n"; // batch size
+      ss << "        dim: " << IntToStr(shape1) << "\n";
+      ss << "       } \n";
+      ss << "    } \n";
+    }
     ss << "    top: '" << mirror_blob << "' \n";
-    ss << "    dummy_data_param {\n";
-
-    // Data layer mirrors a blob that the blob_finder already
-    // knows about.
-    ss << "      shape { \n";
-    ss << "        dim: " << IntToStr(shape0) << "\n"; // batch size
-    ss << "        dim: " << IntToStr(shape1) << "\n";
-    ss << "       } \n";
-    ss << "    } \n";
     ss << "  } \n";
   }
 
@@ -216,9 +245,9 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
     ss << "} \n";
   }
 
-  void AddLongLoop(std::stringstream& ss)
+  void AddLongLoop(std::stringstream& ss, bool from_db, std::string source = std::string())
   {
-    AddDataLayer(ss, "h0", 4,6);
+    AddDataLayer(ss, "long_loop_", "h0", 4,6, from_db, source);
     AddProcessingLayers(ss, true, 1);
     AddProcessingLayers(ss, true, 2);
     AddProcessingLayers(ss, false, 2);
@@ -226,17 +255,20 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
     AddEuclideanLoss(ss, "h0", "h0_hat", "LongLoopLoss");
   }
 
-  void AddEncoderIdentityLoop(std::stringstream& ss, int level)
+  void AddEncoderIdentityLoop(std::stringstream& ss,
+                              int level,
+                              bool from_db = false,
+                              std::string source = std::string())
   {
     ss << "dependent_net { \n";
     ss << "  name: 'encoder_loop" << level << "' \n";
     if ( level == 1)
     {
-      AddDataLayer(ss, "h0", 4, 6);
+      AddDataLayer(ss, "encoder_loop_", "h0", 4, 6, from_db, source);
     }
     else
     {
-      AddDataLayer(ss, "h1", 4, 4);
+      AddDataLayer(ss, "encoder_loop_", "h1", 4, 4);
     }
 
     std::string decoder_bottom_blob_name = (level == 1) ? "h1" : "h2";
@@ -262,8 +294,8 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
     ss << "  name: 'encoder_loop" << level << "' \n";
     if ( level == 1)
     {
-      AddDataLayer(ss, "h0", 4,6);
-      AddDataLayer(ss, "h1_hat", 4, 4);
+      AddDataLayer(ss, "decoder_loop_", "h0", 4,6);
+      AddDataLayer(ss, "decoder_loop_", "h1_hat", 4, 4);
     }
     else
     {
@@ -299,13 +331,14 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
     ss << "} \n";
   }
 
-  std::string CreateXorProtoText()
+  std::string CreateXorProtoText(bool from_db = false,
+                                 std::string source = std::string())
   {
     std::stringstream ss;
     AddSolver(ss);
     StartNet(ss);
-    AddLongLoop(ss);
-    AddEncoderIdentityLoop(ss,1);
+    AddLongLoop(ss, false);//from_db, source);
+    AddEncoderIdentityLoop(ss,1, from_db, source);
     AddEncoderIdentityLoop(ss,2);
     AddDecoderIdentityLoop(ss,1);
     EndNet(ss);
@@ -325,10 +358,11 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
     Dtype x1;
   };
 
-  void AssignTrainingData(TargetPropSolver<Dtype>& solver)
+
+  shared_ptr<Blob<Dtype> > CreateXorDataBlob()
   {
+    shared_ptr<Blob<Dtype> > blob( new Blob<Dtype>(4,6,1,1));
     typedef InputOutputVal<Dtype> IOVal;
-    shared_ptr<Blob<Dtype> > input = solver.BlobByName("h0");
     std::vector<IOVal> xor_outputs;
     std::vector<IOVal> or_outputs;
     std::vector<IOVal> and_outputs;
@@ -350,29 +384,58 @@ class TargetPropSolverTest : public MultiDeviceTest<TypeParam> {
     for(int i = 0; i < xor_outputs.size(); ++i)
     {
       // XOR
-      int offset = input->offset(i,0,0,0);
-      input->mutable_cpu_data()[offset] = xor_outputs[i].x0;
-      offset = input->offset(i,1,0,0);
-      input->mutable_cpu_data()[offset] = xor_outputs[i].x1;
+      int offset = blob->offset(i,0,0,0);
+      blob->mutable_cpu_data()[offset] = xor_outputs[i].x0;
+      offset = blob->offset(i,1,0,0);
+      blob->mutable_cpu_data()[offset] = xor_outputs[i].x1;
 
       //OR
-      offset = input->offset(i,2,0,0);
-      input->mutable_cpu_data()[offset] = or_outputs[i].x0;
-      offset = input->offset(i,3,0,0);
-      input->mutable_cpu_data()[offset] = or_outputs[i].x1;
+      offset = blob->offset(i,2,0,0);
+      blob->mutable_cpu_data()[offset] = or_outputs[i].x0;
+      offset = blob->offset(i,3,0,0);
+      blob->mutable_cpu_data()[offset] = or_outputs[i].x1;
 
       //AND
-      offset = input->offset(i,4,0,0);
-      input->mutable_cpu_data()[offset] = and_outputs[i].x0;
-      offset = input->offset(i,5,0,0);
-      input->mutable_cpu_data()[offset] = and_outputs[i].x1;
+      offset = blob->offset(i,4,0,0);
+      blob->mutable_cpu_data()[offset] = and_outputs[i].x0;
+      offset = blob->offset(i,5,0,0);
+      blob->mutable_cpu_data()[offset] = and_outputs[i].x1;
     }
+
+    return blob;
   }
 
+  void AssignTrainingData(TargetPropSolver<Dtype>& solver)
+  {
+    shared_ptr<Blob<Dtype> > input = solver.BlobByName("h0");
+    shared_ptr<Blob<Dtype> > source = CreateXorDataBlob();
+    input->ReshapeLike(*source);
+    input->CopyFrom(*source);
+  }
 };
 
+template<typename Dtype>
+void BlobItemToDatum(Blob<Dtype>& blob, int blob_index, Datum& datum)
+{
+  datum.set_channels(blob.channels());
+  datum.set_height(blob.height());
+  datum.set_width(blob.width());
+  for( int channel = 0; channel < blob.channels(); ++channel )
+  {
+    for( int h = 0; h < blob.height(); ++h)
+    {
+      for(int w = 0; w < blob.width();++w)
+      {
+        Dtype blob_val = blob.data_at(blob_index,channel,h,w);
+        datum.add_float_data(static_cast<float>(blob_val));
+      }
+    }
+  }
+}
+
 template <typename Dtype>
-void AssertBlobsEqual(const Blob<Dtype>& b1, const Blob<Dtype>& b2) {
+void AssertBlobsEqual(const Blob<Dtype>& b1, const Blob<Dtype>& b2,
+                      Dtype TOLERANCE = 0.00001) {
   ASSERT_EQ( b1.count(), b2.count());
   int count = b1.count();
   for(int index = 0; index < count; ++index) {
@@ -380,24 +443,24 @@ void AssertBlobsEqual(const Blob<Dtype>& b1, const Blob<Dtype>& b2) {
     Dtype val2 = b2.cpu_data()[index];
     if (val1 != 0.0 || val2 != 0.0 )
     {
-      ASSERT_NEAR(val1, val2, 0.00001);
+      ASSERT_NEAR(val1, val2, TOLERANCE);
     } else {
-      ASSERT_NEAR(val1, val2, 0.00001);
+      ASSERT_NEAR(val1, val2, TOLERANCE);
     }
   }
 }
-
 
 TYPED_TEST_CASE(TargetPropSolverTest, TestDtypesAndDevices);
 
 // Forward propagating through the Softmaxima layer should produce the same
 // result as forward propagating through two individual Softmax layers whose
 // outputs are concatenated appropriately.
-TYPED_TEST(TargetPropSolverTest, PrintXorProto) {
+TYPED_TEST(TargetPropSolverTest, XorTraining) {
   typedef typename TypeParam::Dtype Dtype;
-  std::string proto = this->CreateXorProtoText();
+  bool from_db = false;
+  std::string proto = this->CreateXorProtoText( from_db );
 
-  std::cout << proto;
+//  std::cout << proto;
 
   SolverParameter param;
   CHECK(google::protobuf::TextFormat::ParseFromString(proto, &param));
@@ -429,5 +492,169 @@ TYPED_TEST(TargetPropSolverTest, PrintXorProto) {
     AssertBlobsEqual(*long_loop_output, *loops_output);
   }
 }
+
+// Test where the training data is read from a database.
+TYPED_TEST(TargetPropSolverTest, XorDataDbRoundtrip)
+{
+  typedef  typename TypeParam::Dtype Dtype;
+
+  std::string source  = MakeSourceDir();
+
+  //Put the data in an lmdb file.
+  {
+    boost::scoped_ptr<db::DB> db(db::GetDB("lmdb"));
+    db->Open(source, db::WRITE);
+
+    shared_ptr<Blob<Dtype> > blob_data = this->CreateXorDataBlob();
+
+    boost::scoped_ptr<db::Transaction> txn(db->NewTransaction());
+    for (int i = 0; i < blob_data->num(); ++i)
+    {
+      std::stringstream index_stream;
+      index_stream << i;
+      Datum datum;
+      BlobItemToDatum(*blob_data, i, datum);
+      std::string out = datum.SerializeAsString();
+      txn->Put(index_stream.str(), out);
+    }
+    txn->Commit();
+  }
+
+  // Read the data back out.
+  {
+    boost::scoped_ptr<db::DB> db(db::GetDB("lmdb"));
+    db->Open(source, db::READ);
+
+    caffe::db::Cursor* cursor = db->NewCursor();
+    std::vector<Datum> datums;
+    // For each datum in the db:
+    for (cursor->SeekToFirst(); cursor->valid(); cursor->Next() )
+    {
+      Datum datum;
+      datum.ParseFromString(cursor->value());
+      datums.push_back(datum);
+    }
+
+    int num = datums.size();
+    int channels = datums[0].channels();
+    int height = datums[0].height();
+    int width = datums[0].width();
+    shared_ptr<Blob<Dtype> > readback_blob(new Blob<Dtype>(num,
+                                                           channels,
+                                                           height,
+                                                           width));
+    Dtype* blob_ptr = readback_blob->mutable_cpu_data();
+    for(int i=0; i < datums.size(); ++i)
+    {
+      int blob_offset = readback_blob->offset(i);
+      for(int valindex =0; valindex < channels*height*width; ++valindex)
+      {
+        *(blob_ptr + blob_offset) = datums[i].float_data(valindex);
+        blob_offset++;
+      }
+    }
+
+    // Assert the blob we read back is identical to what we stored.
+    AssertBlobsEqual(*readback_blob, *(this->CreateXorDataBlob()));
+  }
+}
+
+// Test where the training data is read from a database.
+TYPED_TEST(TargetPropSolverTest, XorDataDbTraining)
+{
+  typedef  typename TypeParam::Dtype Dtype;
+  std::string source  = MakeSourceDir();
+  //Put the data in an lmdb file.
+  {
+    boost::scoped_ptr<db::DB> db(db::GetDB("lmdb"));
+    db->Open(source, db::WRITE);
+
+    shared_ptr<Blob<Dtype> > blob_data = this->CreateXorDataBlob();
+
+    boost::scoped_ptr<db::Transaction> txn(db->NewTransaction());
+    for (int i = 0; i < blob_data->num(); ++i)
+    {
+      std::stringstream index_stream;
+      index_stream << i;
+      Datum datum;
+      BlobItemToDatum(*blob_data, i, datum);
+      std::string out = datum.SerializeAsString();
+      txn->Put(index_stream.str(), out);
+    }
+    txn->Commit();
+  }
+
+  bool from_db = true;
+  std::string proto = this->CreateXorProtoText( from_db, source );
+
+  SolverParameter param;
+  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &param));
+  switch (Caffe::mode()) {
+    case Caffe::CPU:
+      param.set_solver_mode(SolverParameter_SolverMode_CPU);
+      break;
+    case Caffe::GPU:
+      param.set_solver_mode(SolverParameter_SolverMode_GPU);
+      break;
+    default:
+      LOG(FATAL) << "Unknown Caffe mode: " << Caffe::mode();
+  }
+
+  TargetPropSolver<Dtype> solver(param);
+  std::vector<int> gpus;
+  gpus.push_back(0);
+  Dtype loss = 0.0;
+  solver.Run(gpus, loss);
+
+  ASSERT_NE(loss, 0.0);
+  const Dtype TOL = 0.001f;
+  ASSERT_NEAR(loss, 0.0, TOL);
+
+//  solver.ShowBlobPointers("h0");
+//  solver.ShowBlobPointers("h0_hat");
+
+  {
+    shared_ptr<Blob<Dtype> > long_loop_output = solver.ForwardLongLoop();
+    Blob<Dtype> long_loop_copy(long_loop_output->shape());
+    long_loop_copy.CopyFrom(*long_loop_output);
+
+    shared_ptr<Blob<Dtype> > loops_output = solver.ForwardLoops();
+    AssertBlobsEqual(long_loop_copy, *loops_output);
+    AssertBlobsEqual(long_loop_copy, *this->CreateXorDataBlob(),
+                     static_cast<Dtype>(0.1));
+  }
+}
+
+TYPED_TEST(TargetPropSolverTest, LoadSavedXorNet)
+{
+  typedef  typename TypeParam::Dtype Dtype;
+  std::string proto = this->CreateXorProtoText(false);
+
+  SolverParameter param;
+  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &param));
+  switch (Caffe::mode()) {
+    case Caffe::CPU:
+      param.set_solver_mode(SolverParameter_SolverMode_CPU);
+      break;
+    case Caffe::GPU:
+      param.set_solver_mode(SolverParameter_SolverMode_GPU);
+      break;
+    default:
+      LOG(FATAL) << "Unknown Caffe mode: " << Caffe::mode();
+  }
+
+
+  TargetPropSolver<Dtype> solver(param);
+  std::vector<int> gpus;
+  gpus.push_back(0);
+  this->AssignTrainingData(solver);
+  // Load the saved weights into the net.
+  solver.LoadWeights( "_iter_10000.caffemodel.h5");
+  shared_ptr<Blob<Dtype> > long_loop_output = solver.ForwardLongLoop();
+//  PrintBlob("long loop output after loading weights from file", *long_loop_output);
+  AssertBlobsEqual(*long_loop_output, *this->CreateXorDataBlob(),
+                   static_cast<Dtype>(0.1));
+}
+
 
 } // namespace caffe

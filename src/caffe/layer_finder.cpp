@@ -21,7 +21,6 @@ typename LayerFinder<Dtype>::SharedLayerPtr LayerFinder<Dtype>::PointerFromName(
   {
     throw std::runtime_error("Layer with no name: PointerFromName.");
   }
-  std::cout << "LayerFinder::PointerFromName: " << name << std::endl;
   return name_to_layer_map_[name];
 }
 

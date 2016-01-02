@@ -15,12 +15,14 @@ class TargetPropSolver
 public:
   TargetPropSolver(const caffe::SolverParameter& param);
   void SetResumeFile(const std::string& filename);
-  void SetWeightsFile(const std::string& filename);
+//  void SetWeightsFile(const std::string& filename);
   void Run(const std::vector<int>& gpus, Dtype& loss);
   void SetActionFunction(ActionCallback action_callback);
   typename BlobFinder<Dtype>::SharedBlobPtr BlobByName(const std::string blob_name);
   shared_ptr<Blob<Dtype> > ForwardLongLoop();
   shared_ptr<Blob<Dtype> > ForwardLoops();
+  void ShowBlobPointers(const std::string& blob_name);
+  void LoadWeights(const std::string& weights_file);
 
 protected:
   void InitLongLoopNet();
@@ -29,7 +31,6 @@ protected:
   void ParseAndCreateLoopSolvers();
   void ToHDF5(const std::string& filename);
   void CopyTrainedLayersFromHDF5(const std::string& trained_filename);
-  void LoadWeights();
   bool UpgradeNetAsNeeded(const string& param_file, NetParameter* param);
   void InitDependentNets();
   void FillDependentSolverParam(SolverParameter& solver_param,
@@ -50,7 +51,6 @@ protected:
   NetParameter top_net_param_;
   SolverParameter param_;
   std::string resume_file_;
-  std::string weights_file_;
   bool requested_early_exit_;
   int GetIter() const;
 };

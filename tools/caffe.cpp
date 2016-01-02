@@ -451,7 +451,7 @@ int target_prop() {
     solver.SetResumeFile(FLAGS_snapshot);
   } else if (FLAGS_weights.size()) {
     //CopyLayers(solver.get(), FLAGS_weights);
-    solver.SetWeightsFile(FLAGS_weights);
+    solver.LoadWeights(FLAGS_weights);
   }
 
 

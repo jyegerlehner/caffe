@@ -25,11 +25,11 @@ void TargetPropSolver<Dtype>::SetResumeFile( const std::string& filename)
   resume_file_ = filename;
 }
 
-template<typename Dtype>
-void TargetPropSolver<Dtype>::SetWeightsFile(const std::string& filename)
-{
-  weights_file_ = filename;
-}
+//template<typename Dtype>
+//void TargetPropSolver<Dtype>::SetWeightsFile(const std::string& filename)
+//{
+//  weights_file_ = filename;
+//}
 
 template<typename Dtype>
 void TargetPropSolver<Dtype>::SetActionFunction(ActionCallback action_callback)
@@ -156,15 +156,13 @@ void TargetPropSolver<Dtype>::Snapshot()
 }
 
 template<typename Dtype>
-void TargetPropSolver<Dtype>::LoadWeights()
+void TargetPropSolver<Dtype>::LoadWeights(const std::string& weights_file)
 {
-  if (weights_file_.size() >= 3 &&
-      weights_file_.compare(weights_file_.size() - 5, 5, ".tph5") == 0) {
-    CopyTrainedLayersFromHDF5(weights_file_);
-  } else {
+  if (weights_file.size() >= 3)
+    CopyTrainedLayersFromHDF5(weights_file);
+  else
     //CopyTrainedLayersFromBinaryProto(weights_file_);
     throw std::runtime_error("Only support loading target prop models from hdf5");
-  }
 }
 
 // Take the original solver, and make one of
@@ -310,11 +308,11 @@ void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus, Dtype& loss)
 {
   CHECK(resume_file_.empty()) << "Resuming target prop solver not supported.";
 
-  // Load layers from weights.
-  if(weights_file_.size() > 0)
-  {
-    LoadWeights();
-  }
+//  // Load layers from weights.
+//  if(weights_file_.size() > 0)
+//  {
+//    LoadWeights();
+//  }
 
   {
     // Forward prop the long loop net to generate loss.
@@ -405,6 +403,36 @@ shared_ptr<Blob<Dtype> >  TargetPropSolver<Dtype>::ForwardLoops()
   //PrintBlob("h0_hat, short loops", *blob);
   return blob;
 }
+
+template<typename Dtype>
+void ShowNetsBlobPointer(const std::string& blob_name,
+                         const Net<Dtype>& net )
+{
+  if (net.has_blob(blob_name))
+  {
+    std::cout << "net " << net.name()
+                 << " blob " << blob_name
+                 << " pointer==" << net.blob_by_name(blob_name)
+                    << std::endl;
+  }
+  else
+  {
+    std::cout << "net " << net.name()
+                 << " has no blob named " << blob_name << std::endl;
+  }
+
+}
+
+template<typename Dtype>
+void TargetPropSolver<Dtype>::ShowBlobPointers(const std::string& blob_name)
+{
+  ShowNetsBlobPointer<Dtype>(blob_name, *long_loop_net_);
+  for( int i = 0; i < loop_solvers_.size(); ++i)
+  {
+    ShowNetsBlobPointer<Dtype>(blob_name, *loop_solvers_[i]->net());
+  }
+}
+
 
 INSTANTIATE_CLASS(TargetPropSolver);
 
