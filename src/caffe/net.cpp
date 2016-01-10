@@ -116,6 +116,7 @@ void Net<Dtype>::Init(const NetParameter& in_param,
   param_id_vecs_.resize(param.layer_size());
   top_id_vecs_.resize(param.layer_size());
   bottom_need_backward_.resize(param.layer_size());
+
   for (int layer_id = 0; layer_id < param.layer_size(); ++layer_id) {
     // For non-root solvers, whether this layer is shared from root_net_.
     bool share_from_root = !Caffe::root_solver()
@@ -183,8 +184,14 @@ void Net<Dtype>::Init(const NetParameter& in_param,
             << layer_param.name();
       }
     } else {
-      layers_[layer_id]->SetUp(bottom_vecs_[layer_id], top_vecs_[layer_id],
+      Layer<Dtype>* this_layer = layers_[layer_id].get();
+
+      if (!layer_finder.IsInitialized(this_layer))
+      {
+        layers_[layer_id]->SetUp(bottom_vecs_[layer_id], top_vecs_[layer_id],
                                blob_finder);
+        layer_finder.LayerInitialized(this_layer);
+      }
     }
     LOG_IF(INFO, Caffe::root_solver())
         << "Setting up " << layer_names_[layer_id];
@@ -441,6 +448,20 @@ bool Net<Dtype>::StateMeetsRule(const NetState& state,
   return true;
 }
 
+bool CanShareBlob(const std::string& blob_name,
+                  const LayerParameter& layer_param)
+{
+  bool can_share = true;
+  for(int i = 0; i < layer_param.unshared_top_size() && can_share; ++i)
+  {
+    if (layer_param.unshared_top(i) == blob_name)
+    {
+      can_share = false;
+    }
+  }
+  return can_share;
+}
+
 // Helper for Net::Init: add a new input or top blob to the net.  (Inputs have
 // layer_id == -1, tops have layer_id >= 0.)
 template <typename Dtype>
@@ -453,6 +474,11 @@ void Net<Dtype>::AppendTop(const NetParameter& param, const int layer_id,
   const string& blob_name = layer_param ?
       (layer_param->top_size() > top_id ?
           layer_param->top(top_id) : AUTOMATIC_BLOB_NAME) : param.input(top_id);
+  bool can_share_blob = true;
+  if (layer_param != NULL)
+  {
+    can_share_blob = CanShareBlob(blob_name, *layer_param);
+  }
   // Check if we are doing in-place computation
   if (blob_name_to_idx && layer_param && layer_param->bottom_size() > top_id &&
       blob_name == layer_param->bottom(top_id)) {
@@ -480,7 +506,7 @@ void Net<Dtype>::AppendTop(const NetParameter& param, const int layer_id,
     /// Dependent nets: get blob from parent or other dependent net if it
     /// already exists.
     shared_ptr<Blob<Dtype> > blob_pointer =
-                   blob_finder->Exists(blob_name) ?
+                   (blob_finder->Exists(blob_name) && can_share_blob) ?
                     blob_finder->PointerFromName(blob_name) :
                     shared_ptr<Blob<Dtype> >( new Blob<Dtype>());
 //    shared_ptr<Blob<Dtype> > blob_pointer =
@@ -492,7 +518,10 @@ void Net<Dtype>::AppendTop(const NetParameter& param, const int layer_id,
     blob_need_backward_.push_back(false);
     if (blob_name != AUTOMATIC_BLOB_NAME)
     {
-      blob_finder->AddActivationBlob(blob_name, blob_pointer);
+      if (can_share_blob)
+      {
+        blob_finder->AddActivationBlob(blob_name, blob_pointer);
+      }
     }
     if (blob_name_to_idx) { (*blob_name_to_idx)[blob_name] = blob_id; }
     if (layer_id == -1) {

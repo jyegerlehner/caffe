@@ -16,6 +16,9 @@ public:
   typedef std::map<std::string, SharedLayerPtr > NameToBlobMap;
 
   LayerFinder();
+  bool IsInitialized(Layer<Dtype>* layer_ptr) const;
+  void LayerInitialized(Layer<Dtype>* layer_ptr);
+
   void AddLayer( const std::string& name, SharedLayerPtr layer_ptr);
   SharedLayerPtr PointerFromName(const std::string& name);
   bool Exists(const std::string& name);
@@ -23,5 +26,6 @@ public:
 private:
   NameToBlobMap name_to_layer_map_;
   bool enabled_;
+  std::set<Layer<Dtype>*> initialized_layers_;
 };
 }

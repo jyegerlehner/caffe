@@ -12,7 +12,7 @@ void BlobFinder<Dtype>::AddParamBlob(
     const std::string& name,SharedBlobPtr blob_ptr ) {
   if( name == Net<Dtype>::AUTOMATIC_BLOB_NAME )
   {
-    throw std::runtime_error("Adding automatic blo      b to blob finder.");
+    throw std::runtime_error("Adding automatic blob to blob finder.");
   }
   blob_to_name_[blob_ptr] = name;
   name_to_blob_[name] = blob_ptr;
@@ -30,7 +30,6 @@ void BlobFinder<Dtype>::AddActivationBlob( const std::string& name,
   name_to_blob_[name] = blob_ptr;
   is_param_map_[name] = false;
 }
-
 
 template <typename Dtype>
 typename BlobFinder<Dtype>::SharedBlobPtr BlobFinder<Dtype>::PointerFromName(

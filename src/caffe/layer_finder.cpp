@@ -6,8 +6,17 @@
 namespace caffe
 {
 
-//template<typename Dtype>
-//LayerFinder<Dtype> LayerFinder<Dtype>::instance_;
+template<typename Dtype>
+bool LayerFinder<Dtype>::IsInitialized(Layer<Dtype>* layer_ptr) const
+{
+  return initialized_layers_.find(layer_ptr) != initialized_layers_.end();
+}
+
+template<typename Dtype>
+void LayerFinder<Dtype>::LayerInitialized(Layer<Dtype>* layer_ptr)
+{
+  initialized_layers_.insert(layer_ptr);
+}
 
 template <typename Dtype>
 void LayerFinder<Dtype>::AddLayer(
@@ -36,6 +45,7 @@ bool LayerFinder<Dtype>::Exists(const std::string& name) {
 template <typename Dtype>
 void LayerFinder<Dtype>::Clear() {
   name_to_layer_map_.clear();
+  initialized_layers_.clear();
 }
 
 template <typename Dtype>
