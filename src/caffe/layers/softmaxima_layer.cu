@@ -61,7 +61,7 @@ __global__ void kernel_channel_subtract_sma(const int count,
     Dtype data_before = data[index];
     Dtype channel_max_val = channel_max[softmax_max_index];
     Dtype data_after = data_before - channel_max_val;
-//    data[index] -= channel_max[softmax_max_index];
+    data[index] = data_after;
     if(::isnan(data_after))
     {
       debug_int[0] = softmax_max_index;
@@ -149,8 +149,6 @@ __global__ void kernel_channel_div_sma( const int num,
         int data_index = (n * channels + c) * spatial_dim + s;
         Dtype val_before = out[data_index];
         Dtype val = val_before / sum;
-//        Dtype val = out[data_index] / sum;
-
 
         if (::isnan(val))
         {
@@ -168,6 +166,9 @@ __global__ void kernel_channel_div_sma( const int num,
           }
           out_probs[data_index] = val;
         } else {
+          if (val < 0.0 ) val = 0.0;
+          else if( val > 1.0) val = 1.0;
+  //        Dtype val = out[data_index] / sum;
           out[data_index] = val;
         }
       }
@@ -225,10 +226,10 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   int channels = top[0]->shape(softmax_axis_);
   caffe_copy(count, bottom_data, top_data);
 
-  if( CheckForNanGPU(top[0]->count(), bottom_data) )
-  {
-    LOG(FATAL) << this->layer_param_.name() << "Softmaxima NaN in bottom, A" << std::endl;
-  }
+//  if( CheckForNanGPU(top[0]->count(), bottom_data) )
+//  {
+//    LOG(ERROR) << this->layer_param_.name() << "Softmaxima NaN in bottom, A" << std::endl;
+//  }
 
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_channel_max_sma<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
@@ -239,12 +240,11 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                   num_softmaxes_,
                                   top_data,
                                   scale_data);
-  if( CheckForNanGPU(scale_.count(), scale_.gpu_data()) )
-  {
-    LOG(FATAL) << this->layer_param_.name() << "Softmaxima NaN in scale, B" << std::endl;
-  }
-
-
+//  if( CheckForNanGPU(scale_.count(), scale_.gpu_data()) )
+//  {
+//    LOG(ERROR) << this->layer_param_.name() << "Softmaxima NaN in scale, B"
+//               << std::endl;
+//  }
 
   // subtract
   // NOLINT_NEXT_LINE(whitespace/operators)
@@ -253,27 +253,27 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       scale_data, top_data, debug_int_.mutable_gpu_data(),
                                 debug_float_.mutable_gpu_data());
 
-  if( CheckForNanGPU(top[0]->count(), top[0]->gpu_data()) )
-  {
-    std::cout << "NaN index, before, max, after = " << debug_int_.cpu_data()[0]
-                 << "," << debug_float_.cpu_data()[0] << ","
-                    << debug_float_.cpu_data()[1] << ","
-                       << debug_float_.cpu_data()[2] << std::endl;
-    std::cout << "Good index, before, max, after = " << debug_int_.cpu_data()[1]
-                 << "," << debug_float_.cpu_data()[3] << ","
-                    << debug_float_.cpu_data()[4] << ","
-                       << debug_float_.cpu_data()[5] << std::endl;
-    LOG(FATAL) << this->layer_param_.name() << "Softmaxima NaN C." << std::endl;
-  }
+//  if( CheckForNanGPU(top[0]->count(), top[0]->gpu_data()) )
+//  {
+//    std::cout << "NaN index, before, max, after = " << debug_int_.cpu_data()[0]
+//                 << "," << debug_float_.cpu_data()[0] << ","
+//                    << debug_float_.cpu_data()[1] << ","
+//                       << debug_float_.cpu_data()[2] << std::endl;
+//    std::cout << "Good index, before, max, after = " << debug_int_.cpu_data()[1]
+//                 << "," << debug_float_.cpu_data()[3] << ","
+//                    << debug_float_.cpu_data()[4] << ","
+//                       << debug_float_.cpu_data()[5] << std::endl;
+//    LOG(ERROR) << this->layer_param_.name() << "Softmaxima NaN C." << std::endl;
+//  }
 
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_exp_sma<Dtype><<<CAFFE_GET_BLOCKS(input_count), CAFFE_CUDA_NUM_THREADS>>>(
       input_count, top_data, top_data);
 
-  if( CheckForNanGPU(top[0]->count(), top[0]->gpu_data()) )
-  {
-    LOG(FATAL) << this->layer_param_.name() << "Softmaxima NaN D." << std::endl;
-  }
+//  if( CheckForNanGPU(top[0]->count(), top[0]->gpu_data()) )
+//  {
+//    LOG(ERROR) << this->layer_param_.name() << "Softmaxima NaN D." << std::endl;
+//  }
 
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_channel_sum_sma<Dtype><<<CAFFE_GET_BLOCKS(outer_num_ * inner_num_),
@@ -285,10 +285,10 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 top_data,
                                 scale_data);
 
-  if( CheckForNanGPU(scale_.count(), scale_.gpu_data()) )
-  {
-    LOG(FATAL) << this->layer_param_.name() << "Softmaxima NaN E." << std::endl;
-  }
+//  if( CheckForNanGPU(scale_.count(), scale_.gpu_data()) )
+//  {
+//    LOG(ERROR) << this->layer_param_.name() << "Softmaxima NaN E." << std::endl;
+//  }
 
   Dtype* output_probs_buffer = WinnerTakeAll() ?
         this->output_probs_.mutable_gpu_data() : 0;
@@ -307,14 +307,23 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 debug_int_.mutable_gpu_data(),
                                 debug_float_.mutable_gpu_data());
 
-  if( CheckForNanGPU(top[0]->count(), top[0]->gpu_data()))
+//  if( CheckForNanGPU(top[0]->count(), top[0]->gpu_data()))
+//  {
+//    std::cout << "NaN index, before, sum, after = " << debug_int_.cpu_data()[0]
+//                 << "," << debug_float_.cpu_data()[0] << ","
+//                    << debug_float_.cpu_data()[1] << ","
+//                       << debug_float_.cpu_data()[2] << std::endl;
+//    LOG(ERROR) << this->layer_param_.name() << " NaN F." << std::endl;
+//  }
+
+  Dtype test_val;
+  if( CheckForOutOfRangeGPU(top[0]->count(), top[0]->gpu_data(),
+                            test_val))
   {
-    std::cout << "NaN index, before, sum, after = " << debug_int_.cpu_data()[0]
-                 << "," << debug_float_.cpu_data()[0] << ","
-                    << debug_float_.cpu_data()[1] << ","
-                       << debug_float_.cpu_data()[2] << std::endl;
-    LOG(FATAL) << this->layer_param_.name() << " NaN F." << std::endl;
+    LOG(FATAL) << "Found softmaxima output not between 0 and 1: "
+               << test_val << ", in top of layer " << this->layer_param_.name();
   }
+
 
 //  CheckForNanGPU("softmaxima5", "top", *top[0]);
 //  if( WinnerTakeAll())

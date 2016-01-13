@@ -20,6 +20,47 @@ void ConvolutionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       }
     }
   }
+  if (CheckForNanGPU<Dtype>(top[0]->count(), top[0]->gpu_data()))
+  {
+    std::stringstream ss;
+    ss << "Found nan in conv layer top: " << this->layer_param_.name() << std::endl;
+    for(int i=0; i < this->blobs_.size(); ++i)
+    {
+      Blob<Dtype>* weight_blob = this->blobs_[i].get();
+      if (CheckForNanGPU(weight_blob->count(), weight_blob->gpu_data()))
+      {
+        ss << "Param blob had nan" << std::endl;
+      } else {
+        ss << "Param blob did not have nan" << std::endl;
+      }
+    }
+
+    {
+      std::fstream of;
+      of.open("nan_blob_o.csv");
+      PrintBlob(of, "BlobWithNan",*top[0]);
+    }
+
+    {
+      std::ofstream of;
+      of.open("nan_blob_input.csv");
+      PrintBlob(of, "BlobWithNan",*bottom[0]);
+    }
+
+    {
+      std::ofstream of;
+      of.open("nan_blob_weights.csv");
+      PrintBlob(of, "BlobWithNan",*(this->blobs_[0]));
+    }
+
+    {
+      std::ofstream of;
+      of.open("nan_blob_biases.csv");
+      PrintBlob(of, "BlobWithNan",*(this->blobs_[1]));
+    }
+
+    LOG(ERROR) << ss.str();
+  }
 }
 
 template <typename Dtype>

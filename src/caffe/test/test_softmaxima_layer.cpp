@@ -1000,6 +1000,330 @@ TYPED_TEST(SoftmaximaLayerTest, TestForward_SoftmaximaLayer) {
   }
 }
 
+//===========================================================================
+// This section pertains to testing the behavior of the softmax with
+// somewhat ill-conditioned inputs that might tend to produce bad
+// softmax outputs (e.g. not in range 0.0->1.0).
+//
+std::vector<double> softmax_ground_truth(const std::vector<double>& vals)
+{
+  double max;
+  // Get max val.
+  {
+    bool got_first = false;
+    for(int i=0; i < vals.size(); ++i)
+    {
+      if (!got_first)
+      {
+        max = vals[i];
+        got_first = true;
+      }
+      else if (vals[i] > max)
+      {
+        max = vals[i];
+      }
+    }
+  }
+
+  // subtract max.
+  std::vector<double> vals_minus_max = vals;
+  {
+    for(int i=0; i < vals.size(); ++i)
+    {
+      vals_minus_max[i] = vals[i] - max;
+    }
+  }
+
+  for(int i=0; i < vals_minus_max.size(); ++i)
+  {
+    vals_minus_max[i] = exp(vals_minus_max[i]);
+  }
+
+  double sum = 0;
+  for(int i=0; i < vals_minus_max.size(); ++i)
+  {
+    sum += vals_minus_max[i];
+  }
+
+  std::vector<double> result;
+  for(int i=0; i < vals_minus_max.size(); ++i)
+  {
+    result.push_back(vals_minus_max[i] / sum);
+  }
+
+  return result;
+}
+
+TYPED_TEST(SoftmaximaLayerTest, TestSoftmaxGroundTruth)
+{
+  std::vector<double> vals;
+  vals.push_back(5.);
+  vals.push_back(2.);
+  vals.push_back(2.);
+  vals.push_back(-5.);
+  vals.push_back(1.);
+  vals.push_back(4.);
+  vals.push_back(4.);
+  vals.push_back(-1.);
+
+  std::vector<double> softmaxes = softmax_ground_truth(vals);
+
+  std::vector<double> expected_vals;
+  expected_vals.push_back(0.5387429417);
+  expected_vals.push_back(0.0268224317);
+  expected_vals.push_back(0.0268224317);
+  expected_vals.push_back(2.44588917131484E-005);
+  expected_vals.push_back(0.0098674212);
+  expected_vals.push_back(0.1981924523);
+  expected_vals.push_back(0.1981924523);
+  expected_vals.push_back(0.0013354102);
+
+  for(int i =0; i < expected_vals.size(); ++i)
+  {
+    ASSERT_NEAR(softmaxes[i],
+                expected_vals[i], 0.001);
+  }
+}
+
+std::vector<double> softmax_with_normalizer(const std::vector<double>& vals)
+{
+  double max;
+  // Get max val.
+  {
+    bool got_first = false;
+    for(int i=0; i < vals.size(); ++i)
+    {
+      if (!got_first)
+      {
+        max = vals[i];
+        got_first = true;
+      }
+      else if (vals[i] > max)
+      {
+        max = vals[i];
+      }
+    }
+  }
+
+//  // subtract max.
+//  std::vector<double> vals_minus_max = vals;
+//  {
+//    for(int i=0; i < vals.size(); ++i)
+//    {
+//      vals_minus_max[i] = vals[i] - max;
+//    }
+//  }
+
+  double sum = 0;
+  for(int i=0; i < vals.size(); ++i)
+  {
+    sum += exp(vals[i] - max);
+  }
+
+  double normalizer = log(sum);
+
+  std::vector<double> result;
+  for(int i=0; i < vals.size(); ++i)
+  {
+    double val = vals[i] - max - normalizer;
+    result.push_back(exp(val));
+  }
+  return result;
+}
+
+TYPED_TEST(SoftmaximaLayerTest, TestSoftmaxNormalizer)
+{
+  std::vector<double> vals;
+  vals.push_back(5.);
+  vals.push_back(2.);
+  vals.push_back(2.);
+  vals.push_back(-5.);
+  vals.push_back(1.);
+  vals.push_back(4.);
+  vals.push_back(4.);
+  vals.push_back(-1.);
+
+  std::vector<double> softmaxes_wn = softmax_with_normalizer(vals);
+  std::vector<double> expected_softmaxes = softmax_ground_truth(vals);
+
+  for(int i =0; i < expected_softmaxes.size(); ++i)
+  {
+    std::cout << "wn=" << softmaxes_wn[i] << ", gt=" << expected_softmaxes[i]
+                 << std::endl;
+    EXPECT_NEAR(softmaxes_wn[i],
+                expected_softmaxes[i], 0.001);
+  }
+}
+
+TYPED_TEST(SoftmaximaLayerTest, TestForward_LargeVals)
+{
+  typedef typename TypeParam::Dtype Dtype;
+
+  Blob<Dtype> bottom(1,8,1,1);
+  {
+    Dtype* data = bottom.mutable_cpu_data();
+    data[0] = 9e37;
+    data[1] = 5e37;
+    data[2] = 5e37;
+    data[3] = 5e37;
+    data[4] = 5e37;
+    data[5] = -5e37;
+    data[6] = 1e37;
+    data[7] = 1e37;
+
+  }
+  vector<Blob<Dtype>*> blob_bottom_vec;
+  blob_bottom_vec.push_back(&bottom);
+
+  LayerParameter layer_param;
+  std::string proto = "softmaxima_param { softmax_size: 8 }";
+  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
+  SoftmaximaLayer<Dtype> layer(layer_param);
+  layer.SetUp(blob_bottom_vec, this->blob_top_vec_);
+  layer.Forward(blob_bottom_vec, this->blob_top_vec_);
+
+  Blob<Dtype>& result = *(this->blob_top_vec_[0]);
+
+  EXPECT_EQ(result.num(), 1);
+  EXPECT_EQ(result.channels(), 8);
+  EXPECT_EQ(result.height(), 1);
+  EXPECT_EQ(result.width(), 1);
+
+  int bottom_blob_num = bottom.num();
+  int bottom_blob_channels = bottom.channels();
+  int bottom_blob_width = bottom.width();
+  int bottom_blob_height = bottom.height();
+
+  EXPECT_EQ(bottom_blob_num, 1);
+  EXPECT_EQ(bottom_blob_channels, 8);
+  EXPECT_EQ(bottom_blob_height, 1);
+  EXPECT_EQ(bottom_blob_width, 1);
+
+
+  std::vector<double> bottom_as_vec;
+  {
+    for(int chan= 0; chan < bottom.channels(); ++chan)
+    {
+      bottom_as_vec.push_back(bottom.data_at(0,chan,0,0));
+    }
+  }
+  std::vector<double> expected_result = softmax_ground_truth(bottom_as_vec);
+
+  // Test that results are the same.
+  for (int i = 0; i < bottom_blob_num; ++i) {
+    for (int k = 0; k < bottom_blob_height; ++k) {
+      for (int l = 0; l < bottom_blob_width; ++l) {
+        for (int j = 0; j < bottom_blob_channels; ++j) {
+          Dtype expected_val = expected_result[j];
+          Dtype actual_val = result.data_at(i, j, k, l);
+          ASSERT_NEAR( expected_val, actual_val, 1e-3 );
+        }
+      }
+    }
+  }
+}
+
+TYPED_TEST(SoftmaximaLayerTest, TestForward_SmallVals)
+{
+  typedef typename TypeParam::Dtype Dtype;
+
+  Blob<Dtype> bottom(1,8,1,1);
+  {
+    Dtype* data = bottom.mutable_cpu_data();
+    data[0] = 1.0e-37;
+    data[1] = -1.0e-37;
+    data[2] = 1.0e-37;
+    data[3] = -1.0e-37;
+    data[4] = 1.0e-37;
+    data[5] = -1.0e-37;
+    data[6] = 1.0e-37;
+    data[7] = -1.0e-37;
+
+  }
+  vector<Blob<Dtype>*> blob_bottom_vec;
+  blob_bottom_vec.push_back(&bottom);
+
+  LayerParameter layer_param;
+  std::string proto = "softmaxima_param { softmax_size: 8 }";
+  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
+  SoftmaximaLayer<Dtype> layer(layer_param);
+  layer.SetUp(blob_bottom_vec, this->blob_top_vec_);
+  layer.Forward(blob_bottom_vec, this->blob_top_vec_);
+
+  Blob<Dtype>& result = *(this->blob_top_vec_[0]);
+
+  EXPECT_EQ(result.num(), 1);
+  EXPECT_EQ(result.channels(), 8);
+  EXPECT_EQ(result.height(), 1);
+  EXPECT_EQ(result.width(), 1);
+
+  int bottom_blob_num = bottom.num();
+  int bottom_blob_channels = bottom.channels();
+  int bottom_blob_width = bottom.width();
+  int bottom_blob_height = bottom.height();
+
+  EXPECT_EQ(bottom_blob_num, 1);
+  EXPECT_EQ(bottom_blob_channels, 8);
+  EXPECT_EQ(bottom_blob_height, 1);
+  EXPECT_EQ(bottom_blob_width, 1);
+
+
+  std::vector<double> bottom_as_vec;
+  {
+    for(int chan= 0; chan < bottom.channels(); ++chan)
+    {
+      bottom_as_vec.push_back(bottom.data_at(0,chan,0,0));
+    }
+  }
+  std::vector<double> expected_result = softmax_ground_truth(bottom_as_vec);
+
+  // Test that results are the same.
+  for (int i = 0; i < bottom_blob_num; ++i) {
+    for (int k = 0; k < bottom_blob_height; ++k) {
+      for (int l = 0; l < bottom_blob_width; ++l) {
+        for (int j = 0; j < bottom_blob_channels; ++j) {
+          Dtype expected_val = expected_result[j];
+          Dtype actual_val = result.data_at(i, j, k, l);
+          ASSERT_NEAR( expected_val, actual_val, 1e-3 );
+        }
+      }
+    }
+  }
+}
+
+TYPED_TEST(SoftmaximaLayerTest, TestCheckOutOfRange)
+{
+  typedef typename TypeParam::Dtype Dtype;
+  Blob<Dtype> blob(1,3,1,1);
+  Dtype* data = blob.mutable_cpu_data();
+  data[0] = 0.1;
+  data[1] = 0.0;
+  data[2] = 2.0;
+
+  Dtype test_val;
+  bool result = CheckForOutOfRangeGPU(blob.count(), blob.gpu_data(), test_val);
+  ASSERT_EQ(result, true);
+  ASSERT_NEAR(test_val, static_cast<Dtype>(2.0), static_cast<Dtype>(0.001));
+}
+
+TYPED_TEST(SoftmaximaLayerTest, TestNotCheckOutOfRange)
+{
+  typedef typename TypeParam::Dtype Dtype;
+  Blob<Dtype> blob(1,3,1,1);
+  Dtype* data = blob.mutable_cpu_data();
+  data[0] = 0.1;
+  data[1] = 1.0;
+  data[2] = 0.5;
+
+  Dtype test_val;
+  bool result = CheckForOutOfRangeGPU(blob.count(), blob.gpu_data(), test_val);
+  ASSERT_EQ(result, false);
+}
+
+//===========================================================================
+// End section.
+//===========================================================================
+
 TYPED_TEST(SoftmaximaLayerTest, TestGradient) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;

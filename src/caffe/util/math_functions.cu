@@ -389,6 +389,21 @@ __global__ void popcll_kernel(const int n, const double* a,
 }
 
 template<typename Dtype>
+__global__ void FindOOR(const Dtype* blob_data, int blob_size,
+                        int* oor_found, Dtype* val_found )
+{
+  CUDA_KERNEL_LOOP(bi, blob_size)
+  {
+    Dtype val = blob_data[bi];
+    if ( val < 0 || val > 1)
+    {
+      *oor_found = true;
+      *val_found = val;
+    }
+  }
+}
+
+template<typename Dtype>
 __global__ void FindNaN( const Dtype* blob_data, int blob_size,
                   int* nan_found)
 {
@@ -396,7 +411,7 @@ __global__ void FindNaN( const Dtype* blob_data, int blob_size,
   {
     Dtype val = blob_data[bi];
     if ( ::isnan(val) ||
-         ::isinf(val) )
+         ::isinf(val))
     {
       *nan_found = true;
     }
@@ -412,9 +427,25 @@ bool CheckForNanGPU(int n, const Dtype const* data)
       data, n, nan_found.mutable_gpu_data());
   return static_cast<bool>(nan_found.cpu_data()[0]);
 }
-
 template bool CheckForNanGPU<float>(int n, const float* data);
 template bool CheckForNanGPU<double>(int n, const double* data);
+
+template<typename Dtype>
+bool CheckForOutOfRangeGPU(const int n, const Dtype* data, Dtype& val)
+{
+  Blob<Dtype> found_val(1,1,1,1);
+  Blob<int> nan_found(1,1,1,1);
+  *nan_found.mutable_cpu_data() = static_cast<int>(false);
+  FindOOR<Dtype><<<CAFFE_GET_BLOCKS(n),CAFFE_CUDA_NUM_THREADS>>>(
+      data, n, nan_found.mutable_gpu_data(), found_val.mutable_gpu_data());
+  bool found = static_cast<bool>(nan_found.cpu_data()[0]);
+  if (found)
+    val = found_val.cpu_data()[0];
+  return found;
+}
+
+template bool CheckForOutOfRangeGPU<float>(const int n, const float* data, float& val);
+template bool CheckForOutOfRangeGPU<double>(const int n, const double* data, double& val);
 
 template <>
 uint32_t caffe_gpu_hamming_distance<float>(const int n, const float* x,

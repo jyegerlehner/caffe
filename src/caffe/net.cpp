@@ -4,6 +4,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <fstream>
 
 #include "hdf5.h"
 
@@ -688,12 +689,36 @@ Dtype Net<Dtype>::ForwardFromTo(int start, int end) {
       InputDebugInfo(i);
     }
   }
+
+//  try
+//  {
   for (int i = start; i <= end; ++i) {
     // LOG(ERROR) << "Forwarding " << layer_names_[i];
     Dtype layer_loss = layers_[i]->Forward(bottom_vecs_[i], top_vecs_[i]);
     loss += layer_loss;
     if (debug_info_) { ForwardDebugInfo(i); }
   }
+//  }
+//  catch(std::exception& exc)
+//  {
+
+//    for(int i = 0; i < layers_.size(); ++i)
+//    {
+
+//      Layer<Dtype>* layer_ptr = layers_[i].get();
+//      std::stringstream ss;
+//      ss << layer_ptr->layer_param().name() << ".csv";
+//      {
+//        std::string filename = ss.str();
+//        LOG(INFO) << "Writing " << filename;
+//        std::ofstream of;
+//        of.open(filename.c_str());
+//        PrintBlob(of, "", *(top_vecs_[i][0]));
+//      }
+//    }
+
+//    LOG(ERROR) << "last i==" << last_i << ", " << exc.what();
+//  }
   return loss;
 }
 

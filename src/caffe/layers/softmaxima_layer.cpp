@@ -289,7 +289,6 @@ void SoftmaximaLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
                 dot_prod += diff_val * data_val;
               }
 
-              // Compute each softmax's dot product of diffs and activations.
               for( int index = 0; index < softmax_size_; ++index) {
                 int channel = softmax_index*softmax_size_ + index;
                 int offset = top[0]->offset(instance, channel, h, w);
