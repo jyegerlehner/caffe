@@ -325,6 +325,11 @@ void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus, Dtype& loss)
   // Run each solver on a minibatch.
   while (GetIter() < param_.max_iter() && !requested_early_exit_)
   {
+    // Forward prop the first layer in the long-loop net since that's the one
+    // that gets the data from the training database.
+//encode0_out
+    long_loop_net_->ForwardFromTo(0,0);
+
     // Run each solver 1 iter.
     for(int solver_index = 0;
         solver_index < loop_solvers_.size();
