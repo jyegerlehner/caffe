@@ -112,7 +112,7 @@ class Layer {
    */
   void SetUp(const vector<Blob<Dtype>*>& bottom,
      const vector<Blob<Dtype>*>& top,
-     const BlobFinder<Dtype>& blob_finder = BlobFinder<Dtype>()) {
+      BlobFinder<Dtype>* blob_finder = NULL) {
     SetBlobFinder(blob_finder);
     InitMutex();
     CheckBlobCounts(bottom, top);
@@ -129,7 +129,7 @@ class Layer {
    *     Object that can look up blobs by name, or name by pointer to the blob.
    *
    */
-  virtual void SetBlobFinder(const BlobFinder<Dtype>& blob_finder) {
+  virtual void SetBlobFinder(BlobFinder<Dtype>* blob_finder) {
     // Default behavior is do nothing. Override this method in layers
     // that need to be able to look up blobs by name.
     (void) blob_finder;

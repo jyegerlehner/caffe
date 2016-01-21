@@ -187,12 +187,13 @@ void Net<Dtype>::Init(const NetParameter& in_param,
     } else {
       Layer<Dtype>* this_layer = layers_[layer_id].get();
 
-      if (!layer_finder.IsInitialized(this_layer))
-      {
+      //Reshape if not initialized?
+//      if (!layer_finder.IsInitialized(this_layer))
+//      {
         layers_[layer_id]->SetUp(bottom_vecs_[layer_id], top_vecs_[layer_id],
-                               blob_finder);
+                               &blob_finder);
         layer_finder.LayerInitialized(this_layer);
-      }
+//      }
     }
     LOG_IF(INFO, Caffe::root_solver())
         << "Setting up " << layer_names_[layer_id];

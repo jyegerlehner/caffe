@@ -127,7 +127,7 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp) {
           &mvn_layer_param));
   MVNLayer<Dtype> mvn_layer(mvn_layer_param);
   mvn_layer.SetUp(this->mvn_bottom_blob_vec_, this->mvn_blob_top_vec_,
-                  this->blob_finder_);
+                  &this->blob_finder_);
 
   LayerParameter inverse_mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
@@ -139,7 +139,7 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp) {
       inverse_mvn_layer(new InverseMVNLayer<Dtype>( inverse_mvn_layer_param ));
   inverse_mvn_layer->SetUp(this->inverse_mvn_bottom_blob_vec_,
                            this->inverse_mvn_blob_top_vec_,
-                           this->blob_finder_);
+                           &this->blob_finder_);
 
   EXPECT_EQ(this->mvn_blob_top_vec_.size(), 3);
   EXPECT_EQ(this->inverse_mvn_blob_top_vec_.size(), 1);
@@ -182,7 +182,7 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp_AcrossChannels) {
           &mvn_layer_param));
   MVNLayer<Dtype> mvn_layer(mvn_layer_param);
   mvn_layer.SetUp(this->mvn_bottom_blob_vec_, this->mvn_blob_top_vec_,
-                  this->blob_finder_);
+                  &this->blob_finder_);
 
   LayerParameter inverse_mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
@@ -194,7 +194,7 @@ TYPED_TEST(InverseMVNLayerTest, TestSetUp_AcrossChannels) {
       inverse_mvn_layer(new InverseMVNLayer<Dtype>( inverse_mvn_layer_param ));
   inverse_mvn_layer->SetUp(this->inverse_mvn_bottom_blob_vec_,
                            this->inverse_mvn_blob_top_vec_,
-                           this->blob_finder_);
+                           &this->blob_finder_);
 
   EXPECT_EQ(this->mvn_blob_top_vec_.size(), 3);
   EXPECT_EQ(this->inverse_mvn_blob_top_vec_.size(), 1);
@@ -241,7 +241,7 @@ TYPED_TEST(InverseMVNLayerTest, TestForward) {
           &mvn_layer_param));
   MVNLayer<Dtype> mvn_layer(mvn_layer_param);
   mvn_layer.SetUp(this->mvn_bottom_blob_vec_, this->mvn_blob_top_vec_,
-                  this->blob_finder_);
+                  &this->blob_finder_);
 
   LayerParameter inverse_mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
@@ -252,7 +252,7 @@ TYPED_TEST(InverseMVNLayerTest, TestForward) {
   InverseMVNLayer<Dtype> inverse_mvn_layer(inverse_mvn_layer_param);
   inverse_mvn_layer.SetUp(this->inverse_mvn_bottom_blob_vec_,
                            this->inverse_mvn_blob_top_vec_,
-                          this->blob_finder_);
+                          &this->blob_finder_);
 
   // Run the blob forward through the MVN layer.
   mvn_layer.Forward(this->mvn_bottom_blob_vec_,
@@ -326,7 +326,7 @@ TYPED_TEST(InverseMVNLayerTest, TestForward_AcrossChannels) {
 
   MVNLayer<Dtype> mvn_layer(mvn_layer_param);
   mvn_layer.SetUp(this->mvn_bottom_blob_vec_, this->mvn_blob_top_vec_,
-                  this->blob_finder_);
+                  &this->blob_finder_);
 
   LayerParameter inverse_mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
@@ -337,7 +337,7 @@ TYPED_TEST(InverseMVNLayerTest, TestForward_AcrossChannels) {
   InverseMVNLayer<Dtype> inverse_mvn_layer(inverse_mvn_layer_param);
   inverse_mvn_layer.SetUp(this->inverse_mvn_bottom_blob_vec_,
                            this->inverse_mvn_blob_top_vec_,
-                          this->blob_finder_);
+                          &this->blob_finder_);
 
   // Run the blob forward through the MVN layer.
   mvn_layer.Forward(this->mvn_bottom_blob_vec_,
@@ -424,7 +424,7 @@ TYPED_TEST(InverseMVNLayerTest, TestForward_MeanOnly) {
           &mvn_layer_param));
   MVNLayer<Dtype> mvn_layer(mvn_layer_param);
   mvn_layer.SetUp(this->mvn_bottom_blob_vec_, this->mvn_blob_top_vec_,
-                  this->blob_finder_);
+                  &this->blob_finder_);
 
   LayerParameter inverse_mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
@@ -434,7 +434,7 @@ TYPED_TEST(InverseMVNLayerTest, TestForward_MeanOnly) {
   InverseMVNLayer<Dtype> inverse_mvn_layer(inverse_mvn_layer_param);
   inverse_mvn_layer.SetUp(this->inverse_mvn_bottom_blob_vec_,
                            this->inverse_mvn_blob_top_vec_,
-                          this->blob_finder_);
+                          &this->blob_finder_);
 
   // Run the blob forward through the MVN layer.
   mvn_layer.Forward(this->mvn_bottom_blob_vec_,
@@ -490,7 +490,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradientAcrossChannels) {
 
   MVNLayer<Dtype> mvn_layer(mvn_layer_param);
   mvn_layer.SetUp(this->mvn_bottom_blob_vec_, this->mvn_blob_top_vec_,
-                  this->blob_finder_);
+                  &this->blob_finder_);
 
   LayerParameter inverse_mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
@@ -501,7 +501,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradientAcrossChannels) {
   InverseMVNLayer<Dtype> inverse_mvn_layer(inverse_mvn_layer_param);
   inverse_mvn_layer.SetUp(this->inverse_mvn_bottom_blob_vec_,
                            this->inverse_mvn_blob_top_vec_,
-                          this->blob_finder_);
+                          &this->blob_finder_);
 
   // Run the blob forward through the MVN layer.
   mvn_layer.Forward(this->mvn_bottom_blob_vec_,
@@ -539,7 +539,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradient) {
           &mvn_layer_param));
   MVNLayer<Dtype> mvn_layer(mvn_layer_param);
   mvn_layer.SetUp(this->mvn_bottom_blob_vec_, this->mvn_blob_top_vec_,
-                  this->blob_finder_);
+                  &this->blob_finder_);
 
   LayerParameter inverse_mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
@@ -550,7 +550,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradient) {
   InverseMVNLayer<Dtype> inverse_mvn_layer(inverse_mvn_layer_param);
   inverse_mvn_layer.SetUp(this->inverse_mvn_bottom_blob_vec_,
                            this->inverse_mvn_blob_top_vec_,
-                          this->blob_finder_);
+                          &this->blob_finder_);
 
   EXPECT_EQ(this->mvn_blob_top_vec_.size(), 3);
   EXPECT_EQ(this->inverse_mvn_blob_top_vec_.size(), 1);
@@ -603,7 +603,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradient_MeanOnly) {
           &mvn_layer_param));
   MVNLayer<Dtype> mvn_layer(mvn_layer_param);
   mvn_layer.SetUp(this->mvn_bottom_blob_vec_, this->mvn_blob_top_vec_,
-                  this->blob_finder_);
+                  &this->blob_finder_);
 
   LayerParameter inverse_mvn_layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
@@ -613,7 +613,7 @@ TYPED_TEST(InverseMVNLayerTest, TestGradient_MeanOnly) {
   InverseMVNLayer<Dtype> inverse_mvn_layer(inverse_mvn_layer_param);
   inverse_mvn_layer.SetUp(this->inverse_mvn_bottom_blob_vec_,
                            this->inverse_mvn_blob_top_vec_,
-                          this->blob_finder_);
+                          &this->blob_finder_);
 
   EXPECT_EQ(this->mvn_blob_top_vec_.size(), 2);
   EXPECT_EQ(this->inverse_mvn_blob_top_vec_.size(), 1);

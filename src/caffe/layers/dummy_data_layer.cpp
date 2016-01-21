@@ -16,7 +16,8 @@ void DummyDataLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       << "Number of data fillers must be 0, 1 or equal to the number of tops: "
       << num_top << "; you specified " << num_data_filler << " data fillers.";
 
-
+  std::string top_name = this->layer_param_.top(0);
+  std::vector<int> top_shape;
   const bool legacy_dims = param.num_size() || param.channels_size() ||
                            param.height_size() || param.width_size();
   if (legacy_dims) {
@@ -36,9 +37,20 @@ void DummyDataLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
         << "Must specify 'width' once, or once per top blob "
         << "(" << num_top << "); specified " << param.width_size() << ".";
   } else {
-    CHECK(param.shape_size() == 1 || param.shape_size() == num_top)
-        << "Must specify 'shape' once, or once per top blob "
-        << "(" << num_top << "); specified " << param.shape_size() << ".";
+    if (!(param.shape_size() == 1 || param.shape_size() == num_top))
+    {
+      if ( this->blob_finder_ != NULL)
+      {
+        CHECK(this->blob_finder_->Exists(top_name)) << "Top blob " << top_name
+          << " not found amongst blobs.";
+        top_shape = this->blob_finder_->PointerFromName(top_name)->shape();
+      }
+      else
+      {
+        CHECK(false) << "Must specify 'shape' once, or once per top blob "
+          << "(" << num_top << "); specified " << param.shape_size() << ".";
+      }
+    }
   }
   // refill_[i] tells Forward i whether or not to actually refill top Blob i.
   // If refill_[i] is false, Forward does nothing for Blob i. We use this to
@@ -86,7 +98,14 @@ void DummyDataLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       top[i]->Reshape(num, channels, height, width);
     } else {
       const int shape_index = (param.shape_size() == 1) ? 0 : i;
-      top[i]->Reshape(param.shape(shape_index));
+      if (top_shape.size() > 0 )
+      {
+        top[i]->Reshape(top_shape);
+      }
+      else
+      {
+        top[i]->Reshape(param.shape(shape_index));
+      }
     }
   }
   // Run Forward once, with refill_ inverted, to fill the constant Blobs.

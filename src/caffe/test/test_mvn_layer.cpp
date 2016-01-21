@@ -86,7 +86,7 @@ TYPED_TEST(MVNLayerTest, TestForward) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;
   MVNLayer<Dtype> layer(layer_param);
-  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, this->blob_finder_);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, &this->blob_finder_);
   layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
   // Test mean
   int num = this->blob_bottom_->num();
@@ -134,7 +134,7 @@ TYPED_TEST(MVNLayerTest, TestForward_MeanAndVarianceInTopBlobs) {
       " normalize_variance: true  across_channels: false  } "
       " top: \"normalized\" top: \"variance\" top: \"mean\" ", &layer_param));
   MVNLayer<Dtype> layer(layer_param);
-  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, this->blob_finder_);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, &this->blob_finder_);
   layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
   int num = this->blob_bottom_->num();
   int channels = this->blob_bottom_->channels();
@@ -210,7 +210,7 @@ TYPED_TEST(MVNLayerTest, TestForward_MeanInTopBlobs) {
       "mvn_param { mean_blob: \"mean\"  }"
       " top: \"normalized\" top: \"mean\" ", &layer_param));
   MVNLayer<Dtype> layer(layer_param);
-  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, this->blob_finder_);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, &this->blob_finder_);
   layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
   // Test mean
   int num = this->blob_bottom_->num();
@@ -267,7 +267,7 @@ TYPED_TEST(MVNLayerTest, TestForwardMeanOnly) {
   CHECK(google::protobuf::TextFormat::ParseFromString(
       "mvn_param{normalize_variance: false}", &layer_param));
   MVNLayer<Dtype> layer(layer_param);
-  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, this->blob_finder_);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, &this->blob_finder_);
   layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
   // Test mean
   int num = this->blob_bottom_->num();
@@ -301,7 +301,7 @@ TYPED_TEST(MVNLayerTest, TestForwardAcrossChannels) {
       "mvn_param{across_channels: true}", &layer_param));
   MVNLayer<Dtype> layer(layer_param);
   layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_,
-              this->blob_finder_);
+              &(this->blob_finder_));
   layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
 
   // Test mean

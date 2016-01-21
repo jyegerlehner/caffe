@@ -57,10 +57,10 @@ void TargetPropSolver<Dtype>::InitLongLoopNet()
       << "Creating long loop net from net file: " << param_.net();
   if (has_net_file)
     ReadNetParamsFromTextFileOrDie(param_.net(), &top_net_param_);
-
-  top_net_param_.CopyFrom(param_.net_param());
-//  else
-//    ParseParamFromTextOrDie(param_.net_param(), &top_net_param_);
+  else if (has_net_param)
+    top_net_param_.CopyFrom(param_.net_param());
+  else
+    throw std::runtime_error("Need either net param or net file.");
 
   // Set the correct NetState.  We start with the solver defaults (lowest
   // precedence); then, merge in any NetState specified by the net_param itself;

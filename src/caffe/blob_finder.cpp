@@ -38,6 +38,10 @@ typename BlobFinder<Dtype>::SharedBlobPtr BlobFinder<Dtype>::PointerFromName(
   {
     throw std::runtime_error("tried to retrieve automatic blob by name.");
   }
+  if ( name_to_blob_.find(name) == name_to_blob_.end())
+  {
+    throw std::runtime_error("Blob not found by name");
+  }
   return name_to_blob_[name];
 }
 

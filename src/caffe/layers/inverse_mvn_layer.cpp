@@ -9,9 +9,8 @@
 namespace caffe {
 
 template <typename Dtype>
-void InverseMVNLayer<Dtype>::SetBlobFinder(
-    const BlobFinder<Dtype> &blob_finder) {
-  this->blob_helper_ = MvnBlobHelper<Dtype>(this->layer_param_, blob_finder);
+void InverseMVNLayer<Dtype>::SetBlobFinder(BlobFinder<Dtype>* blob_finder) {
+  this->blob_helper_ = MvnBlobHelper<Dtype>(this->layer_param_, *blob_finder);
 }
 
 template <typename Dtype>

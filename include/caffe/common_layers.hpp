@@ -535,7 +535,7 @@ class MVNLayer : public Layer<Dtype> {
      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual void LayerSetUp(const vector<Blob<Dtype> *> &bottom,
                      const vector<Blob<Dtype> *> &top);
-  virtual void SetBlobFinder(const BlobFinder<Dtype>& blob_finder);
+  virtual void SetBlobFinder(BlobFinder<Dtype>* blob_finder);
 
   Blob<Dtype> mean_, variance_, temp_;
 
@@ -574,7 +574,7 @@ class InverseMVNLayer : public Layer<Dtype> {
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
-  virtual void SetBlobFinder(const BlobFinder<Dtype>& blob_finder);
+  virtual void SetBlobFinder(BlobFinder<Dtype>* blob_finder);
   virtual void LayerSetUp(const vector<Blob<Dtype> *> &bottom,
                      const vector<Blob<Dtype> *> &top);
 
