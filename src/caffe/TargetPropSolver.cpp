@@ -385,11 +385,9 @@ typename BlobFinder<Dtype>::SharedBlobPtr TargetPropSolver<Dtype>::BlobByName(
 template<typename Dtype>
 shared_ptr<Blob<Dtype> >  TargetPropSolver<Dtype>::ForwardLongLoop()
 {
-  Dtype loss;
   std::vector<Blob<Dtype>* > bottom_vec;
   (void) long_loop_net_->Forward(bottom_vec);
   shared_ptr<Blob<Dtype> > blob = long_loop_net_->blob_by_name("h0_hat");
-  //PrintBlob("h0_hat, long loop", *blob);
   return blob;
 }
 
