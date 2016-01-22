@@ -40,40 +40,44 @@ void TargetPropSolver<Dtype>::SetActionFunction(ActionCallback action_callback)
 template<typename Dtype>
 void TargetPropSolver<Dtype>::InitLongLoopNet()
 {
-  const int num_train_nets = param_.has_net() + param_.has_net_param() +
-      param_.has_train_net() + param_.has_train_net_param();
-  const string& field_names = "net, net_param, train_net, train_net_param";
-  CHECK_GE(num_train_nets, 1) << "SolverParameter must specify a train net "
-      << "using one of these fields: " << field_names;
-  CHECK_LE(num_train_nets, 1) << "SolverParameter must not contain more than "
-      << "one of these fields specifying a train_net: " << field_names;
 
-  bool has_net_file = param_.has_net();
-  bool has_net_param = param_.has_net_param();
-  CHECK(has_net_file || has_net_param)
-      << "Solver does not specify a net prototxt file "
-                            << " in its net parameter.";
-  LOG_IF(INFO, Caffe::root_solver())
-      << "Creating long loop net from net file: " << param_.net();
-  if (has_net_file)
-    ReadNetParamsFromTextFileOrDie(param_.net(), &top_net_param_);
-  else if (has_net_param)
-    top_net_param_.CopyFrom(param_.net_param());
-  else
-    throw std::runtime_error("Need either net param or net file.");
+//  const int num_train_nets = param_.has_net() + param_.has_net_param() +
+//      param_.has_train_net() + param_.has_train_net_param();
+//  const string& field_names = "net, net_param, train_net, train_net_param";
+//  CHECK_GE(num_train_nets, 1) << "SolverParameter must specify a train net "
+//      << "using one of these fields: " << field_names;
+//  CHECK_LE(num_train_nets, 1) << "SolverParameter must not contain more than "
+//      << "one of these fields specifying a train_net: " << field_names;
 
-  // Set the correct NetState.  We start with the solver defaults (lowest
-  // precedence); then, merge in any NetState specified by the net_param itself;
-  // finally, merge in any NetState specified by the train_state (highest
-  // precedence).
-  NetState net_state;
-  net_state.set_phase(TRAIN);
-  net_state.MergeFrom(top_net_param_.state());
-  net_state.MergeFrom(param_.train_state());
-  top_net_param_.mutable_state()->CopyFrom(net_state);
+//  bool has_net_file = param_.has_net();
+//  bool has_net_param = param_.has_net_param();
+//  CHECK(has_net_file || has_net_param)
+//      << "Solver does not specify a net prototxt file "
+//                            << " in its net parameter.";
+//  LOG_IF(INFO, Caffe::root_solver())
+//      << "Creating long loop net from net file: " << param_.net();
+//  if (has_net_file)
+//    ReadNetParamsFromTextFileOrDie(param_.net(), &top_net_param_);
+//  else if (has_net_param)
+//    top_net_param_.CopyFrom(param_.net_param());
+//  else
+//    throw std::runtime_error("Need either net param or net file.");
+
+//  // Set the correct NetState.  We start with the solver defaults (lowest
+//  // precedence); then, merge in any NetState specified by the net_param itself;
+//  // finally, merge in any NetState specified by the train_state (highest
+//  // precedence).
+//  NetState net_state;
+//  net_state.set_phase(TRAIN);
+//  net_state.MergeFrom(top_net_param_.state());
+//  net_state.MergeFrom(param_.train_state());
+//  top_net_param_.mutable_state()->CopyFrom(net_state);
   if (Caffe::root_solver()) {
-    long_loop_net_.reset(new Net<Dtype>(top_net_param_,
-                                        blob_finder_, layer_finder_));
+    this->long_loop_solver_ =
+        boost::shared_ptr<Solver<Dtype> >(
+                caffe::SolverRegistry<Dtype>::CreateSolver(param_,
+                                                      blob_finder_,
+                                                      layer_finder_));
   } else {
     //    long_loop_net_.reset(new Net<Dtype>(net_param, blob_finder_, layer_finder_,
     //                              root_solver_->net_.get()));
@@ -182,7 +186,6 @@ void TargetPropSolver<Dtype>::FillDependentSolverParam(
   solver_param.mutable_train_net_param()->CopyFrom(dependent_net_param);
 }
 
-
 template<typename Dtype>
 void TargetPropSolver<Dtype>::InitDependentNets()
 {
@@ -199,7 +202,6 @@ void TargetPropSolver<Dtype>::InitDependentNets()
                                                           layer_finder_));
     loop_solvers_.push_back(solver);
   }
-
 
 //  for(int i = 0; i < top_net_param_.dependent_net_size(); ++i)
 //  {
@@ -232,7 +234,7 @@ void TargetPropSolver<Dtype>::TestLongLoopNet(int iter, Dtype& loss)
   vector<Dtype> test_score;
   vector<int> test_score_output_id;
   vector<Blob<Dtype>*> bottom_vec;
-  const shared_ptr<Net<Dtype> >& test_net = long_loop_net_;
+  const shared_ptr<Net<Dtype> >& test_net = LongLoopNet();
   loss = 0;
   for (int i = 0; i < param_.test_iter(0); ++i) {
     SolverAction::Enum request = GetRequestedAction();
@@ -317,7 +319,7 @@ void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus, Dtype& loss)
   {
     // Forward prop the long loop net to generate loss.
     Dtype loss;
-    long_loop_net_->ForwardPrefilled(&loss);
+    LongLoopNet()->ForwardPrefilled(&loss);
     LOG(INFO) << "Long loop loss: " << loss;
   }
 
@@ -327,8 +329,8 @@ void TargetPropSolver<Dtype>::Run(const std::vector<int>& gpus, Dtype& loss)
   {
     // Forward prop the first layer in the long-loop net since that's the one
     // that gets the data from the training database.
-//encode0_out
-    long_loop_net_->ForwardFromTo(0,0);
+    //LongLoopNet()->ForwardFromTo(0,0);
+    long_loop_solver_->Step(1,true);
 
     // Run each solver 1 iter.
     for(int solver_index = 0;
@@ -386,8 +388,8 @@ template<typename Dtype>
 shared_ptr<Blob<Dtype> >  TargetPropSolver<Dtype>::ForwardLongLoop()
 {
   std::vector<Blob<Dtype>* > bottom_vec;
-  (void) long_loop_net_->Forward(bottom_vec);
-  shared_ptr<Blob<Dtype> > blob = long_loop_net_->blob_by_name("h0_hat");
+  (void) LongLoopNet()->Forward(bottom_vec);
+  shared_ptr<Blob<Dtype> > blob = LongLoopNet()->blob_by_name("h0_hat");
   return blob;
 }
 
@@ -429,13 +431,18 @@ void ShowNetsBlobPointer(const std::string& blob_name,
 template<typename Dtype>
 void TargetPropSolver<Dtype>::ShowBlobPointers(const std::string& blob_name)
 {
-  ShowNetsBlobPointer<Dtype>(blob_name, *long_loop_net_);
+  ShowNetsBlobPointer<Dtype>(blob_name, *LongLoopNet());
   for( int i = 0; i < loop_solvers_.size(); ++i)
   {
     ShowNetsBlobPointer<Dtype>(blob_name, *loop_solvers_[i]->net());
   }
 }
 
+template<typename Dtype>
+boost::shared_ptr<Net<Dtype> > TargetPropSolver<Dtype>::LongLoopNet()
+{
+  return this->long_loop_solver_->net();
+}
 
 INSTANTIATE_CLASS(TargetPropSolver);
 

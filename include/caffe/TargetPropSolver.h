@@ -47,8 +47,9 @@ protected:
   ActionCallback action_callback_;
   // This will be run forward prop only as the "test" net to get
   // current autoencoding performance.
-  shared_ptr<Net<Dtype> > long_loop_net_;
+  shared_ptr<Net<Dtype> > LongLoopNet();
   NetParameter top_net_param_;
+  boost::shared_ptr<Solver<Dtype> > long_loop_solver_;
   SolverParameter param_;
   std::string resume_file_;
   bool requested_early_exit_;
