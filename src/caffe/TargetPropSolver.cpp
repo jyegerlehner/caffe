@@ -41,37 +41,37 @@ template<typename Dtype>
 void TargetPropSolver<Dtype>::InitLongLoopNet()
 {
 
-//  const int num_train_nets = param_.has_net() + param_.has_net_param() +
-//      param_.has_train_net() + param_.has_train_net_param();
-//  const string& field_names = "net, net_param, train_net, train_net_param";
-//  CHECK_GE(num_train_nets, 1) << "SolverParameter must specify a train net "
-//      << "using one of these fields: " << field_names;
-//  CHECK_LE(num_train_nets, 1) << "SolverParameter must not contain more than "
-//      << "one of these fields specifying a train_net: " << field_names;
+  const int num_train_nets = param_.has_net() + param_.has_net_param() +
+      param_.has_train_net() + param_.has_train_net_param();
+  const string& field_names = "net, net_param, train_net, train_net_param";
+  CHECK_GE(num_train_nets, 1) << "SolverParameter must specify a train net "
+      << "using one of these fields: " << field_names;
+  CHECK_LE(num_train_nets, 1) << "SolverParameter must not contain more than "
+      << "one of these fields specifying a train_net: " << field_names;
 
-//  bool has_net_file = param_.has_net();
-//  bool has_net_param = param_.has_net_param();
-//  CHECK(has_net_file || has_net_param)
-//      << "Solver does not specify a net prototxt file "
-//                            << " in its net parameter.";
-//  LOG_IF(INFO, Caffe::root_solver())
-//      << "Creating long loop net from net file: " << param_.net();
-//  if (has_net_file)
-//    ReadNetParamsFromTextFileOrDie(param_.net(), &top_net_param_);
-//  else if (has_net_param)
-//    top_net_param_.CopyFrom(param_.net_param());
-//  else
-//    throw std::runtime_error("Need either net param or net file.");
+  bool has_net_file = param_.has_net();
+  bool has_net_param = param_.has_net_param();
+  CHECK(has_net_file || has_net_param)
+      << "Solver does not specify a net prototxt file "
+                            << " in its net parameter.";
+  LOG_IF(INFO, Caffe::root_solver())
+      << "Creating long loop net from net file: " << param_.net();
+  if (has_net_file)
+    ReadNetParamsFromTextFileOrDie(param_.net(), &top_net_param_);
+  else if (has_net_param)
+    top_net_param_.CopyFrom(param_.net_param());
+  else
+    throw std::runtime_error("Need either net param or net file.");
 
-//  // Set the correct NetState.  We start with the solver defaults (lowest
-//  // precedence); then, merge in any NetState specified by the net_param itself;
-//  // finally, merge in any NetState specified by the train_state (highest
-//  // precedence).
-//  NetState net_state;
-//  net_state.set_phase(TRAIN);
-//  net_state.MergeFrom(top_net_param_.state());
-//  net_state.MergeFrom(param_.train_state());
-//  top_net_param_.mutable_state()->CopyFrom(net_state);
+  // Set the correct NetState.  We start with the solver defaults (lowest
+  // precedence); then, merge in any NetState specified by the net_param itself;
+  // finally, merge in any NetState specified by the train_state (highest
+  // precedence).
+  NetState net_state;
+  net_state.set_phase(TRAIN);
+  net_state.MergeFrom(top_net_param_.state());
+  net_state.MergeFrom(param_.train_state());
+  top_net_param_.mutable_state()->CopyFrom(net_state);
   if (Caffe::root_solver()) {
     this->long_loop_solver_ =
         boost::shared_ptr<Solver<Dtype> >(
