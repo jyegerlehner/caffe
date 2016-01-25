@@ -9,14 +9,14 @@ namespace caffe {
 class SignalHandler {
  public:
   // Contructor. Specify what action to take when a signal is received.
-  SignalHandler(SolverParameter_Action SIGINT_action,
-                SolverParameter_Action SIGHUP_action);
+  SignalHandler(SolverAction::Enum SIGINT_action,
+                SolverAction::Enum SIGHUP_action);
+  ~SignalHandler();
   ActionCallback GetActionFunction();
  private:
-  SignalHandler();  // Not implemented.
-  SolverParameter_Action CheckForSignals() const;
-  SolverParameter_Action SIGINT_action_;
-  SolverParameter_Action SIGHUP_action_;
+  SolverAction::Enum CheckForSignals() const;
+  SolverAction::Enum SIGINT_action_;
+  SolverAction::Enum SIGHUP_action_;
 };
 
 }  // namespace caffe

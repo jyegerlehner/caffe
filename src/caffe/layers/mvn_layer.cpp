@@ -201,11 +201,10 @@ void MVNLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     caffe_div(temp_.count(), bottom_diff, temp_.cpu_data(), bottom_diff);
   } else {
     caffe_cpu_gemv<Dtype>(CblasNoTrans, num, dim, 1. / dim, top_diff,
-            sum_multiplier_.cpu_data(), 0., mean_.mutable_cpu_data());  // EX
-
+      sum_multiplier_.cpu_data(), 0., mean_.mutable_cpu_data());
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, dim, 1, -1.,
-            mean_.cpu_data(), sum_multiplier_.cpu_data(), 0.,
-            temp_.mutable_cpu_data());
+      mean_.cpu_data(), sum_multiplier_.cpu_data(), 0.,
+      temp_.mutable_cpu_data());
     caffe_add(temp_.count(), top_diff, temp_.cpu_data(), bottom_diff);
   }
 }

@@ -1,6 +1,4 @@
 #include <boost/bind.hpp>
-#include <boost/thread/mutex.hpp>
-#include <boost/thread/thread.hpp>
 #include <glog/logging.h>
 
 #include <signal.h>
@@ -31,7 +29,7 @@ namespace {
     already_hooked_up = true;
 
     struct sigaction sa;
-    // Setup the sighub handler
+    // Setup the handler
     sa.sa_handler = &handle_signal;
     // Restart the system call, if at all possible
     sa.sa_flags = SA_RESTART;
@@ -43,6 +41,28 @@ namespace {
     }
     if (sigaction(SIGINT, &sa, NULL) == -1) {
       LOG(FATAL) << "Cannot install SIGINT handler.";
+    }
+  }
+
+  // Set the signal handlers to the default.
+  void UnhookHandler() {
+    if (already_hooked_up) {
+      struct sigaction sa;
+      // Setup the sighub handler
+      sa.sa_handler = SIG_DFL;
+      // Restart the system call, if at all possible
+      sa.sa_flags = SA_RESTART;
+      // Block every signal during the handler
+      sigfillset(&sa.sa_mask);
+      // Intercept SIGHUP and SIGINT
+      if (sigaction(SIGHUP, &sa, NULL) == -1) {
+        LOG(FATAL) << "Cannot uninstall SIGHUP handler.";
+      }
+      if (sigaction(SIGINT, &sa, NULL) == -1) {
+        LOG(FATAL) << "Cannot uninstall SIGINT handler.";
+      }
+
+      already_hooked_up = false;
     }
   }
 
@@ -65,21 +85,25 @@ namespace {
 
 namespace caffe {
 
-SignalHandler::SignalHandler(SolverParameter_Action SIGINT_action,
-                             SolverParameter_Action SIGHUP_action):
+SignalHandler::SignalHandler(SolverAction::Enum SIGINT_action,
+                             SolverAction::Enum SIGHUP_action):
   SIGINT_action_(SIGINT_action),
   SIGHUP_action_(SIGHUP_action) {
   HookupHandler();
 }
 
-SolverParameter_Action SignalHandler::CheckForSignals() const {
+SignalHandler::~SignalHandler() {
+  UnhookHandler();
+}
+
+SolverAction::Enum SignalHandler::CheckForSignals() const {
   if (GotSIGHUP()) {
     return SIGHUP_action_;
   }
   if (GotSIGINT()) {
     return SIGINT_action_;
   }
-  return SolverParameter_Action_NONE;
+  return SolverAction::NONE;
 }
 
 // Return the function that the solver can use to find out if a snapshot or

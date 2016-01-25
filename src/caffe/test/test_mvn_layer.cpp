@@ -10,7 +10,6 @@
 #include "caffe/common.hpp"
 #include "caffe/common_layers.hpp"
 #include "caffe/filler.hpp"
-#include "caffe/util/io.hpp"
 #include "caffe/util/rng.hpp"
 #include "google/protobuf/text_format.h"
 #include "gtest/gtest.h"
@@ -262,7 +261,7 @@ TYPED_TEST(MVNLayerTest, TestForwardMeanOnly) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
-          "mvn_param{normalize_variance: false}", &layer_param));
+      "mvn_param{normalize_variance: false}", &layer_param));
   MVNLayer<Dtype> layer(layer_param);
   layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_, this->blob_finder_);
   layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
@@ -295,7 +294,7 @@ TYPED_TEST(MVNLayerTest, TestForwardAcrossChannels) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
-          " mvn_param { across_channels: true } ", &layer_param));
+      "mvn_param{across_channels: true}", &layer_param));
   MVNLayer<Dtype> layer(layer_param);
   layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_,
               this->blob_finder_);
@@ -345,7 +344,7 @@ TYPED_TEST(MVNLayerTest, TestGradientMeanOnly) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
-          "mvn_param{normalize_variance: false}", &layer_param));
+      "mvn_param{normalize_variance: false}", &layer_param));
   MVNLayer<Dtype> layer(layer_param);
   GradientChecker<Dtype> checker(1e-2, 1e-3);
 //  checker.SetEpsilon(2e-1);
@@ -358,7 +357,7 @@ TYPED_TEST(MVNLayerTest, TestGradientAcrossChannels) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;
   CHECK(google::protobuf::TextFormat::ParseFromString(
-          "mvn_param{across_channels: true}", &layer_param));
+      "mvn_param{across_channels: true}", &layer_param));
   MVNLayer<Dtype> layer(layer_param);
   GradientChecker<Dtype> checker(1e-2, 1e-3);
   checker.SetBlobFinder(this->blob_finder_);
