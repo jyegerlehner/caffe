@@ -1,4 +1,7 @@
 ## General
+*logs
+*.caffemodel.h5
+*.solverstate.h5
 
 # Compiled Object files
 *.slo

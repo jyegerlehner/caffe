@@ -28,10 +28,16 @@ __global__ void kernel_channel_max_sma(const int num,
       for (int c_off = 0; c_off < softmax_size; ++c_off) {
         int c = smi * softmax_size + c_off;
         int data_index = (n * channels + c) * spatial_dim + s;
-        maxval = max(data[data_index], maxval);
+        if (c_off == 0)
+        {
+          maxval = data[data_index];
+        }
+        else
+        {
+          maxval = max(data[data_index], maxval);
+        }
       }
-      //int out_index = index*num_softmaxes + smi;
-      int out_index = s + (n * num_softmaxes + smi) * spatial_dim ; //index*num_softmaxes + smi;
+      int out_index = s + (n * num_softmaxes + smi) * spatial_dim ;
       out[out_index] = maxval;
     }
   }
@@ -49,7 +55,6 @@ __global__ void kernel_channel_subtract_sma(const int count,
     int s = index % spatial_dim;
 
     int softmax_max_index = n * spatial_dim + s;
-    //int softmax_index = chanset*num_softmaxes
     data[index] -= channel_max[softmax_max_index];
   }
 }
@@ -117,6 +122,9 @@ __global__ void kernel_channel_div_sma( const int num,
         int c = smi * softmax_size + c_off;
         int data_index = (n * channels + c) * spatial_dim + s;
         Dtype val = out[data_index] / sum;
+        val = (val < 0.0) ? 0.0 : val;
+        val = (val > 1.0) ? 1.0 : val;
+
         if ( winner_take_all) {
           if ( val > largest_prob)
           {
@@ -191,6 +199,7 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                   num_softmaxes_,
                                   top_data,
                                   scale_data);
+
   // subtract
   // NOLINT_NEXT_LINE(whitespace/operators)
   kernel_channel_subtract_sma<Dtype><<<CAFFE_GET_BLOCKS(input_count),
@@ -210,11 +219,6 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 num_softmaxes_,
                                 top_data,
                                 scale_data);
-
-  Blob<Dtype> top_before_div;
-  top_before_div.ReshapeLike(*(top[0]));
-  top_before_div.CopyFrom(*(top[0]));
-
 
   Dtype* output_probs_buffer = WinnerTakeAll() ?
         this->output_probs_.mutable_gpu_data() : 0;
@@ -265,6 +269,5 @@ void SoftmaximaLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
 }
 
 INSTANTIATE_LAYER_GPU_FUNCS(SoftmaximaLayer);
-
 
 }  // namespace caffe

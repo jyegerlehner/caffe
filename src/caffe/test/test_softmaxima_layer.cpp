@@ -10,36 +10,48 @@
 #include "caffe/blob.hpp"
 #include "caffe/common.hpp"
 #include "caffe/filler.hpp"
+#include "caffe/solver.hpp"
 #include "caffe/vision_layers.hpp"
+#include "caffe/solver.hpp"
 
 #include "caffe/test/test_caffe_main.hpp"
 #include "caffe/test/test_gradient_check_util.hpp"
 
 namespace caffe {
 
-template <typename Dtype>
-void PrintBlob( const std::string& nam, Blob<Dtype>& blob, bool diffs_not_data = false )
-{
-  std::cout << "Blob: " << nam << std::endl;
-  int num = blob.num();
-  int chans = blob.channels();
-  int height = blob.height();
-  int width = blob.width();
+//template <typename Dtype>
+//void PrintBlob( const std::string& nam, const Blob<Dtype>& blob, bool diffs_not_data = false )
+//{
+//  std::cout << "Blob: " << nam << std::endl;
+//  int num = blob.num();
+//  int chans = blob.channels();
+//  int height;
+//  int width;
+//  if (blob.shape().size() > 2)
+//  {
+//    height = blob.height();
+//    width = blob.width();
+//  }
+//  else
+//  {
+//    height = 1;
+//    width = 1;
+//  }
 
-  std::cout << "shape=(" << num << "," << chans << "," << height << ","
-            << width << ")" << std::endl;
-  for( int n = 0; n < num; ++n) {
-    for( int c = 0; c < chans; ++c) {
-      for( int h = 0; h < height; ++h) {
-        for( int w=0; w < width; ++w) {
-          Dtype val = diffs_not_data ? blob.diff_at(n,c,h,w) : blob.data_at(n,c,h,w);
-          std::cout << "data(" << n << "," << c << "," << h << "," << w << ")"
-                       << "=" << val << std::endl;
-        }
-      }
-    }
-  }
-}
+//  std::cout << "shape=(" << num << "," << chans << "," << height << ","
+//            << width << ")" << std::endl;
+//  for( int n = 0; n < num; ++n) {
+//    for( int c = 0; c < chans; ++c) {
+//      for( int h = 0; h < height; ++h) {
+//        for( int w=0; w < width; ++w) {
+//          Dtype val = diffs_not_data ? blob.diff_at(n,c,h,w) : blob.data_at(n,c,h,w);
+//          std::cout << "data(" << n << "," << c << "," << h << "," << w << ")"
+//                       << "=" << val << std::endl;
+//        }
+//      }
+//    }
+//  }
+//}
 
 template <typename Dtype>
 struct NaiveSoftmaximaLayer {
@@ -640,6 +652,204 @@ class SoftmaximaLayerTest : public MultiDeviceTest<TypeParam> {
     result_blob = net.blob_by_name("result");
     return result_blob;
   }
+
+  std::string CreateXorPrototxt()
+  {
+    std::stringstream ss;
+    ss << "base_lr: 0.1 ";
+    ss << "lr_policy: 'fixed' ";
+    ss << "display: 500 ";
+    ss << "momentum: 0.90 ";
+    ss << "solver_type: SGD ";
+    ss << "solver_mode: GPU ";
+    ss << "device_id: 0 ";
+    ss << "max_iter: 10000 ";
+    // ss << "debug_info: true ";
+    ss << "net_param { ";
+    ss << "name: 'XorNetwork' ";
+    ss << "layer { ";
+    ss << "  name: 'input_data_layer' ";
+    ss << "  type: 'DummyData' ";
+    ss << "  top: 'input_data' ";
+    ss << "  dummy_data_param {";
+    ss << "    shape { ";
+    ss << "      dim: 4 ";
+    ss << "      dim: 2 ";
+    ss << "     } ";
+    ss << "  } ";
+    ss << "} ";
+    ss << "layer { ";
+    ss << "  name: 'output_target_layer' ";
+    ss << "  type: 'DummyData' ";
+    ss << "  top: 'target_data' ";
+    ss << "  dummy_data_param {";
+    ss << "    shape { ";
+    ss << "      dim: 4 ";
+    ss << "      dim: 6 ";
+    ss << "     } ";
+    ss << "  } ";
+    ss << "} ";
+    ss << "layer { ";
+    ss << "  name: 'innerprod1' ";
+    ss << "  type: 'InnerProduct' ";
+    ss << "  inner_product_param { ";
+    ss << "    num_output: 3 ";
+    ss << "    weight_filler { ";
+    ss << "      type: 'gaussian' ";
+    ss << "      std: 0.1 ";
+    ss << "    } ";
+    ss << "    bias_filler { ";
+    ss << "      type: 'constant' ";
+    ss << "    } ";
+    ss << "  } ";
+    ss << "  bottom: 'input_data' ";
+    ss << "  top: 'ip1' ";
+    ss << "} ";
+    ss << "layer { ";
+    ss << "  name: 'sigmoid1' ";
+    ss << "  type: 'Sigmoid' ";
+    ss << "  bottom: 'ip1' ";
+    ss << "  top: 'sigmoid1' ";
+    ss << "} ";
+    ss << "layer { ";
+    ss << "  name: 'innerprod2' ";
+    ss << "  type: 'InnerProduct' ";
+    ss << "  inner_product_param { ";
+    ss << "    num_output: 6 ";
+    ss << "    weight_filler { ";
+    ss << "      type: 'gaussian' ";
+    ss << "      std: 0.1 ";
+    ss << "    } ";
+    ss << "    bias_filler { ";
+    ss << "      type: 'constant' ";
+    ss << "    } ";
+    ss << "  } ";
+    ss << "  bottom: 'sigmoid1' ";
+    ss << "  top: 'ip2' ";
+    ss << "} ";
+    ss << "layer { ";
+    ss << "  name: 'softmaxima' ";
+    ss << "  type: 'Softmaxima' ";
+    ss << "  bottom: 'ip2' ";
+    ss << "  top: 'softmaxima' ";
+    ss << "  softmaxima_param { ";
+    ss << "    softmax_size: 2 ";
+    ss << "  } ";
+    ss << "} ";
+    ss << "layer { ";
+    ss << "  name: 'loss' ";
+    ss << "  type: 'EuclideanLoss' ";
+    ss << "  bottom: 'softmaxima' ";
+    ss << "  bottom: 'target_data' ";
+    ss << "  top: 'loss' ";
+    ss << "} ";
+    ss << "} ";
+    return ss.str();
+  }
+
+  template<typename Dtype>
+  struct InputOutputVal
+  {
+    InputOutputVal(Dtype lx0, Dtype lx1):
+      x0(lx0),
+      x1(lx1)
+    {
+    }
+
+    Dtype x0;
+    Dtype x1;
+  };
+
+  void AssignXorBlobs(Net<Dtype>& net)
+  {
+    typedef InputOutputVal<Dtype> IOVal;
+    {
+      shared_ptr<Blob<Dtype> > input = net.blob_by_name("input_data");
+      ASSERT_EQ(input->shape().size(), 2);
+      ASSERT_EQ(input->num(), 4);
+      ASSERT_EQ(input->channels(), 2);
+
+      std::vector<IOVal> inputs;
+      inputs.push_back(IOVal(0.0, 0.0));
+      inputs.push_back(IOVal(1.0, 0.0));
+      inputs.push_back(IOVal(0.0, 1.0));
+      inputs.push_back(IOVal(1.0, 1.0));
+
+      for(int i = 0; i < inputs.size(); ++i)
+      {
+        int offset = input->offset(i,0,0,0);
+        input->mutable_cpu_data()[offset] = inputs[i].x0;
+        offset = input->offset(i,1,0,0);
+        input->mutable_cpu_data()[offset] = inputs[i].x1;
+      }
+    }
+
+    {
+      shared_ptr<Blob<Dtype> > output = net.blob_by_name("target_data");
+      std::vector<IOVal> xor_outputs;
+      std::vector<IOVal> or_outputs;
+      std::vector<IOVal> and_outputs;
+      xor_outputs.push_back(IOVal(0.0, 1.0));
+      xor_outputs.push_back(IOVal(1.0, 0.0));
+      xor_outputs.push_back(IOVal(1.0, 0.0));
+      xor_outputs.push_back(IOVal(0.0, 1.0));
+
+      or_outputs.push_back(IOVal(0.0, 1.0));
+      or_outputs.push_back(IOVal(1.0, 0.0));
+      or_outputs.push_back(IOVal(1.0, 0.0));
+      or_outputs.push_back(IOVal(1.0, 0.0));
+
+      and_outputs.push_back(IOVal(0.0, 1.0));
+      and_outputs.push_back(IOVal(0.0, 1.0));
+      and_outputs.push_back(IOVal(0.0, 1.0));
+      and_outputs.push_back(IOVal(1.0, 0.0));
+
+      for(int i = 0; i < xor_outputs.size(); ++i)
+      {
+        // XOR
+        int offset = output->offset(i,0,0,0);
+        output->mutable_cpu_data()[offset] = xor_outputs[i].x0;
+        offset = output->offset(i,1,0,0);
+        output->mutable_cpu_data()[offset] = xor_outputs[i].x1;
+
+        //OR
+        offset = output->offset(i,2,0,0);
+        output->mutable_cpu_data()[offset] = or_outputs[i].x0;
+        offset = output->offset(i,3,0,0);
+        output->mutable_cpu_data()[offset] = or_outputs[i].x1;
+
+        //AND
+        offset = output->offset(i,4,0,0);
+        output->mutable_cpu_data()[offset] = and_outputs[i].x0;
+        offset = output->offset(i,5,0,0);
+        output->mutable_cpu_data()[offset] = and_outputs[i].x1;
+      }
+    }
+  }
+
+  void TrainXOR()
+  {
+    std::string proto = CreateXorPrototxt();
+    SolverParameter param;
+    CHECK(google::protobuf::TextFormat::ParseFromString(proto, &param));
+    switch (Caffe::mode()) {
+      case Caffe::CPU:
+        param.set_solver_mode(SolverParameter_SolverMode_CPU);
+        break;
+      case Caffe::GPU:
+        param.set_solver_mode(SolverParameter_SolverMode_GPU);
+        break;
+      default:
+        LOG(FATAL) << "Unknown Caffe mode: " << Caffe::mode();
+    }
+
+    SGDSolver<Dtype> solver(param);
+    AssignXorBlobs(*solver.net());
+    //    PrintBlob<Dtype>("ip2 weights", *solver.net()->layer_by_name("innerprod2")->blobs()[0]);
+    //    PrintBlob<Dtype>("ip2 biases", *solver.net()->layer_by_name("innerprod2")->blobs()[1]);
+    solver.Solve();
+    ASSERT_LT(solver.net()->blob_by_name("loss")->cpu_data()[0], 0.01f);
+  }
 };
 
 TYPED_TEST_CASE(SoftmaximaLayerTest, TestDtypesAndDevices);
@@ -746,14 +956,30 @@ TYPED_TEST(SoftmaximaLayerTest, TestForward_SoftmaximaLayer) {
   layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
   layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
   Blob<Dtype>& result = *(this->blob_top_vec_[0]);
+  std::vector<int> expected_shape = expected_result->shape();
 
-  EXPECT_EQ((expected_result->shape()), (result.shape()));
+  EXPECT_EQ(expected_shape, (result.shape()));
+  EXPECT_EQ(expected_shape.size(), 4);
+  EXPECT_EQ(result.num(), expected_shape[0]);
+  EXPECT_EQ(result.channels(), expected_shape[1]);
+  EXPECT_EQ(result.height(), expected_shape[2]);
+  EXPECT_EQ(result.width(), expected_shape[3]);
+
+  int bottom_blob_num = this->blob_bottom_->num();
+  int bottom_blob_channels = this->blob_bottom_->channels();
+  int bottom_blob_width = this->blob_bottom_->width();
+  int bottom_blob_height = this->blob_bottom_->height();
+
+  EXPECT_EQ(bottom_blob_num, expected_shape[0]);
+  EXPECT_EQ(bottom_blob_channels, expected_shape[1]);
+  EXPECT_EQ(bottom_blob_height, expected_shape[2]);
+  EXPECT_EQ(bottom_blob_width, expected_shape[3]);
 
   // Test that results are the same.
-  for (int i = 0; i < this->blob_bottom_->num(); ++i) {
-    for (int k = 0; k < this->blob_bottom_->height(); ++k) {
-      for (int l = 0; l < this->blob_bottom_->width(); ++l) {
-        for (int j = 0; j < this->blob_bottom_->channels(); ++j) {
+  for (int i = 0; i < bottom_blob_num; ++i) {
+    for (int k = 0; k < bottom_blob_height; ++k) {
+      for (int l = 0; l < bottom_blob_width; ++l) {
+        for (int j = 0; j < bottom_blob_channels; ++j) {
           Dtype expected_val = expected_result->data_at(i,j,k,l);
           Dtype actual_val = result.data_at(i, j, k, l);
           ASSERT_NEAR( expected_val, actual_val, 1e-3 );
@@ -777,7 +1003,6 @@ TYPED_TEST(SoftmaximaLayerTest, TestGradient) {
 template<typename Dtype>
 void CompareBlobs(const std::string& msg, Blob<Dtype>& b1, Blob<Dtype>& b2)
 {
-  std::cout << "Comparing " << msg << std::endl;
   ASSERT_EQ(b1.num(), b2.num());
   ASSERT_EQ(b1.channels(), b2.channels());
   ASSERT_EQ(b1.height(), b2.height());
@@ -1317,6 +1542,12 @@ TYPED_TEST(SoftmaximaLayerTest, TestBackward_WinnerTakeAllSameAsNot) {
 
   // Diffs of binarized and nonbinarized softmaxima layers should be the same.
   AssertBlobDiffsEqual(nonbinarized_bottom_blob, binarized_bottom_blob);
+}
+
+TYPED_TEST(SoftmaximaLayerTest, TestXorTraining)
+{
+  Caffe::set_random_seed(2101150);
+  this->TrainXOR();
 }
 
 }  // namespace caffe
