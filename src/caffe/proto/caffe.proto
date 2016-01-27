@@ -393,6 +393,13 @@ message LayerParameter {
   optional ThresholdParameter threshold_param = 128;
   optional TileParameter tile_param = 138;
   optional WindowDataParameter window_data_param = 129;
+  optional NoiseParameter noise_param = 142;
+}
+
+message NoiseParameter {
+  // This parameter must be set to specify the kind of noise to be generated.
+  // Gaussian and Uniform noise are the only supported types.
+  optional FillerParameter filler_param = 1;
 }
 
 // Message that stores parameters used to apply transformation
