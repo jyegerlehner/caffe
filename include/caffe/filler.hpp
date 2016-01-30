@@ -172,13 +172,52 @@ class XavierFiller : public Filler<Dtype> {
         FillerParameter_VarianceNorm_FAN_OUT) {
       n = fan_out;
     }
-    Dtype scale = sqrt(Dtype(3) / n);
-    caffe_rng_uniform<Dtype>(blob->count(), -scale, scale,
-        blob->mutable_cpu_data());
-    CHECK(!this->filler_param_.has_sparse() &&
-           !this->filler_param_.has_sparsity_ratio())
-         << "Sparsity not supported by this Filler.";
+
+    bool has_sparse = this->filler_param_.has_sparse();
+    bool has_sparsity_ratio = this->filler_param_.has_sparsity_ratio();
+    if (has_sparse || has_sparsity_ratio)
+    {
+      int sparse = this->filler_param_.sparse();
+      float sparsity_ratio = this->filler_param_.sparsity_ratio();
+      CHECK_GE(sparse, -1);
+      CHECK_GE(sparsity_ratio, 0.0f);
+      CHECK_LE(sparsity_ratio, 1.0f);
+      CHECK(has_sparse != has_sparsity_ratio)
+          << "Must specify either sparse or sparsity_ratio, but not both.";
+      // Sparse initialization is implemented for "weight" blobs; i.e. matrices.
+      // These have num == channels == 1; width is number of inputs; height is
+      // number of outputs.  The 'sparse' variable specifies the mean number
+      // of non-zero input weights for a given output.
+      CHECK_GE(blob->num_axes(), 1);
+      const int num_outputs = blob->shape(0);
+      Dtype non_zero_probability = has_sparsity_ratio ?
+            sparsity_ratio : Dtype(sparse) / Dtype(num_outputs);
+
+      int sparse_percent = static_cast<int>(non_zero_probability * 100);
+      n = n * sparse_percent / 100;
+      Dtype scale = sqrt(Dtype(3) / n);
+      caffe_rng_uniform<Dtype>(blob->count(), -scale, scale,
+          blob->mutable_cpu_data());
+
+      Dtype* data = blob->mutable_cpu_data();
+
+      rand_vec_.reset(new SyncedMemory(blob->count() * sizeof(int)));
+      int* mask = reinterpret_cast<int*>(rand_vec_->mutable_cpu_data());
+      caffe_rng_bernoulli(blob->count(), non_zero_probability, mask);
+      for (int i = 0; i < blob->count(); ++i) {
+        data[i] *= mask[i];
+      }
+    }
+    else
+    {
+      Dtype scale = sqrt(Dtype(3) / n);
+      caffe_rng_uniform<Dtype>(blob->count(), -scale, scale,
+          blob->mutable_cpu_data());
+    }
   }
+
+protected:
+ shared_ptr<SyncedMemory> rand_vec_;
 };
 
 /**
