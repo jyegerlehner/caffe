@@ -40,8 +40,10 @@ class ConstantFiller : public Filler<Dtype> {
     for (int i = 0; i < count; ++i) {
       data[i] = value;
     }
-    CHECK_EQ(this->filler_param_.sparse(), -1)
+    CHECK(!this->filler_param_.has_sparse() &&
+           !this->filler_param_.has_sparsity_ratio())
          << "Sparsity not supported by this Filler.";
+
   }
 };
 
@@ -55,7 +57,8 @@ class UniformFiller : public Filler<Dtype> {
     CHECK(blob->count());
     caffe_rng_uniform<Dtype>(blob->count(), Dtype(this->filler_param_.min()),
         Dtype(this->filler_param_.max()), blob->mutable_cpu_data());
-    CHECK_EQ(this->filler_param_.sparse(), -1)
+    CHECK(!this->filler_param_.has_sparse() &&
+           !this->filler_param_.has_sparsity_ratio())
          << "Sparsity not supported by this Filler.";
   }
 };
@@ -71,16 +74,27 @@ class GaussianFiller : public Filler<Dtype> {
     CHECK(blob->count());
     caffe_rng_gaussian<Dtype>(blob->count(), Dtype(this->filler_param_.mean()),
         Dtype(this->filler_param_.std()), blob->mutable_cpu_data());
-    int sparse = this->filler_param_.sparse();
-    CHECK_GE(sparse, -1);
-    if (sparse >= 0) {
+
+    bool has_sparse = this->filler_param_.has_sparse();
+    bool has_sparsity_ratio = this->filler_param_.has_sparsity_ratio();
+    if (has_sparse || has_sparsity_ratio)
+    {
+      int sparse = this->filler_param_.sparse();
+      float sparsity_ratio = this->filler_param_.sparsity_ratio();
+      CHECK_GE(sparse, -1);
+      CHECK_GE(sparsity_ratio, 0.0f);
+      CHECK_LE(sparsity_ratio, 1.0f);
+      CHECK(has_sparse != has_sparsity_ratio)
+          << "Must specify either sparse or sparsity_ratio, but not both.";
       // Sparse initialization is implemented for "weight" blobs; i.e. matrices.
       // These have num == channels == 1; width is number of inputs; height is
       // number of outputs.  The 'sparse' variable specifies the mean number
       // of non-zero input weights for a given output.
       CHECK_GE(blob->num_axes(), 1);
       const int num_outputs = blob->shape(0);
-      Dtype non_zero_probability = Dtype(sparse) / Dtype(num_outputs);
+      Dtype non_zero_probability = this->filler_param_.has_sparsity_ratio() ?
+            this->filler_param_.sparsity_ratio() :
+            Dtype(sparse) / Dtype(num_outputs);
       rand_vec_.reset(new SyncedMemory(blob->count() * sizeof(int)));
       int* mask = reinterpret_cast<int*>(rand_vec_->mutable_cpu_data());
       caffe_rng_bernoulli(blob->count(), non_zero_probability, mask);
@@ -119,7 +133,8 @@ class PositiveUnitballFiller : public Filler<Dtype> {
         data[i * dim + j] /= sum;
       }
     }
-    CHECK_EQ(this->filler_param_.sparse(), -1)
+    CHECK(!this->filler_param_.has_sparse() &&
+           !this->filler_param_.has_sparsity_ratio())
          << "Sparsity not supported by this Filler.";
   }
 };
@@ -160,7 +175,8 @@ class XavierFiller : public Filler<Dtype> {
     Dtype scale = sqrt(Dtype(3) / n);
     caffe_rng_uniform<Dtype>(blob->count(), -scale, scale,
         blob->mutable_cpu_data());
-    CHECK_EQ(this->filler_param_.sparse(), -1)
+    CHECK(!this->filler_param_.has_sparse() &&
+           !this->filler_param_.has_sparsity_ratio())
          << "Sparsity not supported by this Filler.";
   }
 };
@@ -202,7 +218,8 @@ class MSRAFiller : public Filler<Dtype> {
     Dtype std = sqrt(Dtype(2) / n);
     caffe_rng_gaussian<Dtype>(blob->count(), Dtype(0), std,
         blob->mutable_cpu_data());
-    CHECK_EQ(this->filler_param_.sparse(), -1)
+    CHECK(!this->filler_param_.has_sparse() &&
+           !this->filler_param_.has_sparsity_ratio())
          << "Sparsity not supported by this Filler.";
   }
 };
@@ -256,7 +273,8 @@ class BilinearFiller : public Filler<Dtype> {
       float y = (i / blob->width()) % blob->height();
       data[i] = (1 - fabs(x / f - c)) * (1 - fabs(y / f - c));
     }
-    CHECK_EQ(this->filler_param_.sparse(), -1)
+    CHECK(!this->filler_param_.has_sparse() &&
+           !this->filler_param_.has_sparsity_ratio())
          << "Sparsity not supported by this Filler.";
   }
 };

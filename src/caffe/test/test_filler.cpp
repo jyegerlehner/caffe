@@ -141,6 +141,65 @@ TYPED_TEST(GaussianFillerTest, TestFill) {
 }
 
 template <typename Dtype>
+class SparseGaussianFillerTest : public ::testing::Test {
+ protected:
+  SparseGaussianFillerTest()
+      : blob_(new Blob<Dtype>(2, 3, 4, 5)),
+        filler_param_() {
+    filler_param_.set_mean(10.);
+    filler_param_.set_std(0.1);
+    filler_param_.set_sparsity_ratio(0.333f);
+    filler_.reset(new GaussianFiller<Dtype>(filler_param_));
+    filler_->Fill(blob_);
+  }
+  virtual ~SparseGaussianFillerTest() { delete blob_; }
+  Blob<Dtype>* const blob_;
+  FillerParameter filler_param_;
+  shared_ptr<GaussianFiller<Dtype> > filler_;
+};
+
+TYPED_TEST_CASE(SparseGaussianFillerTest, TestDtypes);
+
+TYPED_TEST(SparseGaussianFillerTest, TestFill) {
+  EXPECT_TRUE(this->blob_);
+  const int count = this->blob_->count();
+  const TypeParam* data = this->blob_->cpu_data();
+  TypeParam mean = 0.;
+  TypeParam var = 0.;
+  int zero_count = 0;
+  int non_zero_count = 0;
+  for (int i = 0; i < count; ++i) {
+    if( data[i] != 0)
+    {
+      mean += data[i];
+      var += (data[i] - this->filler_param_.mean()) *
+          (data[i] - this->filler_param_.mean());
+      non_zero_count++;
+    }
+    else
+    {
+      zero_count++;
+    }
+  }
+  mean /= static_cast<TypeParam>(non_zero_count);
+  var /= static_cast<TypeParam>(non_zero_count);
+  // Very loose test.
+  EXPECT_GE(mean, this->filler_param_.mean() - this->filler_param_.std() * 5);
+  EXPECT_LE(mean, this->filler_param_.mean() + this->filler_param_.std() * 5);
+  TypeParam target_var = this->filler_param_.std() * this->filler_param_.std();
+  EXPECT_GE(var, target_var / 5.);
+  EXPECT_LE(var, target_var * 5.);
+  EXPECT_EQ(zero_count + non_zero_count, count);
+  // Criteria hard-wired for sparsity_ratio = 0.333 in test setup.
+  EXPECT_GE(zero_count, 2*count/3 - count/6);
+  EXPECT_LE(zero_count, 2*count/3 + count/6);
+  EXPECT_GE(non_zero_count, count/3 - count/6);
+  EXPECT_LE(non_zero_count, count/3 + count/6);
+}
+
+
+
+template <typename Dtype>
 class XavierFillerTest : public ::testing::Test {
  protected:
   XavierFillerTest()

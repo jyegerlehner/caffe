@@ -51,6 +51,9 @@ message FillerParameter {
   // The expected number of non-zero output weights for a given input in
   // Gaussian filler -- the default -1 means don't perform sparsification.
   optional int32 sparse = 7 [default = -1];
+  // The expected ratio of non-zero values to the total number of values in the
+  // blob. Only for use with Gaussian and Xavier fillers.
+  optional float sparsity_ratio = 9 [default = 1];
   // Normalize the filler variance by fan_in, fan_out, or their average.
   // Applies to 'xavier' and 'msra' fillers.
   enum VarianceNorm {
