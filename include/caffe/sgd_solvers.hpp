@@ -46,6 +46,20 @@ class SGDSolver : public Solver<Dtype> {
 };
 
 template <typename Dtype>
+class SurrealSGDSolver : public SGDSolver<Dtype> {
+ public:
+  explicit SurrealSGDSolver(const SolverParameter& param)
+      : SGDSolver<Dtype>(param) { SGDSolver<Dtype>::PreSolve(); }
+  explicit SurrealSGDSolver(const string& param_file)
+      : SGDSolver<Dtype>(param_file) { SGDSolver<Dtype>::PreSolve(); }
+  virtual inline const char* type() const { return "SurrealSGD"; }
+ protected:
+  virtual void ComputeUpdateValue(int param_id, Dtype rate);
+
+  DISABLE_COPY_AND_ASSIGN(SurrealSGDSolver);
+};
+
+template <typename Dtype>
 class NesterovSolver : public SGDSolver<Dtype> {
  public:
   explicit NesterovSolver(const SolverParameter& param)
