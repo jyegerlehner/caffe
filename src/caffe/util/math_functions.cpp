@@ -9,30 +9,6 @@
 
 namespace caffe {
 
-template<typename Dtype>
-void SampleDiscreteProbs(const Dtype* probs, Dtype* vals, int n)
-{
-  struct Range
-  {
-    Dtype bottom;
-    Dtype top;
-  };
-
-  Dtype bot = 0.0;
-  std::vector<Range> ranges;
-  for(int i = 0; i < n; ++i)
-  {
-    Range range;
-    range.bottom = bot;
-    range.top = bot + probs[i];
-    ranges.push_back(range);
-    bot = range.top;
-  }
-  
-  // Get a random value between 1.0 and 0.0 from a uniform distribution.
-  caffe_rng_uniform(n, 0.0, 1.0, vals);
-}
-
 template<>
 void caffe_cpu_gemm<float>(const CBLAS_TRANSPOSE TransA,
     const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,
