@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <numeric>
+#include <stdexcept>
 #include <vector>
 
+#include "caffe/common.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/layers/softmaxima_layer.hpp"
 #include "caffe/util/math_functions.hpp"
@@ -79,6 +81,17 @@ void AssignDims(const std::vector<int>& shape, int& num, int& channels,
   width = shape.size() >= 4 ? shape[3] : 1;
 }
 
+
+//template<typename Dtype>
+//SetStrictlySparseResult(Dtype* result_data,
+//                        ranges,
+//                        softmax_size_,
+//                        instance, channel,h,w)
+//{
+
+//}
+
+
 template <typename Dtype>
 void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
@@ -103,6 +116,12 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   if (channels % softmax_size_ != 0) {
     LOG(FATAL) << "In a SoftmaximaLayer, the number of channels must "
                   "be integer multiple of the softmax size.";
+  }
+
+  if (StrictSparsity())
+  {
+    caffe_rng_uniform<Dtype>(this->scale_.count(), 0.0f, 1.0f,
+                             this->scale_.mutable_cpu_data());
   }
 
   int num_softmaxes = channels / softmax_size_;
@@ -194,9 +213,6 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
             Dtype val = expons[inner_index] / sum;
             int offset = result.offset(instance, channel,h,w);
 
-            if ( std::isnan(val)) {
-              std::cout << "Found NaN" << std::endl;
-            }
             result_data[offset] = val;
             if ( val > highest_prob )
             {
@@ -217,11 +233,43 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
             }
           }
+          else if (StrictSparsity())
+          {
+            Dtype uniform_sample = 0;
+            caffe_rng_uniform(1, static_cast<Dtype>(0),
+                                  static_cast<Dtype>(1), &uniform_sample);
+            Dtype bottom = 0;
+            for( int inner_index = 0; inner_index < softmax_size_;
+                 ++ inner_index)
+            {
+              int channel = softmax_index * softmax_size_ + inner_index;
+              int offset = result.offset(instance, channel,h,w);
+              Dtype prob = result.cpu_data()[offset];
+              Dtype top = bottom + prob;
+              if (uniform_sample > bottom && uniform_sample <= top)
+              {
+                result_data[offset] = 1;
+              }
+              else
+              {
+                result_data[offset] = 0;
+              }
+              bottom = top;
+            }
+
+            if (std::fabs(bottom - 1) > 0.01)
+            {
+              std::stringstream ss;
+              ss << "Probs don't add to 1. " << bottom;
+              throw std::runtime_error(ss.str());
+            }
+          }
         }
       }
     }
+
+
   }
-  //PrintBlob("Naive maxes", maxes);
 }
 
 template <typename Dtype>

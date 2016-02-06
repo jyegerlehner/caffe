@@ -1014,8 +1014,19 @@ message SoftmaximaParameter {
   // Each individual Softmax within the layer is of this size.
   optional int32 softmax_size = 2 [default = 2];
 
-  // Indicate if output should be binarized (winner take all).
-  optional bool winner_take_all = 3 [default = false];
+  enum Mode {
+    SOFT_SPARSITY = 0;
+    STRICT_SPARSITY = 1;
+    WINNER_TAKE_ALL = 2;
+  }
+
+  // Select mode: soft sparsity, strict sparsity, or winner take all.
+  // Soft sparsity indicates that the probability output of the softmax
+  // is used as the output activation. Strict sparsity denotes that the
+  // probability outputs are to be sampled from, choosing exactly one of
+  // the output of the softmax to be 1, all others to be zero. Winner-take-
+  // all denotes choosing the most probable
+  optional Mode mode = 3 [default = SOFT_SPARSITY];
 }
 
 message TanHParameter {

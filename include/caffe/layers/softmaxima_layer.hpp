@@ -9,6 +9,7 @@
 
 namespace caffe {
 
+
 /**
  * @brief Computes the softmaxima function.
  *
@@ -37,7 +38,14 @@ class SoftmaximaLayer : public Layer<Dtype> {
 
   bool WinnerTakeAll() const
   {
-    return this->layer_param_.softmaxima_param().winner_take_all();
+    return this->layer_param_.softmaxima_param().mode() ==
+        SoftmaximaParameter_Mode_WINNER_TAKE_ALL;
+  }
+
+  bool StrictSparsity() const
+  {
+    return this->layer_param().softmaxima_param().mode() ==
+        SoftmaximaParameter_Mode_STRICT_SPARSITY;
   }
   int outer_num_;
   int inner_num_;
@@ -49,6 +57,9 @@ class SoftmaximaLayer : public Layer<Dtype> {
   /// Blob<Dtype> softmaxima result before binarization. Unused
   /// unless winner_take_all = true is specified.
   Blob<Dtype> output_probs_;
+  // Buffer into which we put the uniform distribution if the scale_ blob
+  // ends up being too small to give us at least 256 entries.
+  Blob<Dtype> small_uniform_dist_blob_;
 
   // The ratio of the input size along the canonical axis to the softmax size.
   int num_softmaxes_;

@@ -10,6 +10,17 @@
 
 namespace caffe {
 
+template<typename Dtype>
+__global__ void kernel_sample(const int num,
+                              const int channels,
+                              const int spatial_dim,
+                              const int softmax_size,
+                              const int num_softmaxes,
+                              Dtype* top)
+{
+
+}
+
 template <typename Dtype>
 __global__ void kernel_channel_max_sma(const int num,
                                    const int channels,
@@ -96,6 +107,46 @@ __global__ void kernel_channel_sum_sma(const int num,
     }
   }
 }
+
+template <typename Dtype>
+__global__ void kernel_sample(const int num,
+                          const int channels,
+                          const int spatial_dim,
+                          const int softmax_size,
+                          const int num_softmaxes,
+                          const Dtype* uniform_dist_buffer,
+                          Dtype* out_data)
+{
+  CUDA_KERNEL_LOOP(index, num*spatial_dim) {
+    int n = index / spatial_dim;
+    int s = index % spatial_dim;
+    // For each softmax along the canonical axis.
+    for( int smi = 0; smi < num_softmaxes; ++smi) {
+      // Find the uniform-distributed sample for this particular softmax.
+      int uni_samp_index = s + (n * num_softmaxes + smi) * spatial_dim ;
+      Dtype uni_samp = uniform_dist_buffer[uni_samp_index];
+
+      Dtype bottom = 0;
+      // For each channel within this softmax.
+      for (int c_off = 0; c_off < softmax_size; ++c_off) {
+        int c = smi * softmax_size + c_off;
+        int data_index = (n * channels + c) * spatial_dim + s;
+        Dtype prob = out_data[data_index];
+        if( (uni_samp <= (bottom + prob)) &&
+            (uni_samp > bottom))
+        {
+          out_data[data_index] = 1;
+        }
+        else
+        {
+          out_data[data_index] = 0;
+        }
+        bottom += prob;
+      }
+    }
+  }
+}
+
 
 // out_probs is only assigned if winner_takes_all is true. Otherwise it is
 // ignored. If winner_takes_all, then the out buffer is assigned the binarized
@@ -239,6 +290,41 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 top_data,
                                 WinnerTakeAll(),
                                 output_probs_buffer);
+
+  if (StrictSparsity())
+  {
+    static const int KMIN_RNG_BUFFER_SIZE = 256;
+    Dtype* uniform_dist_buffer;
+    int buffer_size;
+    // scale_ is a temp blob and has the correct shape to hold the desired
+    // uniformly-distributed values: one for each softmax in the layer.
+    if (this->scale_.count() < KMIN_RNG_BUFFER_SIZE)
+    {
+      // Always generate at least KMIN_RNG_BUFFER_SIZE values; otherwise
+      // the result doesn't end up being uniformly-distributed.
+      buffer_size = KMIN_RNG_BUFFER_SIZE;
+      if (small_uniform_dist_blob_.count() < KMIN_RNG_BUFFER_SIZE)
+      {
+        small_uniform_dist_blob_.Reshape(KMIN_RNG_BUFFER_SIZE,1,1,1);
+      }
+      uniform_dist_buffer = small_uniform_dist_blob_.mutable_gpu_data();
+    }
+    else
+    {
+      uniform_dist_buffer = this->scale_.mutable_gpu_data();
+      buffer_size = this->scale_.count();
+    }
+    caffe_gpu_rng_uniform<Dtype>(buffer_size,0,1,uniform_dist_buffer);
+
+    kernel_sample<Dtype><<<CAFFE_GET_BLOCKS(outer_num_*inner_num_),
+        CAFFE_CUDA_NUM_THREADS>>>(outer_num_,
+                                  channels,
+                                  inner_num_,
+                                  softmax_size_,
+                                  num_softmaxes_,
+                                  uniform_dist_buffer,
+                                  top_data);
+  }
 }
 
 template <typename Dtype>

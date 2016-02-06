@@ -1589,7 +1589,8 @@ TYPED_TEST(SoftmaximaLayerTest, TestWinnerTakeAllForward) {
   typedef typename TypeParam::Dtype Dtype;
   const int SOFTMAX_SIZE = 8;
   LayerParameter layer_param;
-  std::string proto = "softmaxima_param { softmax_size: 8 winner_take_all: true }";
+  std::string proto =
+      "softmaxima_param { softmax_size: 8  mode: WINNER_TAKE_ALL }";
   CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
   SoftmaximaLayer<Dtype> layer(layer_param);
 
@@ -1816,7 +1817,7 @@ TYPED_TEST(SoftmaximaLayerTest, TestBackward_WinnerTakeAllSameAsNot) {
     binarized_bottom_blob.CopyFrom(*this->blob_bottom1_);
 
     LayerParameter layer_param;
-    std::string proto = "softmaxima_param { softmax_size: 8 winner_take_all: true }";
+    std::string proto = "softmaxima_param { softmax_size: 8 mode: WINNER_TAKE_ALL }";
     CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
     SoftmaximaLayer<Dtype> layer(layer_param);
 
@@ -1881,6 +1882,234 @@ TYPED_TEST(SoftmaximaLayerTest, TestXorTraining)
   Caffe::set_random_seed(2101150);
   this->TrainXOR();
 }
+
+
+// Test out our idea for sampling from the softmaxima using a
+// normally-distributed random values: one random value per softmax.
+std::vector<float> NaivelySample(const std::vector<float> probs,
+                                 int softmax_size)
+{
+  int index = 0;
+  int softmax_count = probs.size() / softmax_size;
+
+  // We need as many uniform distribution samples as softmaxes.
+  std::vector<float> distrib_buffer(softmax_count);
+  caffe_rng_uniform<float>(softmax_count, 0.0f, 1.0f, &distrib_buffer[0]);
+  std::vector<float> result;
+
+  const float TOLERANCE = 0.0001f;
+  for(int smi = 0; smi < softmax_count; ++smi)
+  {
+    float bottom = 0.0f;
+    for(int j=0; j < softmax_size; ++j)
+    {
+      float top = bottom + probs[index++];
+      float uniform_val = distrib_buffer[smi];
+      if (uniform_val >= bottom && uniform_val < top)
+      {
+        result.push_back(1.0f);
+      }
+      else
+      {
+        result.push_back(0.0f);
+      }
+      bottom = top;
+    }
+    if (std::fabs(bottom - 1.0f)  > TOLERANCE)
+    {
+      throw std::runtime_error("Softmax probabilties didn't "
+                                            "add up to 1.");
+    }
+  }
+  if (result.size() != probs.size())
+  {
+    throw std::runtime_error("Result doesn't have same "
+             "size as probs.");
+  }
+  return result;
+}
+
+
+TYPED_TEST(SoftmaximaLayerTest, NaiveSoftmaxSampler)
+{
+  typedef typename TypeParam::Dtype Dtype;
+  std::vector<float> probvec;
+  const int SOFTMAX_SIZE = 4;
+  const int CHANNELS = 8;
+  // First softmaxima probs.
+  probvec.push_back(0.1);
+  probvec.push_back(0.7);
+  probvec.push_back(0.0);
+  probvec.push_back(0.2);
+  // Second softmaxima probs.
+  probvec.push_back(0.0);
+  probvec.push_back(0.3);
+  probvec.push_back(0.5);
+  probvec.push_back(0.2);
+  std::vector<int> val_counts(probvec.size(), 0);
+
+  ASSERT_EQ(probvec.size(), CHANNELS)
+      << "Sanity check number of probabilities.";
+
+  const int ITERATIONS = 1000;
+  for(int i = 0; i < ITERATIONS; ++i)
+  {
+    std::vector<float> sampled_vals =
+        NaivelySample(probvec, SOFTMAX_SIZE);
+
+    ASSERT_EQ(sampled_vals.size(), probvec.size()) << "Wrong number of elements"
+                      << " in sampled values.";
+
+    int one_ctr = 0;
+    for(int chan = 0; chan < probvec.size(); ++chan)
+    {
+      Dtype val = sampled_vals[chan];
+      bool is_zero = (std::fabs(val) < 0.01f);
+      bool is_one = (std::fabs(val - 1.0f) < 0.01f);
+      ASSERT_TRUE(is_zero || is_one) << "Every sampled val should be 1 or zero.";
+      ASSERT_GE(val, 0) << "Every sampled val should be between 1 and zero"
+                           << " inclusive";
+      ASSERT_LE(val, 1) << "Every sampled val should be between 1 and zero"
+                        << " inclusive";
+      if (is_one)
+      {
+        one_ctr++;
+        val_counts[chan]++;
+      }
+    }
+    ASSERT_EQ(one_ctr, CHANNELS / SOFTMAX_SIZE) << "Each softmax should have "
+              << "exactly one non-zero activation.";
+  }
+
+  const float TOLERANCE = 0.05;
+  // Each channel should have been nearly the same as it's probability of
+  // activation times number of iterations.
+  for(int chan = 0; chan < probvec.size(); ++chan)
+  {
+    float ratio = val_counts[chan] / static_cast<float>(ITERATIONS);
+    std::cout << "ratio, prob=" << ratio << "," << probvec[chan] << std::endl;
+    ASSERT_NEAR(ratio, probvec[chan], TOLERANCE) <<
+      "Wrong probability in sampled values.";
+  }
+}
+
+TYPED_TEST(SoftmaximaLayerTest, ForwardWithStrictSparsity)
+{
+  Caffe::set_random_seed(2101150);
+  typedef typename TypeParam::Dtype Dtype;
+  std::vector<Dtype> probvec;
+  // First softmaxima probs.
+  probvec.push_back(std::log(0.1));
+  probvec.push_back(std::log(0.7));
+  probvec.push_back(std::log(0.0));
+  probvec.push_back(std::log(0.2));
+  // Second softmaxima probs.
+  probvec.push_back(std::log(0.0));
+  probvec.push_back(std::log(0.3));
+  probvec.push_back(std::log(0.5));
+  probvec.push_back(std::log(0.2));
+  // Third softmaxima probs.
+  probvec.push_back(std::log(0.0));
+  probvec.push_back(std::log(0.1));
+  probvec.push_back(std::log(0.0));
+  probvec.push_back(std::log(0.9));
+
+  const int BATCH_SIZE = 1000;
+  const int CHANNELS = 12;
+  const int HEIGHT = 4;
+  const int WIDTH = 5;
+  const int SOFTMAX_SIZE = 4;
+
+  // Scenario: softmaxima outputting batch size 1000, 8 channels, 4x4 hxw.
+  Blob<Dtype> bottom(BATCH_SIZE, CHANNELS, HEIGHT, WIDTH);
+  Blob<Dtype> top;
+
+  Dtype* bottom_ptr = bottom.mutable_cpu_data();
+  for(int num = 0; num < BATCH_SIZE; ++num)
+  {
+    for(int h = 0; h < HEIGHT; ++h)
+    {
+      for(int w = 0; w < WIDTH; ++w)
+      {
+        for(int chan = 0; chan < probvec.size(); ++chan)
+        {
+          // Use the same vector of log probs for every item in batch and
+          // spatial location.
+          bottom_ptr[bottom.offset(num,chan,h,w)] = probvec[chan];
+        }
+      }
+    }
+  }
+
+  vector<Blob<Dtype>*> bottom_vec;
+  bottom_vec.push_back(&bottom);
+  vector<Blob<Dtype>*> top_vec;
+  top_vec.push_back(&top);
+
+  // Forward prop through the layer.
+  LayerParameter layer_param;
+  std::string proto =
+      "softmaxima_param { softmax_size: 4 mode: STRICT_SPARSITY }";
+  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
+  SoftmaximaLayer<Dtype> layer(layer_param);
+  layer.SetUp(bottom_vec, top_vec);
+  layer.Forward(bottom_vec, top_vec);
+  Blob<Dtype>& result = *(top_vec[0]);
+
+
+  int one_ctr = 0;
+  std::vector<Dtype> val_counts(CHANNELS, 0);
+  const Dtype* result_ptr = result.cpu_data();
+  for(int num = 0; num < BATCH_SIZE; ++num)
+  {
+    for(int h = 0; h < HEIGHT; ++h)
+    {
+      for(int w = 0; w < WIDTH; ++w)
+      {
+        for(int chan = 0; chan < CHANNELS; ++chan)
+        {
+          Dtype val = result_ptr[result.offset(num,chan,h,w)];
+          bool is_zero = (std::fabs(val) < 0.01f);
+          bool is_one = (std::fabs(val - 1.0f) < 0.01f);
+          ASSERT_TRUE(is_zero || is_one);
+          ASSERT_GE(val, 0);
+          ASSERT_LE(val, 1);
+          if (is_one)
+          {
+            one_ctr++;
+            val_counts[chan]++;
+          }
+        }
+      }
+    }
+  }
+
+  // There should exactly one "on" activation for each softmax.
+  int top_count = top.count();
+  const int num_softmaxes = top_count /SOFTMAX_SIZE;
+  int outer_dim = BATCH_SIZE*HEIGHT*WIDTH;
+  ASSERT_EQ(one_ctr, num_softmaxes);
+  ASSERT_EQ(CHANNELS, probvec.size());
+  for(int chan = 0; chan < CHANNELS; ++chan)
+  {
+    float ratio = val_counts[chan]/ static_cast<float>(outer_dim);
+    const float TOLERANCE = 0.05f;
+    ASSERT_NEAR(ratio, static_cast<float>(std::exp(probvec[chan])), TOLERANCE);
+  }
+}
+
+TYPED_TEST(SoftmaximaLayerTest, TestGradient_StrictlySparse) {
+  typedef typename TypeParam::Dtype Dtype;
+  LayerParameter layer_param;
+  std::string proto =
+      "softmaxima_param { softmax_size: 5 mode: STRICT_SPARSITY }";
+  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
+  SoftmaximaLayer<Dtype> layer(layer_param);
+  GradientChecker<Dtype> checker(1e-2, 1e-3);
+  checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
+      this->blob_top_vec_);
+}
+
 
 }  // namespace caffe
 
