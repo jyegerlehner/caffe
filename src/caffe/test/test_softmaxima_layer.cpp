@@ -662,18 +662,18 @@ class SoftmaximaLayerTest : public MultiDeviceTest<TypeParam> {
     return result_blob;
   }
 
-  std::string CreateXorPrototxt()
+  std::string CreateXorPrototxt(bool strict_sparsity)
   {
     std::stringstream ss;
     ss << "base_lr: 0.1 ";
     ss << "lr_policy: 'fixed' ";
-    ss << "display: 500 ";
+    ss << "display: 1 ";
     ss << "momentum: 0.90 ";
     ss << "solver_type: SGD ";
     ss << "solver_mode: GPU ";
     ss << "device_id: 0 ";
-    ss << "max_iter: 10000 ";
-    // ss << "debug_info: true ";
+    ss << "max_iter: 20000 ";
+//    ss << "debug_info: true ";
     ss << "net_param { ";
     ss << "name: 'XorNetwork' ";
     ss << "layer { ";
@@ -743,6 +743,10 @@ class SoftmaximaLayerTest : public MultiDeviceTest<TypeParam> {
     ss << "  top: 'softmaxima' ";
     ss << "  softmaxima_param { ";
     ss << "    softmax_size: 2 ";
+    if(strict_sparsity)
+    {
+      ss << "    mode: STRICT_SPARSITY";
+    }
     ss << "  } ";
     ss << "} ";
     ss << "layer { ";
@@ -836,9 +840,9 @@ class SoftmaximaLayerTest : public MultiDeviceTest<TypeParam> {
     }
   }
 
-  void TrainXOR()
+  void TrainXOR(bool strict_sparsity)
   {
-    std::string proto = CreateXorPrototxt();
+    std::string proto = CreateXorPrototxt(strict_sparsity);
     SolverParameter param;
     CHECK(google::protobuf::TextFormat::ParseFromString(proto, &param));
     switch (Caffe::mode()) {
@@ -847,6 +851,7 @@ class SoftmaximaLayerTest : public MultiDeviceTest<TypeParam> {
         break;
       case Caffe::GPU:
         param.set_solver_mode(SolverParameter_SolverMode_GPU);
+        param.set_device_id(1);
         break;
       default:
         LOG(FATAL) << "Unknown Caffe mode: " << Caffe::mode();
@@ -1880,7 +1885,13 @@ TYPED_TEST(SoftmaximaLayerTest, TestBackward_WinnerTakeAllSameAsNot) {
 TYPED_TEST(SoftmaximaLayerTest, TestXorTraining)
 {
   Caffe::set_random_seed(2101150);
-  this->TrainXOR();
+  this->TrainXOR(false);
+}
+
+TYPED_TEST(SoftmaximaLayerTest, TestXorTraining_StrictSparsity)
+{
+  Caffe::set_random_seed(2101151);
+  this->TrainXOR(true);
 }
 
 
@@ -1987,7 +1998,6 @@ TYPED_TEST(SoftmaximaLayerTest, NaiveSoftmaxSampler)
   for(int chan = 0; chan < probvec.size(); ++chan)
   {
     float ratio = val_counts[chan] / static_cast<float>(ITERATIONS);
-    std::cout << "ratio, prob=" << ratio << "," << probvec[chan] << std::endl;
     ASSERT_NEAR(ratio, probvec[chan], TOLERANCE) <<
       "Wrong probability in sampled values.";
   }
@@ -2097,19 +2107,6 @@ TYPED_TEST(SoftmaximaLayerTest, ForwardWithStrictSparsity)
     ASSERT_NEAR(ratio, static_cast<float>(std::exp(probvec[chan])), TOLERANCE);
   }
 }
-
-TYPED_TEST(SoftmaximaLayerTest, TestGradient_StrictlySparse) {
-  typedef typename TypeParam::Dtype Dtype;
-  LayerParameter layer_param;
-  std::string proto =
-      "softmaxima_param { softmax_size: 5 mode: STRICT_SPARSITY }";
-  CHECK(google::protobuf::TextFormat::ParseFromString(proto, &layer_param));
-  SoftmaximaLayer<Dtype> layer(layer_param);
-  GradientChecker<Dtype> checker(1e-2, 1e-3);
-  checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
-      this->blob_top_vec_);
-}
-
 
 }  // namespace caffe
 

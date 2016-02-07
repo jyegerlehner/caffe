@@ -52,7 +52,6 @@ __global__ void kernel_channel_max_sma(const int num,
       out[out_index] = maxval;
     }
   }
-
 }
 //CUDA_CHECK(cudaMalloc(&gpu_ptr_, size_));
 
@@ -115,6 +114,7 @@ __global__ void kernel_sample(const int num,
                           const int softmax_size,
                           const int num_softmaxes,
                           const Dtype* uniform_dist_buffer,
+                          const Dtype* probs,
                           Dtype* out_data)
 {
   CUDA_KERNEL_LOOP(index, num*spatial_dim) {
@@ -131,7 +131,7 @@ __global__ void kernel_sample(const int num,
       for (int c_off = 0; c_off < softmax_size; ++c_off) {
         int c = smi * softmax_size + c_off;
         int data_index = (n * channels + c) * spatial_dim + s;
-        Dtype prob = out_data[data_index];
+        Dtype prob = probs[data_index];
         if( (uni_samp <= (bottom + prob)) &&
             (uni_samp > bottom))
         {
@@ -142,6 +142,47 @@ __global__ void kernel_sample(const int num,
           out_data[data_index] = 0;
         }
         bottom += prob;
+      }
+    }
+  }
+}
+
+template <typename Dtype>
+__global__ void kernel_winner_take_all(const int num,
+                                       const int channels,
+                                       const int spatial_dim,
+                                       const int softmax_size,
+                                       const int num_softmaxes,
+                                       Dtype* out,
+                                       const Dtype* probs)
+{
+  CUDA_KERNEL_LOOP(index, num*spatial_dim) {
+    int n = index / spatial_dim;
+    int s = index % spatial_dim;
+    // For each softmax along the canonical axis.
+    for( int smi = 0; smi < num_softmaxes; ++smi) {
+      Dtype largest_prob = -1.0;
+      int largest_prob_index = -1;
+
+      // For each channel within this softmax.
+      for (int c_off = 0; c_off < softmax_size; ++c_off) {
+        int c = smi * softmax_size + c_off;
+        int data_index = (n * channels + c) * spatial_dim + s;
+        Dtype val = probs[data_index];
+
+        if ( val > largest_prob)
+        {
+          largest_prob = val;
+          largest_prob_index = data_index;
+        }
+      }
+
+      for (int c_off = 0; c_off < softmax_size; ++c_off)
+      {
+        int c = smi * softmax_size + c_off;
+        int data_index = (n * channels + c) * spatial_dim + s;
+        out[data_index] = ((data_index == largest_prob_index) ?
+              1 : 0 );
       }
     }
   }
@@ -159,7 +200,7 @@ __global__ void kernel_channel_div_sma( const int num,
                                     const int num_softmaxes,
                                     const Dtype* sums,
                                     Dtype* out,
-                                    bool winner_take_all,
+                                    bool store_probs,
                                     Dtype* out_probs) {
   CUDA_KERNEL_LOOP(index, num*spatial_dim) {
     int n = index / spatial_dim;
@@ -169,38 +210,19 @@ __global__ void kernel_channel_div_sma( const int num,
       int sum_index = s + (n * num_softmaxes + smi) * spatial_dim ; //index*num_softmaxes + smi;
       Dtype sum = sums[sum_index];
 
-      Dtype largest_prob = -1.0;
-      int largest_prob_index = -1;
-
       // For each channel within this softmax.
       for (int c_off = 0; c_off < softmax_size; ++c_off) {
         int c = smi * softmax_size + c_off;
         int data_index = (n * channels + c) * spatial_dim + s;
         Dtype val_before = out[data_index];
         Dtype val = val_before / sum;
+        if (val < 0.0 ) val = 0.0;
+        else if( val > 1.0) val = 1.0;
 
-        if ( winner_take_all) {
-          if ( val > largest_prob)
-          {
-            largest_prob = val;
-            largest_prob_index = data_index;
-          }
+        if (store_probs) {
           out_probs[data_index] = val;
         } else {
-          if (val < 0.0 ) val = 0.0;
-          else if( val > 1.0) val = 1.0;
           out[data_index] = val;
-        }
-      }
-
-      if (winner_take_all)
-      {
-        for (int c_off = 0; c_off < softmax_size; ++c_off)
-        {
-          int c = smi * softmax_size + c_off;
-          int data_index = (n * channels + c) * spatial_dim + s;
-          out[data_index] = ((data_index == largest_prob_index) ?
-                1 : 0 );
         }
       }
     }
@@ -276,7 +298,7 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 top_data,
                                 scale_data);
 
-  Dtype* output_probs_buffer = WinnerTakeAll() ?
+  Dtype* output_probs_buffer = (WinnerTakeAll() || StrictSparsity()) ?
         this->output_probs_.mutable_gpu_data() : 0;
 
   // NOLINT_NEXT_LINE(whitespace/operators)
@@ -288,7 +310,7 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 num_softmaxes_,
                                 scale_data,
                                 top_data,
-                                WinnerTakeAll(),
+                                WinnerTakeAll() || StrictSparsity(),
                                 output_probs_buffer);
 
   if (StrictSparsity())
@@ -323,8 +345,21 @@ void SoftmaximaLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                   softmax_size_,
                                   num_softmaxes_,
                                   uniform_dist_buffer,
+                                  output_probs_buffer,
                                   top_data);
   }
+  else if (WinnerTakeAll())
+  {
+    kernel_winner_take_all<Dtype><<<CAFFE_GET_BLOCKS(outer_num_*inner_num_),
+        CAFFE_CUDA_NUM_THREADS>>>(outer_num_,
+                                  channels,
+                                  inner_num_,
+                                  softmax_size_,
+                                  num_softmaxes_,
+                                  top_data,
+                                  output_probs_buffer);
+  }
+
 }
 
 template <typename Dtype>
@@ -333,8 +368,8 @@ void SoftmaximaLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   const Dtype* top_diff = top[0]->gpu_diff();
 
   // Use mean-field activations for the backprop if WinnerTakeAll.
-  const Dtype* top_data = WinnerTakeAll() ? output_probs_.gpu_data() :
-                                            top[0]->gpu_data();
+  const Dtype* top_data = (WinnerTakeAll() ||StrictSparsity()) ?
+                            output_probs_.gpu_data() : top[0]->gpu_data();
   Dtype* bottom_diff = bottom[0]->mutable_gpu_diff();
   Dtype* scale_data = scale_.mutable_gpu_data();
   int count = top[0]->count();

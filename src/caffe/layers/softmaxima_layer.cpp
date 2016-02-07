@@ -44,7 +44,7 @@ void SoftmaximaLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   vector<int> scale_dims = bottom[0]->shape();
   scale_dims[softmax_axis_] = num_softmaxes_;
   scale_.Reshape(scale_dims);
-  if(WinnerTakeAll())
+  if(WinnerTakeAll() || StrictSparsity())
   {
     output_probs_.ReshapeLike(*top[0]);
   }
@@ -105,7 +105,8 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     *(in_data++) = *(orig_in_data++);
   }
 
-  Blob<Dtype>& result = WinnerTakeAll() ? output_probs_ : *top[0];
+  Blob<Dtype>& result = WinnerTakeAll() ||StrictSparsity() ?
+                    output_probs_ : *top[0];
   int cardinality;
   int channels;
   int height;
@@ -235,6 +236,7 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
           }
           else if (StrictSparsity())
           {
+            Dtype* top_data = top[0]->mutable_cpu_data();
             Dtype uniform_sample = 0;
             caffe_rng_uniform(1, static_cast<Dtype>(0),
                                   static_cast<Dtype>(1), &uniform_sample);
@@ -248,11 +250,11 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
               Dtype top = bottom + prob;
               if (uniform_sample > bottom && uniform_sample <= top)
               {
-                result_data[offset] = 1;
+                top_data[offset] = 1;
               }
               else
               {
-                result_data[offset] = 0;
+                top_data[offset] = 0;
               }
               bottom = top;
             }
@@ -267,8 +269,6 @@ void SoftmaximaLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
         }
       }
     }
-
-
   }
 }
 
@@ -280,8 +280,8 @@ void SoftmaximaLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
   const Dtype* top_diff = top[0]->cpu_diff();
   Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
   bool winner_take_all = WinnerTakeAll();
-  const Dtype* top_data = winner_take_all ? output_probs_.cpu_data() :
-                                            top[0]->cpu_data();
+  const Dtype* top_data = (winner_take_all || StrictSparsity()) ?
+                          output_probs_.cpu_data() : top[0]->cpu_data();
   caffe_copy(top[0]->count(), top_diff, bottom_diff);
 
   int cardinality;
