@@ -609,11 +609,17 @@ class SoftmaximaLayerTest : public MultiDeviceTest<TypeParam> {
                                 shared_ptr<Blob<Dtype> > bottom) {
     std::stringstream ss;
     ss <<    "name: 'TestNetwork' ";
-    ss <<    "input: 'data' ";
-    ss <<    "input_dim: " << bottom->num() << " ";
-    ss <<    "input_dim: " << bottom->channels() << " ";
-    ss <<    "input_dim: " << bottom->height() << " ";
-    ss <<    "input_dim: " << bottom->width() << " ";
+    ss <<    "layer { ";
+    ss <<    "  name: 'input_layer' ";
+    ss <<    "  top: 'data' ";
+    ss <<    "  type: 'Input' ";
+    ss <<    "  input_param { ";
+    ss <<    "    shape { dim: " << bottom->num() <<
+                    " dim: " << bottom->channels() <<
+                    " dim: " << bottom->height() <<
+                    " dim: " <<  bottom->width() << "}";
+    ss <<    "     } ";
+    ss <<    "  } ";
     ss <<    "layer { ";
     ss <<    "  name: 'slice' ";
     ss <<    "  type: 'Slice' ";

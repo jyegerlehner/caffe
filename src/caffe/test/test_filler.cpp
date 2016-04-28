@@ -1,6 +1,8 @@
 #include "gtest/gtest.h"
 
 #include "caffe/filler.hpp"
+#include "caffe/layer.hpp"
+#include "caffe/layers/conv_layer.hpp"
 
 #include "caffe/test/test_caffe_main.hpp"
 
@@ -295,6 +297,159 @@ TYPED_TEST(MSRAFillerTest, TestFillFanOut) {
 TYPED_TEST(MSRAFillerTest, TestFillAverage) {
   TypeParam n = (2*4*5 + 1000*4*5) / 2.0;
   this->test_params(FillerParameter_VarianceNorm_AVERAGE, n);
+}
+
+
+template <typename Dtype>
+class ScharrFillerTest : public ::testing::Test {
+ protected:
+  ScharrFillerTest()
+      : filler_param_() {
+    filler_.reset(new ScharrFiller<Dtype>(filler_param_));
+  }
+  virtual ~ScharrFillerTest() {}
+  FillerParameter filler_param_;
+  shared_ptr<ScharrFiller<Dtype> > filler_;
+};
+
+TYPED_TEST_CASE(ScharrFillerTest, TestDtypes);
+
+TYPED_TEST(ScharrFillerTest, TestFill) {
+  Blob<TypeParam>* const blob_ = new Blob<TypeParam>(2, 3, 3, 3);
+  this->filler_->Fill(blob_);
+  // The Scharr filter always has two output channels, vertical and horiz.
+  EXPECT_EQ(blob_->num(), 2);
+  //EXPECT_EQ(this->blob_->channels(), 3);
+  // The Scharr filter is always a 3x3 filter.
+  EXPECT_EQ(blob_->height(), 3);
+  EXPECT_EQ(blob_->width(), 3);
+
+  for(int output_chan = 0; output_chan < 2; ++output_chan ) {
+    for(int input_chan = 0; input_chan < blob_->channels();++input_chan) {
+          const TypeParam* data = blob_->cpu_data();
+          if(output_chan == 0) {
+            // horiz filter.
+            EXPECT_EQ(data[blob_->offset(0, input_chan, 0, 0)],3.0f );
+            EXPECT_EQ(data[blob_->offset(0, input_chan, 0, 1)],10.0f);
+            EXPECT_EQ(data[blob_->offset(0, input_chan, 0, 2)], 3.0f);
+            EXPECT_EQ(data[blob_->offset(0, input_chan, 1, 0)],0.0f);
+            EXPECT_EQ(data[blob_->offset(0, input_chan, 1, 1)],0.0f);
+            EXPECT_EQ(data[blob_->offset(0, input_chan, 1, 2)],0.0f);
+            EXPECT_EQ(data[blob_->offset(0, input_chan, 2, 0)],-3.0f);
+            EXPECT_EQ(data[blob_->offset(0, input_chan, 2, 1)],-10.0f);
+            EXPECT_EQ(data[blob_->offset(0, input_chan, 2, 2)],-3.0f);
+          } else if ( output_chan == 1) {
+            EXPECT_EQ(data[blob_->offset(1, input_chan, 0, 0)],3.0f);
+            EXPECT_EQ(data[blob_->offset(1, input_chan, 0, 1)],0.0f);
+            EXPECT_EQ(data[blob_->offset(1, input_chan, 0, 2)],-3.0f);
+            EXPECT_EQ(data[blob_->offset(1, input_chan, 1, 0)],10.0f);
+            EXPECT_EQ(data[blob_->offset(1, input_chan, 1, 1)],0.0f);
+            EXPECT_EQ(data[blob_->offset(1, input_chan, 1, 2)],-10.0f);
+            EXPECT_EQ(data[blob_->offset(1, input_chan, 2, 0)],3.0f);
+            EXPECT_EQ(data[blob_->offset(1, input_chan, 2, 1)],0.0f);
+            EXPECT_EQ(data[blob_->offset(1, input_chan, 2, 2)],-3.0f);
+          } else {
+            EXPECT_EQ(true, false );
+          };
+    }
+  }
+  delete blob_;
+}
+
+// Test the effect of a ScharrFiller-filled convolution filter on an image.
+// It should act as an vertical and horizontal edge detectors.
+TYPED_TEST(ScharrFillerTest, TestConvolution) {
+  // Two 5x5 grayscale images.
+  Blob<TypeParam> image_blob(2, 1, 5, 5);
+
+  TypeParam* img_data = image_blob.mutable_cpu_data();
+  for(int h = 0; h < 5; ++h) {
+    for(int w = 0; w < 5; ++w) {
+      // One image will have a solid horizontal bar
+      int horiz_index = image_blob.offset(0,0,h,w);
+      // second image will have a solid vertical bar
+      int vert_index = image_blob.offset(1,0,h,w);
+
+      // Horizontal edge between solid white and black in this image.
+      img_data[horiz_index] = h >= 2 ? 1.0 : 0.0;
+
+      // Vertical edge between solid white and black in this image.
+      img_data[vert_index] = w >= 2 ? 1.0 : 0.0;
+    }
+  }
+
+  vector<Blob<TypeParam>*> blob_bottom_vec;
+  blob_bottom_vec.push_back(&image_blob);
+  vector<Blob<TypeParam>*> blob_top_vec;
+  blob_top_vec.push_back(new Blob<TypeParam>());
+
+  // Run the convolution filter on the image.
+  LayerParameter layer_param;
+  ConvolutionParameter* convolution_param =
+      layer_param.mutable_convolution_param();
+  convolution_param->set_bias_term(false);
+  convolution_param->add_kernel_size(3);
+  //convolution_param->set_kernel_size(0,3);
+  convolution_param->add_stride(1);
+  convolution_param->set_num_output(2);
+  convolution_param->mutable_weight_filler()->set_type("scharr");
+  shared_ptr<Layer<TypeParam> > layer( new ConvolutionLayer<TypeParam>(layer_param));
+  layer->SetUp(blob_bottom_vec, blob_top_vec);
+  layer->Forward(blob_bottom_vec, blob_top_vec);
+
+  const TypeParam* data = blob_top_vec[0]->cpu_data();
+
+  ASSERT_EQ(blob_top_vec.size(), 1);
+  ASSERT_EQ(blob_top_vec[0]->num(), 2 );
+  ASSERT_EQ(blob_top_vec[0]->channels(), 2 );
+  ASSERT_EQ(blob_top_vec[0]->height(), 3 );
+  ASSERT_EQ(blob_top_vec[0]->width(), 3 );
+
+  Blob<TypeParam>& top_blob = *blob_top_vec[0];
+
+  // horiz filter on first image with horizontal image
+  EXPECT_EQ(data[top_blob.offset(0, 0, 0, 0)], -16.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 0, 0, 1)], -16.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 0, 0, 2)], -16.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 0, 1, 0)], -16.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 0, 1, 1)], -16.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 0, 1, 2)], -16.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 0, 2, 0)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 0, 2, 1)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 0, 2, 2)], 0.0f);
+
+  // horiz filter on second image with vertical image
+  EXPECT_EQ(data[top_blob.offset(1, 0, 0, 0)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 0, 0, 1)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 0, 0, 2)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 0, 1, 0)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 0, 1, 1)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 0, 1, 2)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 0, 2, 0)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 0, 2, 1)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 0, 2, 2)], 0.0f);
+
+  //vertical filter on first image with horiz image
+  EXPECT_EQ(data[top_blob.offset(0, 1, 0, 0)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 1, 0, 1)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 1, 0, 2)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 1, 1, 0)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 1, 1, 1)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 1, 1, 2)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 1, 2, 0)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 1, 2, 1)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(0, 1, 2, 2)], 0.0f);
+
+  //vertical filter on second image with vertical image
+  EXPECT_EQ(data[top_blob.offset(1, 1, 0, 0)], -16.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 1, 0, 1)], -16.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 1, 0, 2)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 1, 1, 0)], -16.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 1, 1, 1)], -16.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 1, 1, 2)], 0.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 1, 2, 0)], -16.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 1, 2, 1)], -16.0f);
+  EXPECT_EQ(data[top_blob.offset(1, 1, 2, 2)], 0.0f);
 }
 
 }  // namespace caffe
