@@ -315,41 +315,41 @@ class ScharrFillerTest : public ::testing::Test {
 TYPED_TEST_CASE(ScharrFillerTest, TestDtypes);
 
 TYPED_TEST(ScharrFillerTest, TestFill) {
-  Blob<TypeParam>* const blob_ = new Blob<TypeParam>(2, 3, 3, 3);
+  Blob<TypeParam>* const blob_ = new Blob<TypeParam>(6, 3, 3, 3);
   this->filler_->Fill(blob_);
-  // The Scharr filter always has two output channels, vertical and horiz.
-  EXPECT_EQ(blob_->num(), 2);
-  //EXPECT_EQ(this->blob_->channels(), 3);
+  // The Scharr filter always has num output channels == 2*num input channels,
+  // vertical and horiz filter for each input channel.
+  EXPECT_EQ(blob_->num(), 2*3);
   // The Scharr filter is always a 3x3 filter.
   EXPECT_EQ(blob_->height(), 3);
   EXPECT_EQ(blob_->width(), 3);
 
-  for(int output_chan = 0; output_chan < 2; ++output_chan ) {
+  for(int output_chan = 0; output_chan < 6; ++output_chan ) {
     for(int input_chan = 0; input_chan < blob_->channels();++input_chan) {
           const TypeParam* data = blob_->cpu_data();
-          if(output_chan == 0) {
+          bool matches = (output_chan % blob_->channels()) ==
+                                            input_chan;
+          if(output_chan < blob_->channels()) {
             // horiz filter.
-            EXPECT_EQ(data[blob_->offset(0, input_chan, 0, 0)],3.0f );
-            EXPECT_EQ(data[blob_->offset(0, input_chan, 0, 1)],10.0f);
-            EXPECT_EQ(data[blob_->offset(0, input_chan, 0, 2)], 3.0f);
-            EXPECT_EQ(data[blob_->offset(0, input_chan, 1, 0)],0.0f);
-            EXPECT_EQ(data[blob_->offset(0, input_chan, 1, 1)],0.0f);
-            EXPECT_EQ(data[blob_->offset(0, input_chan, 1, 2)],0.0f);
-            EXPECT_EQ(data[blob_->offset(0, input_chan, 2, 0)],-3.0f);
-            EXPECT_EQ(data[blob_->offset(0, input_chan, 2, 1)],-10.0f);
-            EXPECT_EQ(data[blob_->offset(0, input_chan, 2, 2)],-3.0f);
-          } else if ( output_chan == 1) {
-            EXPECT_EQ(data[blob_->offset(1, input_chan, 0, 0)],3.0f);
-            EXPECT_EQ(data[blob_->offset(1, input_chan, 0, 1)],0.0f);
-            EXPECT_EQ(data[blob_->offset(1, input_chan, 0, 2)],-3.0f);
-            EXPECT_EQ(data[blob_->offset(1, input_chan, 1, 0)],10.0f);
-            EXPECT_EQ(data[blob_->offset(1, input_chan, 1, 1)],0.0f);
-            EXPECT_EQ(data[blob_->offset(1, input_chan, 1, 2)],-10.0f);
-            EXPECT_EQ(data[blob_->offset(1, input_chan, 2, 0)],3.0f);
-            EXPECT_EQ(data[blob_->offset(1, input_chan, 2, 1)],0.0f);
-            EXPECT_EQ(data[blob_->offset(1, input_chan, 2, 2)],-3.0f);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 0, 0)], matches ? 3.0f : 0.0 );
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 0, 1)], matches ? 10.0f : 0.0);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 0, 2)], matches ? 3.0f: 0.0);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 1, 0)], 0.0f);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 1, 1)],0.0f);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 1, 2)],0.0f);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 2, 0)], matches ? -3.0f : 0.0);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 2, 1)], matches ? -10.0f : 0.0);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 2, 2)], matches ? -3.0f : 0.0);
           } else {
-            EXPECT_EQ(true, false );
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 0, 0)], matches ? 3.0f : 0.0);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 0, 1)],0.0f);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 0, 2)], matches ? -3.0f : 0.0);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 1, 0)], matches ? 10.0f : 0.0);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 1, 1)], 0.0f);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 1, 2)], matches ? -10.0f : 0.0);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 2, 0)], matches ? 3.0f : 0.0);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 2, 1)],0.0f);
+            EXPECT_EQ(data[blob_->offset(output_chan, input_chan, 2, 2)], matches ? -3.0f : 0.0);
           };
     }
   }
@@ -389,7 +389,6 @@ TYPED_TEST(ScharrFillerTest, TestConvolution) {
       layer_param.mutable_convolution_param();
   convolution_param->set_bias_term(false);
   convolution_param->add_kernel_size(3);
-  //convolution_param->set_kernel_size(0,3);
   convolution_param->add_stride(1);
   convolution_param->set_num_output(2);
   convolution_param->mutable_weight_filler()->set_type("scharr");
